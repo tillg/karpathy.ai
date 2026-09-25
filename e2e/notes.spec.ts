@@ -77,7 +77,7 @@ test.describe('file tree and notes', () => {
     await expect(treeItem(page, 'Ideas.md')).toHaveCount(0);
     await expect(page.locator('.note-title')).toHaveCount(0);
     expect(await api.file(vault.id, 'Ideas.md')).toBeNull();
-    expect(await api.changes(vault.id)).toContainEqual({ path: 'Ideas.md', kind: 'deleted' });
+    expect(await api.changes(vault.id)).toContainEqual({ path: 'Ideas.md', kind: 'deleted', version: null });
   });
 
   test('search finds text and opens the hit', async ({ page, vault }) => {

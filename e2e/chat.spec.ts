@@ -82,6 +82,10 @@ test('chat on iPad: send, streaming answer, consulted-file chip; resume on iPhon
 
 test('AI write → changed chip, "Open changed page", changes counter increments', async ({ page }) => {
   test.setTimeout(30 * 60_000); // up to three model turns
+  // The model sometimes writes several extra files, which can cross the commit-reminder threshold
+  // and put the reminder modal over the chat. Not what this test is about: dismiss it.
+  const reminder = page.getByTestId('reminder-dialog');
+  await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());
   await openApp(page, vault.id);
   const badge = page.getByTestId('changes-badge');
   const before = Number(await badge.getAttribute('data-count'));

@@ -25,5 +25,9 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } }, grepInvert: /@ipad|@iphone/ },
     { name: 'ipad', use: { browserName: 'chromium', viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true }, grep: /@ipad/ },
     { name: 'iphone', use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, grep: /@iphone/ },
+    // Safari engine (the MVP targets iPad/iPhone Safari). Same test selection as the Chromium projects.
+    { name: 'webkit-desktop', use: { ...devices['Desktop Safari'], browserName: 'webkit', viewport: { width: 1280, height: 800 } }, grepInvert: /@ipad|@iphone/ },
+    { name: 'webkit-ipad', use: { ...devices['iPad (gen 7)'], browserName: 'webkit', viewport: { width: 820, height: 1180 } }, grep: /@ipad/ },
+    { name: 'webkit-iphone', use: { ...devices['iPhone 13'], browserName: 'webkit' }, grep: /@iphone/ },
   ],
 });

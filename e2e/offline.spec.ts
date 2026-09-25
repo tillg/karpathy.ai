@@ -2,7 +2,8 @@ import { expect, openApp, openNote, test, treeItem } from './helpers';
 
 // Chromium refuses to register the service worker over the dev stack's self-signed certificate
 // unless certificate errors are ignored at launch (ignoreHTTPSErrors doesn't cover SW scripts).
-test.use({ launchOptions: { args: ['--ignore-certificate-errors'] } });
+// WebKit rejects that Chromium-only flag, so pass it only to Chromium.
+test.use({ launchOptions: async ({ browserName }, use) => use(browserName === 'chromium' ? { args: ['--ignore-certificate-errors'] } : {}) });
 
 test.describe('offline mode', () => {
   test('going offline: banner, open note stays readable, editing disabled', async ({ page, context, vault }) => {
@@ -21,7 +22,10 @@ test.describe('offline mode', () => {
   });
 
   // Bug #1 (fixed): the dev stack now serves a service worker.
-  test('offline: a previously opened note renders from the cache (also after a reload)', async ({ page, context, vault }) => {
+  test('offline: a previously opened note renders from the cache (also after a reload)', async ({ page, context, vault, browserName }) => {
+    // Playwright's WebKit offline emulation fails every request, even those the service worker answers
+    // from its cache (verified: SW controls the page and caches.match() hits, yet fetch() → "Load failed").
+    test.skip(browserName === 'webkit', 'context.setOffline() in Playwright WebKit bypasses the service-worker cache fallback');
     await openApp(page, vault.id);
     // Notes are cached as they are fetched through the service worker.
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 20_000 }).toBe(true);

@@ -12,6 +12,9 @@ async function typeAtEnd(page: Page, text: string) {
 
 // Issue #14: unsaved edits survive reload/close/offline.
 test.describe('unsaved drafts survive (#14)', () => {
+  // page.route() doesn't see fetches a service worker makes (WebKit registers the dev SW even over the
+  // self-signed cert; Chromium doesn't), so the aborted PUT would reach the server. Not an SW test.
+  test.use({ serviceWorkers: 'block' });
   test('reload within the autosave window keeps the edit (warns first)', async ({ page, api, vault }) => {
     const dialogs: string[] = [];
     page.on('dialog', (d) => { dialogs.push(d.type()); void d.accept(); });

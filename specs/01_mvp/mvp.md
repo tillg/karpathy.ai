@@ -420,6 +420,17 @@ can't send one. No WebSocket.
     `CLAUDE.md` and `.claude/skills`. Instructions and skills come only from the
     vault's repo.
   - opencode never gets GitHub credentials.
+  - **Vault-borne harness config is never loaded.** opencode reads project config from the
+    session directory upwards: `.opencode/` (plugins, custom tools, agents) and
+    `opencode.json(c)` (MCP servers with a `command`) are code. While a vault contains any of
+    them (vault root up to the clone root), no request for that vault reaches opencode
+    (chat returns 409 `unsafe-config`, no event subscription), and the file API refuses to
+    create them. `OPENCODE_DISABLE_PROJECT_CONFIG` is not an option: it also drops the
+    vault's `AGENTS.md`/`CLAUDE.md`.
+  - Branch names are plain ref names only and every git call passes `--end-of-options`
+    before user-configured values.
+  - Rendered notes: DOMPurify without forms, inputs or inline styles; the prod proxy sends a
+    strict CSP (`script-src 'self'`, `form-action 'none'`, `frame-ancestors 'none'`).
 - **git:** only the backend runs git operations (§2.4).
 - **Secrets/auth:** provider API keys server-side only (opencode service env); see §2.5.
   A single-user bearer token protects all endpoints (the host holds API keys **and** a

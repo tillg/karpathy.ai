@@ -6,7 +6,7 @@ ARG APP_GID=1000
 # Mount points owned by the app user, so fresh named volumes inherit the ownership.
 RUN mkdir -p /vaults /config /app && chown -R ${APP_UID}:${APP_GID} /vaults /config /app
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/backend/package.json apps/backend/
 HEALTHCHECK --interval=10s --timeout=3s --retries=6 CMD wget -qO- http://127.0.0.1:8787/healthz || exit 1

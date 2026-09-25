@@ -44,4 +44,14 @@ describe('collapse', () => {
       { op: 'skip', count: 7 },
     ]);
   });
+
+  it('huge, completely different sides fall back without building the LCS table', () => {
+    const a = Array.from({ length: 3000 }, (_, i) => `a${i}`).join('\n');
+    const b = Array.from({ length: 3000 }, (_, i) => `b${i}`).join('\n');
+    const t0 = Date.now();
+    const d = lineDiff(a, b);
+    expect(Date.now() - t0).toBeLessThan(500);
+    expect(d.filter((l) => l.op === 'theirs')).toHaveLength(3000);
+    expect(d.filter((l) => l.op === 'mine')).toHaveLength(3000);
+  });
 });

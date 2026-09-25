@@ -70,6 +70,8 @@ export type ChangeKind = 'modified' | 'added' | 'deleted' | 'renamed' | 'untrack
 export interface Change {
   path: string;
   kind: ChangeKind;
+  /** Current content version (null = deleted); pass to Discard so it can't hit a newer edit. */
+  version?: string | null;
 }
 
 export interface Diff {

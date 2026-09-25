@@ -233,6 +233,21 @@ describe('chat API against a real opencode container', () => {
     await t2.vaults.close();
   });
 
+  it('harness config pulled in right before a turn stops the turn before it reaches opencode (#27 bypass)', async () => {
+    const t = await setup();
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    const release = await t.vaults.lock(t.id).acquireExclusive();
+    await t.api.post(`/vaults/${t.id}/chats/${chatId}/prompt`, { text: 'hello' });
+    const got: { type: string; message?: string }[] = [];
+    t.chat.stream(t.id, chatId, (e) => got.push(e as { type: string; message?: string }), () => undefined);
+    await t.remote.obsidianPush({ 'opencode.json': JSON.stringify({ mcp: {} }) });
+    release();
+    await waitIdle(t.chat, t.id, chatId);
+    expect(await userAgents(t.raw, t.dir, chatId)).toEqual([]);
+    expect(got.some((e) => e.type === 'error' && /opencode project config/.test(e.message ?? ''))).toBe(true);
+    expect(t.vaults.lock(t.id).isFree).toBe(true);
+  });
+
   it('opens the event subscription when a vault is added (onReady hook)', async () => {
     const t = await setup();
     const opened: string[] = [];

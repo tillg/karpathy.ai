@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { Api, REMOTES } from './helpers';
+import { Api, BASE_URL, REMOTES } from './helpers';
 
 export default async function globalSetup() {
   // Tags this run's vaults so teardown never removes another concurrent run's vaults.
@@ -7,6 +7,6 @@ export default async function globalSetup() {
   mkdirSync(REMOTES, { recursive: true });
   const api = await Api.create();
   const res = await api.ctx.get('/api/health');
-  if (!res.ok()) throw new Error(`dev stack not reachable (https://localhost:8443/api/health → ${res.status()}); run deploy/dev.sh up`);
+  if (!res.ok()) throw new Error(`dev stack not reachable (${BASE_URL}/api/health → ${res.status()}); run deploy/dev.sh up`);
   await api.ctx.dispose();
 }

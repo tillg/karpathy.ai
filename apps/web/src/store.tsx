@@ -125,8 +125,20 @@ function useAppState() {
   activeRef.current = activeId;
   /** Set below (forgetVault); the vault list effect needs it before the note state exists. */
   const vaultGone = useRef<(id: string) => void>(() => {});
+  /**
+   * Lists the server actually returned. Only such a list may declare a vault gone: the `[]` of a
+   * failed fetch must not wipe its drafts. Keyed by the array itself, so overlapping fetches can't mix up.
+   */
+  const serverLists = useRef(new WeakSet<Vault[]>());
   const reloadVaults = useCallback(async () => {
-    try { setVaults(await api.vaults()); } catch (e) { toast(errorText(e)); setVaults((v) => v ?? []); }
+    try {
+      const list = await api.vaults();
+      serverLists.current.add(list);
+      setVaults(list);
+    } catch (e) {
+      toast(errorText(e));
+      setVaults((v) => v ?? []);
+    }
   }, [toast]);
   useEffect(() => {
     void reloadVaults();
@@ -140,7 +152,7 @@ function useAppState() {
   const active = vaults?.find((v) => v.id === activeId) ?? null;
   // Fall back to the first vault when the stored one is gone (removed here or on another device).
   useEffect(() => {
-    if (!vaults || active) return;
+    if (!vaults || active || !serverLists.current.has(vaults)) return;
     if (activeId && !vaults.some((v) => v.id === activeId)) vaultGone.current(activeId);
     if (vaults.length) setActiveIdState(vaults[0]!.id);
   }, [vaults, active, activeId]);
@@ -540,7 +552,7 @@ function useAppState() {
     }
     // Unsaved changes are kept; the stale-save flow handles them on the next save.
     if (n.draft === n.saved && !inflight.current) {
-      void load(n.path).then((ok) => ok && toast('Updated by AI or another device'));
+      void load(n.path).then((r) => r === 'ok' && toast('Updated by AI or another device'));
     }
   }, [refreshFiles, load, toast, setStatusFor]);
   useVaultEvents(usable ? activeId : null, online, onEvent);

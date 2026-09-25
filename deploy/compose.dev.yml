@@ -38,11 +38,13 @@ services:
 
   ollama:
     image: ollama/ollama
+    restart: unless-stopped
     volumes: [ollama:/root/.ollama]
     networks: [internal]
 
   web:
     build: { context: .., dockerfile: deploy/web/Dockerfile.dev }
+    restart: unless-stopped
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       API_URL: http://backend:8787

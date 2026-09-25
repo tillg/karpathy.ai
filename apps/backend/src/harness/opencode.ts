@@ -14,7 +14,7 @@ export interface PromptInput {
 /** Everything the backend needs from the agent harness. `dir` = vault root as the harness sees it. */
 export interface Harness {
   health(): Promise<boolean>;
-  listSessions(dir: string): Promise<ChatSummary[]>;
+  listSessions(dir: string): Promise<Omit<ChatSummary, 'turn'>[]>;
   createSession(dir: string, title?: string): Promise<string>;
   sessionExists(dir: string, id: string): Promise<boolean>;
   messages(dir: string, id: string): Promise<ChatMessage[]>;
@@ -56,11 +56,11 @@ export class OpencodeHarness implements Harness {
     return Boolean((r.data as { healthy?: boolean } | undefined)?.healthy);
   }
 
-  async listSessions(dir: string): Promise<ChatSummary[]> {
+  async listSessions(dir: string): Promise<Omit<ChatSummary, 'turn'>[]> {
     const list = unwrap(await this.c.session.list({ directory: dir, roots: true, limit: 200 }), 'session.list');
     return list
       .filter((s) => !s.parentID && s.directory === dir)
-      .map((s) => ({ id: s.id, title: s.title, updatedAt: s.time.updated, turn: 'idle' as const }));
+      .map((s) => ({ id: s.id, title: s.title, updatedAt: s.time.updated }));
   }
 
   async createSession(dir: string, title?: string) {

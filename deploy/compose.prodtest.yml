@@ -1,0 +1,51 @@
+# Local smoke test of the PROD images (proxy with the built PWA, backend prod target, opencode),
+# side by side with the dev stack. Test-only; never use for a real deployment.
+#
+#   mkdir -p tmp/prodtest/secrets && openssl rand -hex 24 > tmp/prodtest/secrets/bearer_token
+#   touch tmp/prodtest/secrets/{github_token,dns_api_token}
+#   docker compose -p karpathy-ai-prodtest -f deploy/compose.yml -f deploy/compose.prodtest.yml up -d --build
+#   E2E_BASE_URL=https://localhost:9443 E2E_TOKEN_FILE=tmp/prodtest/secrets/bearer_token npx playwright test
+#   docker compose -p karpathy-ai-prodtest -f deploy/compose.yml -f deploy/compose.prodtest.yml down -v
+#
+# Differences from prod: https://localhost:9443 with Caddy's internal CA (TLS_MODE=internal selects
+# the tls-internal snippet in the prod Caddyfile instead of DNS-01), local bare repos from
+# tmp/dev/remotes instead of GitHub, throwaway secrets, and the dev stack's Ollama as the model
+# (reached through a socat bridge, so nothing of this project joins the dev network under a
+# service name the dev stack uses). Requires the dev stack (project karpathy-ai) to be running
+# for chat; everything else works without it.
+services:
+  proxy:
+    ports: !override ["9443:443"]
+    environment:
+      DOMAIN: localhost
+      TLS_MODE: internal
+
+  backend:
+    environment:
+      GIT_REMOTE_BASE: file:///remotes/
+      DEFAULT_MODEL: ollama/qwen2.5:3b
+    volumes:
+      - ../tmp/dev/remotes:/remotes
+
+  opencode:
+    environment:
+      OPENCODE_MODEL: ollama/qwen2.5:3b
+      OPENCODE_CONFIG: /etc/opencode-dev/ollama.json
+    volumes:
+      - ./opencode/dev-ollama.json:/etc/opencode-dev/ollama.json:ro
+
+  # Forwards ollama:11434 (on this project's internal network) to the dev stack's Ollama.
+  ollama-bridge:
+    image: alpine/socat
+    command: ["TCP-LISTEN:11434,fork,reuseaddr", "TCP:karpathy-ai-ollama-1:11434"]
+    networks:
+      internal: { aliases: [ollama] }
+      dev-internal: {}
+
+networks:
+  dev-internal: { external: true, name: karpathy-ai_internal }
+
+secrets:
+  bearer_token: { file: ../tmp/prodtest/secrets/bearer_token }
+  github_token: { file: ../tmp/prodtest/secrets/github_token }
+  dns_api_token: { file: ../tmp/prodtest/secrets/dns_api_token }

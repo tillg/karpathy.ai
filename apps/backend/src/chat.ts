@@ -59,21 +59,12 @@ export class ChatService {
 
   /** Opens one event subscription per ready vault; adopts turns still running in opencode. */
   async init(): Promise<void> {
-    for (const vault of this.vaults.list()) {
-      if (vault.state !== 'ready' && vault.state !== 'conflict') continue;
-      const c = await this.attach(vault.id, true).catch(() => null);
-      // Prompts queued before a restart run now (#37).
-      const saved = this.store.get().queued[vault.id] ?? [];
-      if (c && saved.length) {
-        c.queue.push(...saved.filter((t) => !c.queue.some((q) => q.chatId === t.chatId)));
-        void this.kick(vault.id);
-      }
-    }
+    for (const vault of this.vaults.list()) if (vault.state === 'ready' || vault.state === 'conflict') await this.watch(vault.id);
   }
 
-  private saveQueue(vaultId: string) {
+  private saveQueue(vaultId: string): Promise<void> {
     const q = this.v.get(vaultId)?.queue ?? [];
-    void this.store
+    return this.store
       .update((c) => {
         if (q.length) c.queued[vaultId] = q.map(({ chatId, text }) => ({ chatId, text }));
         else delete c.queued[vaultId];
@@ -84,7 +75,9 @@ export class ChatService {
   /** Deletes every chat of a vault (it is being removed, #34). */
   async deleteAllChats(vaultId: string) {
     const dir = this.dir(vaultId);
-    for (const s of await this.harness.listSessions(dir).catch(() => [])) await this.harness.deleteSession(dir, s.id).catch(() => undefined);
+    // A vault carrying harness config never reached opencode, so it has no chats to delete.
+    if (!this.vaults.harnessConfigIn(vaultId))
+      for (const s of await this.harness.listSessions(dir).catch(() => [])) await this.harness.deleteSession(dir, s.id).catch(() => undefined);
     this.vaultRemoved(vaultId);
     await this.store.update((c) => { delete c.queued[vaultId]; });
   }
@@ -126,7 +119,8 @@ export class ChatService {
       busy = await this.busyWithRetry(dir, guard ? 15 : 0);
     } catch (e) {
       release?.();
-      this.vaultRemoved(vaultId);
+      // Another request may already use this entry (queued or running turn): keep it then.
+      if (!c.running && c.queue.length === 0) this.vaultRemoved(vaultId);
       throw e;
     }
     if (busy.length > 0) {
@@ -134,13 +128,20 @@ export class ChatService {
       c.adopted = { ids: new Set(busy), release };
       this.startPoll(vaultId);
     } else release?.();
+    if (guard) {
+      // Prompts queued before a restart run now (#37).
+      const saved = this.store.get().queued[vaultId] ?? [];
+      if (saved.length) {
+        c.queue.push(...saved.filter((t) => !c.queue.some((q) => q.chatId === t.chatId)));
+        void this.kick(vaultId);
+      }
+    }
     return c;
   }
 
   private refuseUnsafe(vaultId: string) {
     const found = this.vaults.harnessConfigIn(vaultId);
-    if (found)
-      throw new HttpError(409, `Chat is disabled for this vault: it contains "${found}", opencode project config that would run code on the server. Remove it from the repo to use chat.`, 'unsafe-config');
+    if (found) throw new HttpError(409, unsafeMessage(found), 'unsafe-config');
   }
 
   /** Opens the vault's event subscription (startup, vault added or re-cloned). */
@@ -154,7 +155,7 @@ export class ChatService {
       try {
         return await this.harness.busySessions(dir);
       } catch (e) {
-        if (retries === 0) throw new HttpError(503, 'The AI service is not reachable right now. Try again in a moment.', 'ai-unavailable');
+        if (retries === 0) throw aiUnavailable();
         // compose starts us after opencode is healthy; give a restarting opencode 30 s.
         if (i >= retries) {
           console.warn(`opencode unreachable, assuming no running turn in ${dir}:`, (e as Error).message);
@@ -176,7 +177,7 @@ export class ChatService {
     await this.chats(vaultId);
     if (await this.harness.sessionExists(this.dir(vaultId), chatId)) return;
     if (!(await this.harness.health().catch(() => false)))
-      throw new HttpError(503, 'The AI service is not reachable right now. Try again in a moment.', 'ai-unavailable');
+      throw aiUnavailable();
     throw new HttpError(404, `no such chat: ${chatId}`);
   }
 
@@ -224,9 +225,10 @@ export class ChatService {
     const c = this.v.get(vaultId)!;
     if (this.turnState(vaultId, chatId) !== 'idle') throw new HttpError(409, 'this chat already has a turn running or queued', 'busy');
     c.queue.push({ chatId, text });
-    this.saveQueue(vaultId);
+    // 202 means the prompt survives a backend restart (#37).
+    await this.saveQueue(vaultId);
     this.emit(vaultId, chatId, this.queuedEvent(vaultId));
-    await this.titleFromFirstPrompt(vaultId, chatId, text);
+    void this.titleFromFirstPrompt(vaultId, chatId, text);
     void this.kick(vaultId);
   }
 
@@ -252,7 +254,7 @@ export class ChatService {
     const i = c.queue.findIndex((t) => t.chatId === chatId);
     if (i >= 0) {
       c.queue.splice(i, 1);
-      this.saveQueue(vaultId);
+      void this.saveQueue(vaultId);
       this.emit(vaultId, chatId, { type: 'turn', state: 'idle' });
       this.endStreams(vaultId, chatId);
       return;
@@ -303,7 +305,7 @@ export class ChatService {
       });
     } catch (e) {
       c.queue.shift();
-      this.saveQueue(vaultId);
+      void this.saveQueue(vaultId);
       c.running = null;
       this.emit(vaultId, turn.chatId, { type: 'error', message: `pull before the turn failed: ${(e as Error).message}` });
       this.finish(vaultId, turn.chatId);
@@ -316,8 +318,14 @@ export class ChatService {
       return void this.kick(vaultId);
     }
     c.queue.shift();
-    this.saveQueue(vaultId);
+    void this.saveQueue(vaultId);
     running.holding = true;
+    // The pull may just have brought in opencode project config (#27): never send it the dir.
+    const unsafe = this.vaults.harnessConfigIn(vaultId);
+    if (unsafe) {
+      this.emit(vaultId, turn.chatId, { type: 'error', message: unsafeMessage(unsafe) });
+      return this.endTurn(vaultId);
+    }
     running.readonly = this.vaults.isConflict(vaultId);
     running.startedAt = Date.now();
     this.emit(vaultId, turn.chatId, { type: 'turn', state: 'running', ...(running.readonly ? { readonly: true } : {}) });
@@ -438,3 +446,8 @@ export class ChatService {
     this.v.delete(vaultId);
   }
 }
+
+export const aiUnavailable = () => new HttpError(503, 'The AI service is not reachable right now. Try again in a moment.', 'ai-unavailable');
+
+const unsafeMessage = (found: string) =>
+  `Chat is disabled for this vault: it contains "${found}", opencode project config that would run code on the server. Remove it from the repo to use chat.`;

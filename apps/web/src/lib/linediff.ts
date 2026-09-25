@@ -16,6 +16,11 @@ export function lineDiff(theirs: string, mine: string): DiffLine[] {
   while (suf < a.length - pre && suf < b.length - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
   const x = a.slice(pre, a.length - suf);
   const y = b.slice(pre, b.length - suf);
+  const eq = (t: string): DiffLine => ({ op: 'eq', text: t });
+  // The LCS table is |x|·|y| cells: past ~4M (e.g. two 2000-line sides that differ throughout)
+  // show the middle as removed-then-added instead of freezing a phone.
+  if (x.length * y.length > 4_000_000)
+    return [...a.slice(0, pre).map(eq), ...x.map((t): DiffLine => ({ op: 'theirs', text: t })), ...y.map((t): DiffLine => ({ op: 'mine', text: t })), ...b.slice(b.length - suf).map(eq)];
   // lcs[i][j] = LCS length of x[i..] and y[j..]
   const lcs = Array.from({ length: x.length + 1 }, () => new Uint32Array(y.length + 1));
   for (let i = x.length - 1; i >= 0; i--)
@@ -31,7 +36,6 @@ export function lineDiff(theirs: string, mine: string): DiffLine[] {
   }
   while (i < x.length) mid.push({ op: 'theirs', text: x[i++]! });
   while (j < y.length) mid.push({ op: 'mine', text: y[j++]! });
-  const eq = (t: string): DiffLine => ({ op: 'eq', text: t });
   return [...a.slice(0, pre).map(eq), ...mid, ...b.slice(b.length - suf).map(eq)];
 }
 

@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { z } from 'zod';
 import type { Settings, VaultEvent } from '@karpathy/shared';
 import { bearerAuth } from './auth.js';
-import type { ChatService } from './chat.js';
+import { aiUnavailable, type ChatService } from './chat.js';
 import { fallbackMessage, type CommitMessages } from './commit-message.js';
 import type { ConfigStore } from './config-store.js';
 import { PathError } from './paths.js';
@@ -25,7 +25,7 @@ const branchName = z
   .string()
   .trim()
   .max(200)
-  .refine((b) => /^[A-Za-z0-9._/-]+$/.test(b) && !/^[-/.]|\/$|\.\.|\/\.|\.lock$|\/\/|@\{/.test(b), {
+  .refine((b) => /^[A-Za-z0-9._/-]+$/.test(b) && !/^[-/.]|\/$|\.\.|\/\.|\.lock$|\/\//.test(b), {
     error: 'Branch: use a plain branch name (letters, digits, . _ - /), e.g. main or feature/x',
   });
 
@@ -244,7 +244,7 @@ export function createApp(d: AppDeps) {
     // opencode unreachable (connection refused, reset, DNS): the AI is down, not the app.
     const cause = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code;
     if ((err as Error).message === 'fetch failed' || ['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(cause ?? ''))
-      return void res.status(503).json({ error: 'The AI service is not reachable right now. Try again in a moment.', code: 'ai-unavailable' });
+      return void res.status(503).json({ error: aiUnavailable().message, code: 'ai-unavailable' });
     console.error(err);
     res.status(500).json({ error: (err as Error).message ?? 'internal error' });
   });

@@ -24,7 +24,7 @@ export async function request(method: string, path: string, body?: unknown, sign
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const data = body === undefined ? undefined : JSON.stringify(body);
   // keepalive lets a save outlive the page (pagehide), but browsers cap such bodies at 64 KiB.
-  const res = await fetch(`/api${path}`, { method, headers, body: data, signal, keepalive: keepalive && (data?.length ?? 0) < 60_000 });
+  const res = await fetch(`/api${path}`, { method, headers, body: data, signal, keepalive: keepalive && new Blob([data ?? '']).size < 60_000 });
   if (res.ok) return res;
   const err = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 401) {

@@ -1,5 +1,5 @@
 import type { Browser, Page } from '@playwright/test';
-import { Api, expect, openApp, test, type TestVault } from './helpers';
+import { Api, BASE_URL, expect, openApp, test, type TestVault } from './helpers';
 
 // Real model turns (dev: local Ollama qwen2.5:3b on CPU) — slow. Few tests, long timeouts, and
 // assertions on tool chips and the file system rather than on the answer text.
@@ -20,7 +20,7 @@ test.afterAll(async () => {
 });
 
 async function newContextPage(browser: Browser, viewport: { width: number; height: number }) {
-  const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, ignoreHTTPSErrors: true, baseURL: 'https://localhost:8443' });
+  const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, ignoreHTTPSErrors: true, baseURL: BASE_URL });
   const page = await ctx.newPage();
   const reminder = page.getByTestId('reminder-dialog');
   await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());

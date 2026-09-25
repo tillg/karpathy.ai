@@ -41,6 +41,8 @@ services:
   opencode:
     build: { context: .., dockerfile: deploy/opencode/Dockerfile }
     restart: unless-stopped
+    # opencode as PID 1 ignores SIGTERM (every stop was a SIGKILL after 10 s, #38).
+    init: true
     user: *app-user
     env_file: [{ path: ./opencode.env, required: false }]
     environment:

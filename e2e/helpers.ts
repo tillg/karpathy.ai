@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { test as base, expect, request, type APIRequestContext, type Page } from '@playwright/test';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const BASE_URL = 'https://localhost:8443';
-export const TOKEN = readFileSync(join(ROOT, 'deploy/secrets/bearer_token'), 'utf8').trim();
+/** Defaults target the dev stack; override to run against another stack (e.g. deploy/compose.prodtest.yml). */
+export const BASE_URL = process.env.E2E_BASE_URL ?? 'https://localhost:8443';
+export const TOKEN = readFileSync(resolve(ROOT, process.env.E2E_TOKEN_FILE ?? 'deploy/secrets/bearer_token'), 'utf8').trim();
 /** Host dir mounted as /remotes in the backend (GIT_REMOTE_BASE=file:///remotes/). */
 export const REMOTES = join(ROOT, 'tmp/dev/remotes/e2e');
 
@@ -166,7 +167,14 @@ export async function waitSaved(page: Page) {
   await expect(page.getByTestId('save-state')).toHaveText(/^Saved/, { timeout: 15_000 });
 }
 
-export const test = base.extend<{ api: Api; vault: TestVault }>({
+export const test = base.extend<{ api: Api; vault: TestVault; cspGuard: void }>({
+  // Fails a test whose page logged a Content-Security-Policy violation (prod proxy sends a CSP).
+  cspGuard: [async ({ page }, use) => {
+    const violations: string[] = [];
+    page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Content-Security-Policy/i.test(m.text())) violations.push(m.text()); });
+    await use();
+    expect(violations, 'CSP violations in the browser console').toEqual([]);
+  }, { auto: true }],
   api: async ({}, use) => {
     const api = await Api.create();
     await use(api);

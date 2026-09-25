@@ -72,12 +72,16 @@ export async function startOpencode(vaultsDir: string) {
   const deadline = Date.now() + 60_000;
   for (;;) {
     try {
-      const r = await fetch(`${url}/global/health`);
+      const r = await fetch(`${url}/global/health`, { signal: AbortSignal.timeout(2000) });
       if (r.ok) break;
     } catch {
       // starting
     }
-    if (Date.now() > deadline) throw new Error(`opencode did not start: ${docker('logs', name)}`);
+    if (Date.now() > deadline) {
+      const logs = docker('logs', name);
+      docker('rm', '-f', name); // don't leak it
+      throw new Error(`opencode did not start: ${logs}`);
+    }
     await new Promise((r) => setTimeout(r, 300));
   }
   return {

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // E2E against the running dev stack (`deploy/dev.sh up`, https://localhost:8443, self-signed).
+// E2E_BASE_URL / E2E_TOKEN_FILE point it at another stack (deploy/compose.prodtest.yml).
 // Every test creates its own throwaway vault from a local bare repo under tmp/dev/remotes/e2e/.
 export default defineConfig({
   testDir: 'e2e',
@@ -14,7 +15,7 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
   use: {
-    baseURL: 'https://localhost:8443',
+    baseURL: process.env.E2E_BASE_URL ?? 'https://localhost:8443',
     ignoreHTTPSErrors: true,
     actionTimeout: 15_000,
     screenshot: 'only-on-failure',

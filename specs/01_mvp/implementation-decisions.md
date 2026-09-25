@@ -3,6 +3,37 @@
 Log of decisions and assumptions made while implementing the MVP unattended
 (started 2026-09-25 16:43 Europe/Berlin). Review these with the user.
 
+## Summary (for review)
+
+**Status:** MVP (spec M4, plan Phases 0–5) implemented on `main` and pushed. What's in:
+vaults from GitHub (admin area), file tree, CodeMirror 6 editor with live preview +
+`[[wikilinks]]`, Read mode, search, uncommitted changes / diff / discard, Commit & Push with
+AI-proposed message + agent trailer, commit reminder, unpushed/retry, conflict resolution
+(mine/theirs/both), live event stream, offline read-only cache (PWA), streaming AI chat via
+opencode (reads + writes the vault, one turn per vault, queue, stop, re-attach, adopt after
+restart), docker compose dev + prod, CI.
+
+**Not done (needs you):** real-device run on iPhone/iPad via VPN, deploy to the home server
+(DNS-01 cert with your DNS provider — Cloudflare assumed, #16), trying a Claude model (no
+Anthropic key here; everything ran on local Ollama `qwen2.5:3b`), and the offline cache on
+real Safari (#43).
+
+**Testing:** backend 119 tests (real git with local bare remotes + a real opencode container),
+`@github` tier 3 tests (throwaway repo `tillg/karpathy-ai-test-vault`), `@llm` tier 7 tests
+(real model turns), web 48 unit tests, Playwright e2e 33 spec files / ~135 tests in Chromium
+(desktop, iPad, iPhone) and WebKit, plus a prod-image smoke run. Five rounds of exploratory,
+resilience, security, accessibility and performance testing filed 49 GitHub issues
+(`e2e-found` label); all fixed with a regression test and closed except those still in progress
+at the time of writing (see `gh issue list -R tillg/karpathy.ai`).
+
+**Worth a look first:** #3 (OpenAI key unusable → Ollama), #6 (a GitHub repo was created),
+#16 (Cloudflare DNS assumed), #27 (MVP chat runs fine with a weak local model, but Claude
+tool-calling is untested), #44 (vaults carrying `.opencode/`/`opencode.json` are
+chat-disabled — security), #32 (unsaved drafts live in `localStorage`), #45/#47 (commit/discard/
+queue semantics beyond the spec).
+
+## Decisions
+
 | # | Decision / assumption | Why | Reversible? |
 |---|---|---|---|
 | 1 | Committed + pushed the pending spec/skill changes as one commit on `main` (`7a8ce18`). | User asked "commit and push our repo" first. | yes |

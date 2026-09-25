@@ -1,6 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { Settings } from '@karpathy/shared';
+import type { Settings, VaultEvent } from '@karpathy/shared';
 import { bearerAuth } from './auth.js';
 import type { ChatService } from './chat.js';
 import { fallbackMessage, type CommitMessages } from './commit-message.js';
@@ -115,11 +115,16 @@ export function createApp(d: AppDeps) {
   });
   api.get('/vaults/:id/events', async (req, res) => {
     const id = req.params.id!;
+    // Subscribe before taking the snapshot, so nothing that happens in between is lost.
+    const early: VaultEvent[] = [];
+    let live: ((e: VaultEvent) => void) | null = null;
+    const unsub = d.vaults.subscribe(id, (e) => (live ? live(e) : early.push(e)));
+    res.on('close', unsub);
     const status = await d.vaults.status(id);
     const out = ndjson(res);
     out.send({ type: 'status', status });
-    const unsub = d.vaults.subscribe(id, (e) => out.send(e));
-    res.on('close', unsub);
+    for (const e of early) out.send(e);
+    live = (e) => out.send(e);
   });
 
   // ---- files ----

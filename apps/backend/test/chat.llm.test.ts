@@ -61,7 +61,7 @@ async function withRetry<R>(fn: () => Promise<R>): Promise<R> {
     try {
       return await fn();
     } catch (e2) {
-      if (e2 instanceof Inconclusive) throw new Error(`INCONCLUSIVE: ${e2.message}`);
+      if (e2 instanceof Inconclusive) throw new Error(`INCONCLUSIVE: ${e2.message}`, { cause: e2 });
       throw e2;
     }
   }
@@ -138,6 +138,34 @@ describe('@llm AI reads and writes', () => {
       if (Date.now() > end3) throw new Error('queued prompt did not start');
       await new Promise((r) => setTimeout(r, 100));
     }
+  });
+
+  it('a turn still running after a backend restart is adopted: running, lock held, abort ends it', async () => {
+    const t = await setup();
+    const { chatId } = await t.chat.create(t.id);
+    await t.chat.prompt(t.id, chatId, 'Write a very long essay (at least 3000 words) about gardening.');
+    const end = Date.now() + 120_000;
+    while (!(await t.harness.busySessions(t.chat.dir(t.id))).includes(chatId)) {
+      if (Date.now() > end) throw new Error('turn never became busy');
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    // "Restart": a fresh ChatService + lock state, same opencode.
+    const t2 = await makeApp(t.remote.remoteBase, {}, t.dirs);
+    const chat2 = new ChatService(t2.vaults, t2.store, t.harness, '/vaults');
+    await chat2.init();
+    expect(chat2.turnState(t.id, chatId)).toBe('running');
+    expect(t2.vaults.lock(t.id).busy).toBe('turn');
+    let ended = false;
+    chat2.stream(t.id, chatId, () => undefined, () => { ended = true; });
+    await chat2.abort(t.id, chatId);
+    const end2 = Date.now() + 60_000;
+    while (!ended) {
+      if (Date.now() > end2) throw new Error('adopted turn never ended');
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    expect(t2.vaults.lock(t.id).isFree).toBe(true);
+    chat2.close();
+    await t2.vaults.close();
   });
 
   it('commit message proposal comes back for a real diff; chat list unchanged', async () => {

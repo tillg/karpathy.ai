@@ -10,8 +10,9 @@ export function GitPill({ small }: { small?: boolean }) {
   const text = status.state === 'conflict' ? 'Conflict' : busy ?? (n ? `${n} uncommitted` : 'All committed');
   return (
     <button className={`gitpill ${cls}${small ? ' small' : ''}`} data-testid="changes-badge" data-count={n}
+      title={status.pullError ? `Last pull from GitHub failed: ${status.pullError}` : undefined}
       onClick={() => { setSection('changes'); setSidebarOpen(true); if (phone) { setPhoneTab('changes'); setPhoneNote(false); } }}>
-      <span className="dot" />{text}{status.unpushedCount ? ` · ${status.unpushedCount} unpushed` : ''}
+      <span className="dot" />{text}{status.unpushedCount ? ` · ${status.unpushedCount} unpushed` : ''}{status.pullError ? ' · offline' : ''}
     </button>
   );
 }

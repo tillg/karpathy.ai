@@ -27,8 +27,8 @@ interface Running {
 interface VaultChats {
   queue: Turn[];
   running: Running | null;
-  /** Busy sessions found at startup that we didn't start; the lock is held until they're idle. */
-  adopted: Release | null;
+  /** Sessions found busy at startup that we didn't start; the lock is held until they're idle. */
+  adopted: { ids: Set<string>; release: Release } | null;
   unsubscribe: () => void;
   /** Directory the subscription is for; a vault-root change needs a new one. */
   dir: string;
@@ -57,7 +57,7 @@ export class ChatService {
 
   /** Opens one event subscription per ready vault; adopts turns still running in opencode. */
   async init(): Promise<void> {
-    for (const vault of this.vaults.list()) if (vault.state === 'ready' || vault.state === 'conflict') await this.attach(vault.id);
+    for (const vault of this.vaults.list()) if (vault.state === 'ready' || vault.state === 'conflict') await this.attach(vault.id, true);
   }
 
   close() {
@@ -72,7 +72,11 @@ export class ChatService {
     return posix.join(this.harnessVaultsDir, vaultId, vault.root);
   }
 
-  private async attach(vaultId: string): Promise<VaultChats> {
+  /**
+   * `guard`: hold the lock while asking opencode for busy sessions (startup / vault ready),
+   * so no exclusive op runs next to a turn left over from before a restart (mvp §2.4).
+   */
+  private async attach(vaultId: string, guard = false): Promise<VaultChats> {
     const dir = this.dir(vaultId);
     let c = this.v.get(vaultId);
     if (c && (c.dir === dir || c.running || c.queue.length)) return c;
@@ -80,12 +84,35 @@ export class ChatService {
     c = { queue: [], running: null, adopted: null, listeners: new Map(), unsubscribe: () => undefined, dir };
     this.v.set(vaultId, c);
     c.unsubscribe = this.harness.subscribe(dir, (e) => this.onEvent(vaultId, e));
-    const busy = await this.harness.busySessions(dir).catch(() => []);
+    const lock = this.vaults.lock(vaultId);
+    let release = guard ? await lock.acquireShared('turn') : null;
+    const busy = await this.busyWithRetry(dir);
     if (busy.length > 0) {
-      c.adopted = await this.vaults.lock(vaultId).acquireShared('turn');
+      release ??= await lock.acquireShared('turn');
+      c.adopted = { ids: new Set(busy), release };
       this.startPoll(vaultId);
-    }
+    } else release?.();
     return c;
+  }
+
+  /** Opens the vault's event subscription (startup, vault added or re-cloned). */
+  async watch(vaultId: string): Promise<void> {
+    await this.attach(vaultId, true).catch((e) => console.warn(`chat watch ${vaultId}:`, (e as Error).message));
+  }
+
+  private async busyWithRetry(dir: string): Promise<string[]> {
+    for (let i = 0; ; i++) {
+      try {
+        return await this.harness.busySessions(dir);
+      } catch (e) {
+        // compose starts us after opencode is healthy; give a restarting opencode 30 s.
+        if (i >= 15) {
+          console.warn(`opencode unreachable, assuming no running turn in ${dir}:`, (e as Error).message);
+          return [];
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
   }
 
   private async chats(vaultId: string): Promise<VaultChats> {
@@ -104,6 +131,7 @@ export class ChatService {
     // A turn stays in the queue until it holds the lock (the pull may still be running).
     if (c?.queue.some((t) => t.chatId === chatId)) return 'queued';
     if (c?.running?.holding && c.running.chatId === chatId) return 'running';
+    if (c?.adopted?.ids.has(chatId)) return 'running';
     return 'idle';
   }
 
@@ -135,8 +163,15 @@ export class ChatService {
     const c = this.v.get(vaultId)!;
     if (this.turnState(vaultId, chatId) !== 'idle') throw new HttpError(409, 'this chat already has a turn running or queued', 'busy');
     c.queue.push({ chatId, text });
-    this.emit(vaultId, chatId, { type: 'turn', state: 'queued' });
+    this.emit(vaultId, chatId, this.queuedEvent(vaultId));
     void this.kick(vaultId);
+  }
+
+  /** What a queued turn waits for: another chat's turn, or a sync (pull/commit/…). */
+  private queuedEvent(vaultId: string): ChatEvent {
+    const c = this.v.get(vaultId);
+    const turnAhead = Boolean(c?.running?.holding || c?.adopted || this.vaults.lock(vaultId).busy === 'turn');
+    return { type: 'turn', state: 'queued', waiting: turnAhead ? 'turn' : 'sync' };
   }
 
   async abort(vaultId: string, chatId: string): Promise<void> {
@@ -150,7 +185,7 @@ export class ChatService {
       return;
     }
     // The lock is released once opencode reports the session idle.
-    if (c.running?.chatId === chatId) await this.harness.abort(this.dir(vaultId), chatId);
+    if (c.running?.chatId === chatId || c.adopted?.ids.has(chatId)) await this.harness.abort(this.dir(vaultId), chatId);
   }
 
   /**
@@ -160,7 +195,8 @@ export class ChatService {
   stream(vaultId: string, chatId: string, send: Listener, end: () => void): () => void {
     const state = this.v.has(vaultId) ? this.turnState(vaultId, chatId) : 'idle';
     const running = this.v.get(vaultId)?.running;
-    send({ type: 'turn', state, ...(state === 'running' && running?.readonly ? { readonly: true } : {}) });
+    if (state === 'queued') send(this.queuedEvent(vaultId));
+    else send({ type: 'turn', state, ...(state === 'running' && running?.chatId === chatId && running.readonly ? { readonly: true } : {}) });
     if (state === 'idle') {
       end();
       return () => undefined;
@@ -268,12 +304,19 @@ export class ChatService {
     } catch {
       return;
     }
-    if (c.adopted && busy.every((id) => id === c.running?.chatId)) {
-      c.adopted();
-      c.adopted = null;
-    }
+    if (c.adopted) for (const id of [...c.adopted.ids]) if (!busy.includes(id)) this.endAdopted(vaultId, id);
     if (c.running?.started && !busy.includes(c.running.chatId) && Date.now() - c.running.startedAt > POLL_MS) this.endTurn(vaultId);
     this.stopPollIfIdle(vaultId);
+  }
+
+  private endAdopted(vaultId: string, chatId: string) {
+    const c = this.v.get(vaultId);
+    if (!c?.adopted?.ids.delete(chatId)) return;
+    if (c.adopted.ids.size === 0) {
+      c.adopted.release();
+      c.adopted = null;
+    }
+    this.finish(vaultId, chatId);
   }
 
   private onEvent(vaultId: string, e: HarnessEvent) {
@@ -285,6 +328,7 @@ export class ChatService {
         return;
       case 'status':
         if (!e.sessionId) return void this.resync(vaultId); // stream reconnected
+        if (e.state === 'idle' && c.adopted?.ids.has(e.sessionId)) return this.endAdopted(vaultId, e.sessionId);
         if (c.running?.chatId !== e.sessionId) return;
         if (e.state === 'busy') c.running.started = true;
         else if (e.state === 'idle' && c.running.started) this.endTurn(vaultId);

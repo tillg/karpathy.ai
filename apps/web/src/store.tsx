@@ -146,11 +146,13 @@ function useAppState() {
   const inflight = useRef<Promise<void> | null>(null);
   const [stale, setStale] = useState<{ path: string } | null>(null);
 
-  const save = useCallback(async (force = false): Promise<void> => {
+  /** Resolves true when the open note's text is on the server (nothing to save counts). */
+  const save = useCallback(async (force = false): Promise<boolean> => {
     clearTimeout(timer.current);
     while (inflight.current) await inflight.current;
     const n = noteRef.current;
-    if (!n || !activeId || (!force && n.draft === n.saved)) return;
+    if (!n || !activeId || (!force && n.draft === n.saved)) return true;
+    let ok = false;
     const text = n.draft;
     setNote((v) => v && { ...v, saving: true });
     inflight.current = api.putFile(activeId, n.path, text, n.version, force)
@@ -158,6 +160,7 @@ function useAppState() {
         if (noteRef.current !== n) return;
         n.version = r.version;
         n.saved = text;
+        ok = true;
         setStale(null);
         setNote((v) => v && { ...v, version: r.version, dirty: n.draft !== text });
       })
@@ -171,6 +174,7 @@ function useAppState() {
         setNote((v) => v && { ...v, saving: false });
       });
     await inflight.current;
+    return ok;
   }, [activeId, toast]);
 
   const flush = useCallback(() => save(false), [save]);

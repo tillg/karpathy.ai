@@ -88,10 +88,14 @@ function errorMessage(e: unknown): string | undefined {
 
 export function mapMessageInfo(info: Json): Omit<ChatMessage, 'parts'> {
   const err = errorMessage(info.error);
+  // Assistant messages carry providerID/modelID, user messages a model object.
+  const m = info.providerID ? info : obj(info.model);
+  const model = str(m.providerID) && str(m.modelID) ? `${str(m.providerID)}/${str(m.modelID)}` : undefined;
   return {
     id: str(info.id) ?? '',
     role: info.role === 'user' ? 'user' : 'assistant',
     createdAt: Number(obj(info.time).created ?? 0),
+    ...(model ? { model } : {}),
     ...(err ? { error: err } : {}),
   };
 }

@@ -48,6 +48,7 @@ interface Runtime {
   listeners: Set<(e: VaultEvent) => void>;
   statusTimer?: NodeJS.Timeout;
   cloning?: Promise<void>;
+  pullError?: string;
 }
 
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -55,6 +56,8 @@ const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 /** The vaults the app manages: admin, files, git, status events (mvp §2.3, §2.4, §3.2). */
 export class Vaults {
   private rt = new Map<string, Runtime>();
+  /** Called when a vault's clone becomes ready (the chat service opens its subscription). */
+  onReady?: (id: string) => void;
 
   constructor(
     private readonly store: ConfigStore,
@@ -194,7 +197,7 @@ export class Vaults {
   async status(id: string): Promise<VaultStatus> {
     const v = this.config(id);
     const r = this.runtime(id);
-    const base: VaultStatus = { state: this.stateOf(v), changedCount: 0, unpushedCount: 0, busy: r.lock.busy, conflictPaths: [] };
+    const base: VaultStatus = { state: this.stateOf(v), changedCount: 0, unpushedCount: 0, busy: r.lock.busy, conflictPaths: [], ...(r.pullError ? { pullError: r.pullError } : {}) };
     if (r.state !== 'ready') return base;
     const repo = this.repo(v);
     const [changes, unpushed] = await Promise.all([repo.changes(), repo.unpushedCount()]);
@@ -326,6 +329,7 @@ export class Vaults {
     const r = this.runtime(id);
     if (r.state !== 'ready' || r.conflict) return null;
     const result = await this.repo(this.config(id)).pull();
+    r.pullError = result.kind === 'offline' ? redact(result.error, this.env.githubToken) : undefined;
     if (result.kind === 'conflict') {
       await this.store.update((c) => {
         c.conflicts[id] = result.paths;
@@ -502,6 +506,7 @@ export class Vaults {
         });
         r.state = 'ready';
         this.startWatcher(v);
+        this.onReady?.(v.id);
       } catch (e) {
         const msg = redact((e as Error).message, this.env.githubToken);
         await this.store.update((c) => {

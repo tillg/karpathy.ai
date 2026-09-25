@@ -2,6 +2,8 @@ import type { ChatDetail, ChatEvent, ChatPart } from '@karpathy/shared';
 
 export interface ChatView extends ChatDetail {
   readonly?: boolean;
+  /** What a queued turn waits for. */
+  waiting?: 'turn' | 'sync';
   error?: string;
 }
 
@@ -9,7 +11,7 @@ export interface ChatView extends ChatDetail {
 export function applyChatEvent(c: ChatView, e: ChatEvent): ChatView {
   switch (e.type) {
     case 'turn':
-      return { ...c, turn: e.state, readonly: e.readonly ?? c.readonly };
+      return { ...c, turn: e.state, readonly: e.readonly ?? c.readonly, waiting: e.waiting };
     case 'error':
       return { ...c, error: e.message };
     case 'message': {

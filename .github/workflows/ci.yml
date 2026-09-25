@@ -14,6 +14,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build -w apps/web
@@ -31,7 +32,10 @@ jobs:
       - run: npm ci
       - run: npm run test:github
         env: { TEST_VAULT_TOKEN: '${{ secrets.TEST_VAULT_TOKEN }}' }
+      # Real model turns on a local Ollama (no provider key): pull the model into a volume once.
+      - run: |
+          docker volume create ollama-models
+          docker run -d --name pull -v ollama-models:/root/.ollama ollama/ollama
+          sleep 3 && docker exec pull ollama pull qwen2.5:3b && docker rm -f pull
       - run: npm run test:llm
-        env:
-          OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY }}'
-          LLM_TEST_MODEL: openai/gpt-5-mini
+        env: { OLLAMA_VOLUME: ollama-models }

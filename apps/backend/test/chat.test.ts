@@ -140,6 +140,31 @@ describe('chat API against a real opencode container', () => {
     expect(bUser).toBeGreaterThanOrEqual(aEnd);
   });
 
+  it('queued turn says what it waits for (sync), messages carry the model that ran', async () => {
+    const t = await setup();
+    const release = await t.vaults.lock(t.id).acquireExclusive();
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    const got: unknown[] = [];
+    await t.api.post(`/vaults/${t.id}/chats/${chatId}/prompt`, { text: 'x' });
+    t.chat.stream(t.id, chatId, (e) => got.push(e), () => undefined);
+    expect(got[0]).toEqual({ type: 'turn', state: 'queued', waiting: 'sync' });
+    release();
+    await waitIdle(t.chat, t.id, chatId);
+    const detail = (await t.api.get(`/vaults/${t.id}/chats/${chatId}`)).body;
+    expect(detail.messages[0].model).toBe(DEAD_MODEL);
+  });
+
+  it('opens the event subscription when a vault is added (onReady hook)', async () => {
+    const t = await setup();
+    const opened: string[] = [];
+    t.vaults.onReady = (id) => opened.push(id);
+    const remote = await makeRemote({ 'a.md': 'a' }, { name: `r${Math.random().toString(36).slice(2, 7)}` });
+    const { symlink } = await import('node:fs/promises');
+    await symlink(remote.bare, join(t.remote.bare, '..', `${remote.repo.split('/')[1]}.git`));
+    const id2 = await t.addVault(remote.repo, { name: remote.repo.split('/')[1] });
+    expect(opened).toEqual([id2]);
+  });
+
   it('abort removes a queued prompt', async () => {
     const t = await setup();
     const release = await t.vaults.lock(t.id).acquireExclusive(); // hold the vault busy

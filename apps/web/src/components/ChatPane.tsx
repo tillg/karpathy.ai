@@ -95,7 +95,7 @@ function Message({ m, model }: { m: ChatMessage; model: string }) {
   const changed = changedPaths(m.parts);
   return (
     <div className="a" data-testid="assistant-message">
-      <div className="who"><img src="/icon-192.png" alt="" />karpathy.ai · {model}</div>
+      <div className="who"><img src="/icon-192.png" alt="" />karpathy.ai · {m.model?.split('/').pop() ?? model}</div>
       <Parts parts={m.parts} />
       {m.error && <div className="form-error">{m.error}</div>}
       {changed.length > 0 && (
@@ -161,7 +161,7 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
           {chat && !chat.messages.length && !pending && <div className="day">New chat · ask about this vault</div>}
           {chat?.messages.map((m) => <Message key={m.id} m={m} model={model} />)}
           {pending && <div className="u pending">{pending}</div>}
-          {chat?.turn === 'queued' && <div className="turn-state" data-testid="chat-queued"><span className="spin" />Waiting for other chat…</div>}
+          {chat?.turn === 'queued' && <div className="turn-state" data-testid="chat-queued"><span className="spin" />{chat.waiting === 'sync' ? 'Waiting for sync…' : 'Waiting for other chat…'}</div>}
           {chat?.turn === 'running' && <div className="turn-state"><span className="spin" />Working…</div>}
           {chat?.error && <div className="form-error">{chat.error}</div>}
         </div>

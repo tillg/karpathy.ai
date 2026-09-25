@@ -33,6 +33,8 @@ export interface VaultStatus {
   busy: Busy;
   /** Vault-root-relative paths that are still unresolved while in Conflict. */
   conflictPaths: string[];
+  /** Set when the last pull couldn't reach GitHub (git's error). */
+  pullError?: string;
 }
 
 export interface FileEntry {
@@ -118,6 +120,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   parts: ChatPart[];
   createdAt: number;
+  /** `provider/model` the turn actually ran with. */
+  model?: string;
   error?: string;
 }
 
@@ -132,7 +136,8 @@ export type TurnState = 'idle' | 'queued' | 'running';
 
 /** Chat stream (`GET /vaults/:id/chats/:chatId/stream`), one JSON object per line. */
 export type ChatEvent =
-  | { type: 'turn'; state: TurnState; readonly?: boolean }
+  /** `waiting`: what a queued turn waits for — another chat's turn, or a sync (pull/commit/…). */
+  | { type: 'turn'; state: TurnState; readonly?: boolean; waiting?: 'turn' | 'sync' }
   | { type: 'message'; message: Omit<ChatMessage, 'parts'> }
   | { type: 'part'; messageId: string; part: ChatPart }
   | { type: 'text-delta'; messageId: string; partId: string; delta: string }

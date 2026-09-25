@@ -250,6 +250,15 @@ describe('git API', () => {
     expect((await c).body.pushed).toBe(true);
   });
 
+  it('an offline pull on open is reported in the status', async () => {
+    const t = await vaultApp();
+    const { rename } = await import('node:fs/promises');
+    await rename(t.remote.bare, `${t.remote.bare}.away`);
+    expect((await t.api.post(`/vaults/${t.id}/open`)).body.pullError).toBeTruthy();
+    await rename(`${t.remote.bare}.away`, t.remote.bare);
+    expect((await t.api.post(`/vaults/${t.id}/open`)).body.pullError).toBeUndefined();
+  });
+
   it('push failure → unpushed; retry push later succeeds', async () => {
     const t = await vaultApp();
     const { rename } = await import('node:fs/promises');

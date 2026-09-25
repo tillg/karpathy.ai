@@ -37,7 +37,12 @@ export function CommitDialog() {
     setPhase('committing');
     setError(null);
     try {
-      await flush();
+      // Never commit without the typed text (mvp §2.4): a failed save (e.g. stale) stops here.
+      if (!(await flush())) {
+        setError('The open note could not be saved, so nothing was committed. Resolve the save problem first.');
+        setPhase('ready');
+        return;
+      }
       const r = await api.commit(activeId, message);
       if (!r.commit) toast('Nothing to commit');
       else toast(r.pushed ? 'Committed and pushed to GitHub' : `Committed; push failed: ${r.pushError ?? 'unknown error'}`);
@@ -61,7 +66,7 @@ export function CommitDialog() {
       <div className="acts">
         <button className="btn g" onClick={close}>Cancel</button>
         <button className="btn" data-testid="commit-submit" disabled={phase !== 'ready' || !message.trim()} onClick={() => void commit()}>
-          {phase === 'committing' ? 'Committing…' : 'Commit & Push'}
+          {phase === 'committing' ? (status?.busy === 'turn' ? 'Waiting for AI turn…' : 'Committing…') : 'Commit & Push'}
         </button>
       </div>
     </Modal>

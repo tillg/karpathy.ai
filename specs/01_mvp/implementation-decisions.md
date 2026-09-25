@@ -14,9 +14,9 @@ opencode (reads + writes the vault, one turn per vault, queue, stop, re-attach, 
 restart), docker compose dev + prod, CI.
 
 **Not done (needs you):** real-device run on iPhone/iPad via VPN, deploy to the home server
-(DNS-01 cert with your DNS provider — Cloudflare assumed, #16), trying a Claude model (no
+(DNS-01 cert with your DNS provider — Cloudflare assumed, decision 16), trying a Claude model (no
 Anthropic key here; everything ran on local Ollama `qwen2.5:3b`), and the offline cache on
-real Safari (#43).
+real Safari (decision 43).
 
 **Testing:** backend 119 tests (real git with local bare remotes + a real opencode container),
 `@github` tier 3 tests (throwaway repo `tillg/karpathy-ai-test-vault`), `@llm` tier 7 tests
@@ -26,11 +26,11 @@ resilience, security, accessibility and performance testing filed 49 GitHub issu
 (`e2e-found` label); all fixed with a regression test and closed except those still in progress
 at the time of writing (see `gh issue list -R tillg/karpathy.ai`).
 
-**Worth a look first:** #3 (OpenAI key unusable → Ollama), #6 (a GitHub repo was created),
-#16 (Cloudflare DNS assumed), #27 (MVP chat runs fine with a weak local model, but Claude
-tool-calling is untested), #44 (vaults carrying `.opencode/`/`opencode.json` are
-chat-disabled — security), #32 (unsaved drafts live in `localStorage`), #45/#47 (commit/discard/
-queue semantics beyond the spec).
+**Worth a look first** (decision numbers in the table below, not issue numbers): 3 (OpenAI key
+unusable → local Ollama; Claude tool-calling untested), 6 (a GitHub test repo was created),
+16 (Cloudflare assumed for DNS-01), 44 (vaults carrying `.opencode/` / `opencode.json` are
+chat-disabled — security), 32 (unsaved drafts kept in `localStorage`), 45 and 47 (commit/
+discard/queue semantics that go beyond the spec).
 
 ## Decisions
 

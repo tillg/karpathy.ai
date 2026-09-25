@@ -1,0 +1,62 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "{env:OPENCODE_MODEL}",
+  "small_model": "{env:OPENCODE_MODEL}",
+  "default_agent": "vault-readonly",
+  "snapshot": false,
+  "autoupdate": false,
+  "share": "disabled",
+  "formatter": false,
+  "lsp": false,
+  "permission": {
+    "external_directory": "deny",
+    "bash": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "task": "deny",
+    "question": "deny",
+    "doom_loop": "deny",
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny"
+    }
+  },
+  "agent": {
+    "build": {
+      "disable": true
+    },
+    "plan": {
+      "disable": true
+    },
+    "vault": {
+      "mode": "primary",
+      "description": "Reads and edits the notes of one vault.",
+      "permission": {
+        "edit": {
+          "*": "allow",
+          "*.git": "deny",
+          "*.git/*": "deny",
+          "*opencode.json": "deny",
+          "*opencode.jsonc": "deny",
+          "*.opencode/*": "deny"
+        }
+      }
+    },
+    "vault-readonly": {
+      "mode": "primary",
+      "description": "Reads the notes of one vault; cannot change files.",
+      "permission": {
+        "edit": "deny"
+      }
+    },
+    "commit-message": {
+      "mode": "primary",
+      "description": "Proposes a git commit message for a diff given in the prompt. No tools.",
+      "prompt": "You write git commit messages. The user message contains a diff. Reply with only the commit message: a summary line of at most 72 characters, optionally followed by a blank line and a short body. No code fences, no commentary.",
+      "permission": {
+        "*": "deny"
+      }
+    }
+  }
+}

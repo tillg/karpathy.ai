@@ -64,15 +64,19 @@ export function runGit(
     GIT_COMMITTER_NAME: opts.identity.name,
     GIT_COMMITTER_EMAIL: opts.identity.email,
     // Vaults live on a shared volume written by opencode too (same UID, but be safe).
-    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_COUNT: '2',
     GIT_CONFIG_KEY_0: 'safe.directory',
     GIT_CONFIG_VALUE_0: '*',
+    // Symlinks check out as plain files: opencode's containment check is lexical, so a
+    // symlink in a vault could reach another vault (spike-opencode.md).
+    GIT_CONFIG_KEY_1: 'core.symlinks',
+    GIT_CONFIG_VALUE_1: 'false',
   };
   if (opts.token) {
     const basic = Buffer.from(`x-access-token:${opts.token}`).toString('base64');
-    env.GIT_CONFIG_COUNT = '2';
-    env.GIT_CONFIG_KEY_1 = 'http.https://github.com/.extraheader';
-    env.GIT_CONFIG_VALUE_1 = `AUTHORIZATION: basic ${basic}`;
+    env.GIT_CONFIG_COUNT = '3';
+    env.GIT_CONFIG_KEY_2 = 'http.https://github.com/.extraheader';
+    env.GIT_CONFIG_VALUE_2 = `AUTHORIZATION: basic ${basic}`;
   }
   return new Promise((resolve) => {
     const child = execFile(

@@ -102,6 +102,7 @@ export function createApp(d: AppDeps) {
   });
   api.delete('/vaults/:id', async (req, res) => {
     await d.vaults.remove(req.params.id!);
+    d.chat?.vaultRemoved(req.params.id!);
     res.status(204).end();
   });
 

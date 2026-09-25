@@ -203,3 +203,15 @@ describe('Repo concurrency', () => {
     await poll;
   });
 });
+
+describe('Repo clone', () => {
+  it('checks symlinks out as plain files (they would bypass opencode confinement)', async () => {
+    const remote = await makeRemote({ 'a.md': 'a' });
+    const { symlink, lstat } = await import('node:fs/promises');
+    await symlink('../../other-vault', join(remote.obsidian, 'link'));
+    await remote.obsidianPush({});
+    const dir = join(remote.base, 'vaults', 'v');
+    await Repo.clone(`${remote.remoteBase}${remote.repo}.git`, dir, 'main', { identity });
+    expect((await lstat(join(dir, 'link'))).isSymbolicLink()).toBe(false);
+  });
+});

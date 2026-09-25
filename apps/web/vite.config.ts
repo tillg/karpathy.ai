@@ -50,6 +50,8 @@ export default defineConfig({
     port: 5173,
     host: true,
     strictPort: true,
+    // Behind the dev proxy (https://localhost:8443) the HMR socket goes through Caddy.
+    ...(process.env.HMR_CLIENT_PORT ? { hmr: { clientPort: Number(process.env.HMR_CLIENT_PORT), protocol: 'wss' } } : {}),
     // http-proxy pipes chunked responses through, so NDJSON streams aren't buffered.
     proxy: { '/api': { target: process.env.API_URL ?? 'http://localhost:8788', changeOrigin: true } },
   },

@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     ports: ["443:443", "80:80"]
     environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN}
+      DOMAIN: ${DOMAIN:-localhost}
       DNS_PROVIDER: ${DNS_PROVIDER:-cloudflare}
       DNS_API_TOKEN_FILE: /run/secrets/dns_api_token
     secrets: [dns_api_token]
@@ -25,8 +25,8 @@ services:
     environment:
       BEARER_TOKEN_FILE: /run/secrets/bearer_token
       GITHUB_TOKEN_FILE: /run/secrets/github_token
-      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:?set GIT_AUTHOR_NAME}
-      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:?set GIT_AUTHOR_EMAIL}
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-karpathy.ai user}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:-user@karpathy.ai}
       OPENCODE_URL: http://opencode:4096
       DEFAULT_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-5}
       OPENCODE_VAULTS_DIR: /vaults
@@ -35,7 +35,7 @@ services:
       - vaults:/vaults
       - config:/config
     depends_on:
-      opencode: { condition: service_started }
+      opencode: { condition: service_healthy }
     networks: [internal]
 
   opencode:
@@ -45,9 +45,15 @@ services:
     env_file: [{ path: ./opencode.env, required: false }]
     environment:
       OPENCODE_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-5}
+    tmpfs: ["/home/app:uid=${APP_UID:-1000},gid=${APP_GID:-1000},mode=0700"]
     volumes:
       - vaults:/vaults
       - opencode-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4096/global/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
     networks: [internal]
 
 networks:

@@ -1,0 +1,155 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { ToolCall } from '@karpathy/shared';
+import { createApp } from '../src/app.js';
+import { ChatService } from '../src/chat.js';
+import { OpencodeCommitMessages } from '../src/commit-message.js';
+import { OpencodeHarness } from '../src/harness/opencode.js';
+import { makeApp, TOKEN } from './app-helpers.js';
+import { makeRemote, sh } from './helpers.js';
+import { LLM_MODEL, startOpencode, testDir } from './opencode-container.js';
+
+// @llm tier: a real model (default: local Ollama qwen2.5:3b). Rules (plan): prompts name the
+// tool; assertions check tool events and the file system, never answer text; no tool call at
+// all = inconclusive; at most one retry.
+
+let oc: Awaited<ReturnType<typeof startOpencode>>;
+const base = testDir('llm');
+const vaultsDir = join(base, 'vaults');
+
+beforeAll(async () => {
+  oc = await startOpencode(vaultsDir);
+}, 120_000);
+afterAll(() => oc?.stop());
+
+class Inconclusive extends Error {}
+
+async function setup() {
+  const remote = await makeRemote({ 'Home.md': '# Home\n', 'notes/Todo.md': 'Buy milk\n' }, { name: `l${Math.random().toString(36).slice(2, 7)}` });
+  const t = await makeApp(remote.remoteBase, {}, { config: join(base, `config-${Math.random()}`), vaults: vaultsDir });
+  await t.store.update((c) => { c.settings.model = LLM_MODEL; });
+  const harness = new OpencodeHarness(oc.url);
+  const chat = new ChatService(t.vaults, t.store, harness, '/vaults');
+  const commitMessages = new OpencodeCommitMessages(t.vaults, t.store, harness, (id) => chat.dir(id), 120_000);
+  const app = createApp({ token: TOKEN, vaults: t.vaults, store: t.store, chat, commitMessages });
+  const id = await t.addVault(remote.repo, { name: remote.repo.split('/')[1] });
+  return { ...t, app, chat, harness, commitMessages, remote, id };
+}
+
+type T = Awaited<ReturnType<typeof setup>>;
+
+/** Runs one turn, collecting the tool calls from the chat stream. */
+async function turn(t: T, text: string, chatId?: string): Promise<{ chatId: string; tools: ToolCall[] }> {
+  const id = chatId ?? (await t.chat.create(t.id)).chatId;
+  const tools = new Map<string, ToolCall>();
+  const done = new Promise<void>((resolve) => {
+    const tryAttach = () => {
+      t.chat.stream(t.id, id, (e) => {
+        if (e.type === 'part' && e.part.type === 'tool') tools.set(e.part.id, e.part.call);
+      }, resolve);
+    };
+    setTimeout(tryAttach, 0);
+  });
+  await t.chat.prompt(t.id, id, text);
+  await done;
+  return { chatId: id, tools: [...tools.values()] };
+}
+
+async function withRetry<R>(fn: () => Promise<R>): Promise<R> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (!(e instanceof Inconclusive)) throw e;
+    try {
+      return await fn();
+    } catch (e2) {
+      if (e2 instanceof Inconclusive) throw new Error(`INCONCLUSIVE: ${e2.message}`);
+      throw e2;
+    }
+  }
+}
+
+describe('@llm AI reads and writes', () => {
+  it('the vault agent edits a note → edit/write event, counter increments, diff visible, AI-touched set filled', async () => {
+    const t = await setup();
+    await withRetry(async () => {
+      const { tools } = await turn(t, 'Use the write tool to create the file notes/ai.md with the content "hello from the AI". Do nothing else.');
+      const writes = tools.filter((x) => x.writes && x.status === 'completed');
+      if (tools.length === 0) throw new Inconclusive('model made no tool call');
+      if (writes.length === 0) throw new Inconclusive(`no completed write: ${JSON.stringify(tools)}`);
+    });
+    const changes = await t.vaults.changes(t.id);
+    expect(changes.length).toBeGreaterThan(0);
+    expect((await t.vaults.status(t.id)).changedCount).toBe(changes.length);
+    const changed = changes[0]!.path;
+    expect(await t.vaults.diff(t.id, changed)).toMatch(/^\+/m);
+    expect(t.vaults.aiTouched(t.id)).toContain(changed);
+    // Commit → Co-authored-by trailer, set empty afterwards.
+    await t.vaults.commit(t.id, 'AI note');
+    expect(sh(t.remote.bare, 'log', '-1', '--format=%B')).toContain('Co-authored-by: karpathy.ai agent');
+    expect(t.vaults.aiTouched(t.id)).toEqual([]);
+  });
+
+  it('in Conflict the edit is denied (read-only agent), file unchanged', async () => {
+    const t = await setup();
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Home.md'), 'mine\n');
+    await t.remote.obsidianPush({ 'Home.md': 'theirs\n' });
+    await t.vaults.lock(t.id).withExclusive(() => t.vaults.pullUnlocked(t.id));
+    expect(t.vaults.isConflict(t.id)).toBe(true);
+    const before = await readFile(join(t.vaults.vaultRootDir(t.id), 'notes/Todo.md'), 'utf8');
+    await withRetry(async () => {
+      const { tools } = await turn(t, 'Use the edit tool to replace "Buy milk" with "Buy bread" in notes/Todo.md.');
+      if (tools.length === 0) throw new Inconclusive('model made no tool call');
+      expect(tools.filter((x) => x.writes && x.status === 'completed')).toEqual([]);
+    });
+    expect(await readFile(join(t.vaults.vaultRootDir(t.id), 'notes/Todo.md'), 'utf8')).toBe(before);
+  });
+
+  it('read tools show up as consulted files', async () => {
+    const t = await setup();
+    await withRetry(async () => {
+      const { tools } = await turn(t, 'Use the read tool to read the file notes/Todo.md and tell me what it says.');
+      if (tools.length === 0) throw new Inconclusive('model made no tool call');
+      const reads = tools.filter((x) => x.tool === 'read' && x.status === 'completed');
+      if (reads.length === 0) throw new Inconclusive(`no completed read: ${JSON.stringify(tools)}`);
+      expect(reads[0]!.path).toBe('notes/Todo.md');
+    });
+  });
+
+  it('abort mid-turn → idle, lock released, the next queued prompt starts', async () => {
+    const t = await setup();
+    const a = (await t.chat.create(t.id)).chatId;
+    const b = (await t.chat.create(t.id)).chatId;
+    await t.chat.prompt(t.id, a, 'Write a very long essay (at least 2000 words) about the history of note taking.');
+    await t.chat.prompt(t.id, b, 'Say hi.');
+    const end = Date.now() + 60_000;
+    while (t.chat.turnState(t.id, a) !== 'running') {
+      if (Date.now() > end) throw new Error('never started');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    await t.chat.abort(t.id, a);
+    const end2 = Date.now() + 30_000;
+    while (t.chat.turnState(t.id, a) !== 'idle') {
+      if (Date.now() > end2) throw new Error('abort did not end the turn');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // b was queued behind a and now runs (or already finished).
+    const end3 = Date.now() + 5_000;
+    while (t.chat.turnState(t.id, b) === 'queued') {
+      if (Date.now() > end3) throw new Error('queued prompt did not start');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  });
+
+  it('commit message proposal comes back for a real diff; chat list unchanged', async () => {
+    const t = await setup();
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'notes/Todo.md'), 'Buy milk\nBuy eggs\n');
+    const before = await t.chat.list(t.id);
+    const r = await t.commitMessages.propose(t.id);
+    expect(r.fallback).toBe(false);
+    expect(r.message.length).toBeGreaterThan(0);
+    expect(await t.chat.list(t.id)).toEqual(before);
+  });
+});

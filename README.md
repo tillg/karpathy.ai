@@ -37,10 +37,52 @@ you hit **Commit & Push**. Obsidian mobile and desktop are attached to the same 
 
 ## Status
 
-Specification. See [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md), phased plan in
-[`specs/01_mvp/plan.md`](specs/01_mvp/plan.md); UI layout prototypes in
-[`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
+MVP (spec milestone M4) implemented: vaults from GitHub, file tree, CodeMirror editor with
+live preview and `[[wikilinks]]`, search, uncommitted changes / diff / discard, Commit & Push
+with an AI-proposed message, conflict resolution, and a streaming AI chat that reads and
+edits the vault through opencode. Spec: [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md), plan:
+[`specs/01_mvp/plan.md`](specs/01_mvp/plan.md), opencode findings:
+[`specs/01_mvp/spike-opencode.md`](specs/01_mvp/spike-opencode.md), decisions taken while
+implementing: [`specs/01_mvp/implementation-decisions.md`](specs/01_mvp/implementation-decisions.md).
+UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
+
+## Running it
+
+Everything runs in docker compose (on this Mac: Rancher Desktop).
+
+**Dev** (hot reload, https://localhost:8443, local Ollama `qwen2.5:3b` as the model):
+
+```sh
+deploy/dev.sh up        # builds, starts, pulls the dev model once, prints the token
+deploy/dev.sh logs
+deploy/dev.sh down
+```
+
+To clone from GitHub in dev, put a token into `deploy/secrets/github_token`. To work
+offline against local bare repos instead, create them under `tmp/dev/remotes/<owner>/<name>.git`
+and set `GIT_REMOTE_BASE=file:///remotes/` in `deploy/.env`.
+
+**Prod** (home server, reachable via VPN): copy `deploy/.env.example` → `deploy/.env`
+(domain, DNS provider, git author, model) and `deploy/opencode.env.example` →
+`deploy/opencode.env` (provider API keys). Put the secrets into `deploy/secrets/`
+(`bearer_token`, `github_token`, `dns_api_token`), then
+`docker compose -f deploy/compose.yml up -d --build`. Caddy gets a Let's Encrypt
+certificate via DNS-01.
+
+## Tests
+
+```sh
+npm test               # unit + integration: real git against local bare repos, real opencode container (Docker)
+npm run test:github    # @github: clone/push against the throwaway repo tillg/karpathy-ai-test-vault
+npm run test:llm       # @llm: real model turns (default: local Ollama qwen2.5:3b, see apps/backend/test/opencode-container.ts)
+npm run test:e2e       # Playwright against the running dev stack
+npm run typecheck
+```
+
+Layout: `apps/backend` (Express 5, Node/TS), `apps/web` (Vite + React PWA),
+`packages/shared` (API types), `deploy/` (compose, Dockerfiles, Caddy, opencode config),
+`e2e/` (Playwright).
 
 ## Development
 

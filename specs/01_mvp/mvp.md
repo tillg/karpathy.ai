@@ -135,7 +135,8 @@ See [ADR 0001](../../docs/adr/0001-user-triggered-commits.md).
     If it fails or takes more than 15 s, the dialog falls back to "Update N files", still
     editable.
   - **"AI changes are included"** is tracked, not guessed. The backend watches opencode's
-    events for completed `edit`/`write` tool calls in the vault and adds their paths to a
+    events for `file.edited` (emitted by `edit`, `write` and `apply_patch`; GPT-5-family models
+    edit via `apply_patch`) plus completed write tool calls in the vault and adds their paths to a
     per-vault **AI-touched set**, persisted on the config volume. Discard removes the path;
     commit clears the set. The trailer is added iff at least one path in the set is among
     the committed changes.
@@ -221,8 +222,11 @@ production. It has three services:
 - **proxy** (Caddy): TLS; serves the PWA build and proxies `/api` → backend. This is the
   **only** service that publishes ports.
 - **backend** (Node/TS): file API, search, git, auth, chat relay.
-- **opencode** (pinned image tag): `opencode serve`. Its image holds the skill dependencies
-  (Python + deps, ripgrep, git).
+- **opencode** (pinned image tag): `opencode serve`. The MVP runs the **stock image, without
+  git**: without git opencode can't detect the worktree, which is what confines its tools to a
+  subfolder vault root and keeps session IDs stable ([spike](spike-opencode.md), finding 1). Skill
+  dependencies (Python + deps) come in M5; if git ever goes into the image, the git dirs must
+  move off the shared volume first.
 
 Volumes:
 
@@ -230,7 +234,7 @@ Volumes:
   read-write. Each vault's `AGENTS.md`/`CLAUDE.md` and `.claude/skills` come along with
   its clone.
 - **config**: vault list + settings; backend only.
-- **opencode data** (`~/.local/share/opencode` in the opencode container): its SQLite
+- **opencode data** (at `/data` with `XDG_DATA_HOME=/data`; `HOME` is an empty tmpfs): its SQLite
   session store, so chats survive restarts; opencode only.
 
 Backend and opencode run with the **same `user:` (UID/GID)** so that files written by
@@ -393,14 +397,27 @@ can't send one. No WebSocket.
     `git commit`/`git push` are impossible;
   - **`permission.webfetch: deny`** in the MVP: it could send vault content or keys out
     after a prompt injection from ingested content. Revisited in M5 for `ingest`;
-  - three agents: `vault` (`edit: allow`, no per-edit approval), `vault-readonly`
+  - **`permission.task: deny`**: a subagent doesn't inherit its parent agent's permissions, so
+    it could write during a `vault-readonly` turn (verified in the spike). `websearch`,
+    `question`, `doom_loop` and `read *.env` are denied too (the last three replace built-in
+    `ask` defaults);
+  - three agents: `vault` (`edit: allow` except `.git`, `opencode.json(c)` and `.opencode/`,
+    which would let the AI plant a git hook or an opencode plugin; no per-edit approval), `vault-readonly`
     (`edit: deny`), and `commit-message` (every tool denied; only for the commit message
     proposal, §2.4). The backend picks one per prompt (Chat API above);
   - **no permission is ever `ask`**. Every rule is `allow` or `deny`, so a turn never
     blocks waiting for an approval, and the MVP needs no approval UI;
-  - `snapshot: false`;
-  - no global `~/.claude` in the container, plus `OPENCODE_DISABLE_CLAUDE_CODE_PROMPT` and
-    `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` — instructions and skills come only from the
+  - `snapshot: false`, `formatter: false` (edit tools would reformat Markdown), `lsp: false`,
+    `default_agent: vault-readonly` (a prompt without an agent fails safe); the config is mounted
+    at `/etc/opencode/opencode.json` (managed config, merged last, so a vault's own
+    `opencode.json` can't override it);
+  - blanket-denied tools are hidden from the model; a "denied" chip only appears for
+    pattern-level denies (tool part in `error` state with opencode's rule message);
+  - clones check symlinks out as plain files (`core.symlinks=false`): opencode's containment
+    check is lexical, so a symlink could reach another vault;
+  - no global `~/.claude` in the container (empty `HOME`). The
+    `OPENCODE_DISABLE_CLAUDE_CODE_*` flags are **not** set: they would also drop the vault's own
+    `CLAUDE.md` and `.claude/skills`. Instructions and skills come only from the
     vault's repo.
   - opencode never gets GitHub credentials.
 - **git:** only the backend runs git operations (§2.4).
@@ -486,9 +503,7 @@ M5 (full skills) is the first extension after that.
 
 - Which models besides Claude Sonnet 5 are good enough at tool calling for the wiki
   skills? (M5)
-- Is the `external_directory` deny enough to confine opencode's read tools to a vault
-  root that is a subfolder of its git repo, or does opencode treat the whole worktree as
-  "inside"? Verified in the P0 spike. **Fallback if it fails:** the MVP supports only
-  vault root = repo root (the admin area rejects a subfolder root); subfolder roots come
-  later. The fallback is not "one opencode container per vault": vaults are added at
-  runtime, and compose, not the backend, owns container lifecycles.
+- ~~Is the `external_directory` deny enough to confine opencode's tools to a subfolder vault
+  root?~~ **Answered in the [spike](spike-opencode.md):** yes, as long as opencode can't detect
+  the git worktree (no git binary in its image, or git dirs not visible to it). The
+  "repo root only" fallback isn't needed.

@@ -20,11 +20,26 @@ services:
       GIT_REMOTE_BASE: ${GIT_REMOTE_BASE:-https://github.com/}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-Dev User}
       GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:-dev@example.com}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-ollama/qwen2.5:3b}
     volumes:
       - ../apps/backend/src:/app/apps/backend/src:ro
       - ../packages/shared/src:/app/packages/shared/src:ro
       # Local bare repos standing in for GitHub (GIT_REMOTE_BASE=file:///remotes/).
       - ../tmp/dev/remotes:/remotes
+
+  opencode:
+    # Dev LLM: local Ollama (no provider key needed). Provider config only; the managed
+    # config /etc/opencode/opencode.json still wins.
+    environment:
+      OPENCODE_MODEL: ${DEFAULT_MODEL:-ollama/qwen2.5:3b}
+      OPENCODE_CONFIG: /etc/opencode-dev/ollama.json
+    volumes:
+      - ./opencode/dev-ollama.json:/etc/opencode-dev/ollama.json:ro
+
+  ollama:
+    image: ollama/ollama
+    volumes: [ollama:/root/.ollama]
+    networks: [internal]
 
   web:
     build: { context: .., dockerfile: deploy/web/Dockerfile.dev }
@@ -35,6 +50,10 @@ services:
     volumes:
       - ../apps/web/src:/app/apps/web/src:ro
       - ../apps/web/index.html:/app/apps/web/index.html:ro
-      - ../apps/web/public:/app/apps/web/public:ro
+      - ../apps/web/vite.config.ts:/app/apps/web/vite.config.ts:ro
+      - ../apps/web/tsconfig.json:/app/apps/web/tsconfig.json:ro
       - ../assets:/app/assets:ro
     networks: [internal]
+
+volumes:
+  ollama: {}

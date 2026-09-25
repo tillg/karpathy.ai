@@ -1,12 +1,317 @@
-import type { ChatDetail, ChatEvent, ChatSummary } from '@karpathy/shared';
+import { join, posix } from 'node:path';
+import type { ChatDetail, ChatEvent, ChatSummary, TurnState } from '@karpathy/shared';
+import type { ConfigStore } from './config-store.js';
+import type { Harness } from './harness/opencode.js';
+import type { HarnessEvent } from './harness/map.js';
+import type { Release } from './lock.js';
+import { HttpError, type Vaults } from './vaults.js';
 
-// Placeholder until the opencode spike lands; replaced by the real service.
-export interface ChatService {
-  list(vaultId: string): Promise<ChatSummary[]>;
-  create(vaultId: string): Promise<{ chatId: string }>;
-  get(vaultId: string, chatId: string): Promise<ChatDetail>;
-  remove(vaultId: string, chatId: string): Promise<void>;
-  prompt(vaultId: string, chatId: string, text: string): Promise<void>;
-  stream(vaultId: string, chatId: string, send: (e: ChatEvent) => void, end: () => void): () => void;
-  abort(vaultId: string, chatId: string): Promise<void>;
+type Listener = (e: ChatEvent) => void;
+
+interface Turn {
+  chatId: string;
+  text: string;
+}
+
+interface Running {
+  chatId: string;
+  release: Release;
+  /** Set once the prompt call returned or opencode reported busy; guards against stale idles. */
+  started: boolean;
+  readonly: boolean;
+  startedAt: number;
+  /** False while still waiting for the lock (the slot is only reserved). */
+  holding: boolean;
+}
+
+interface VaultChats {
+  queue: Turn[];
+  running: Running | null;
+  /** Busy sessions found at startup that we didn't start; the lock is held until they're idle. */
+  adopted: Release | null;
+  unsubscribe: () => void;
+  /** Directory the subscription is for; a vault-root change needs a new one. */
+  dir: string;
+  listeners: Map<string, Set<Listener>>;
+  poll?: NodeJS.Timeout;
+}
+
+/** Idle safety net for a missed event: poll opencode's busy list while a turn runs. */
+const POLL_MS = 3000;
+
+/**
+ * Chats = opencode sessions, one vault each (mvp §3.2 Chat API). One running turn per vault;
+ * more prompts queue. Every turn starts with a pull under the exclusive lock, then holds the
+ * shared lock until opencode reports the session idle. Turns outlive client connections.
+ */
+export class ChatService {
+  private v = new Map<string, VaultChats>();
+
+  constructor(
+    private readonly vaults: Vaults,
+    private readonly store: ConfigStore,
+    private readonly harness: Harness,
+    /** The vaults dir as the harness sees it (`/vaults` in compose). */
+    private readonly harnessVaultsDir: string,
+  ) {}
+
+  /** Opens one event subscription per ready vault; adopts turns still running in opencode. */
+  async init(): Promise<void> {
+    for (const vault of this.vaults.list()) if (vault.state === 'ready' || vault.state === 'conflict') await this.attach(vault.id);
+  }
+
+  close() {
+    for (const c of this.v.values()) {
+      c.unsubscribe();
+      clearInterval(c.poll);
+    }
+  }
+
+  dir(vaultId: string): string {
+    const vault = this.vaults.getVault(vaultId);
+    return vault.root ? posix.join(this.harnessVaultsDir, vaultId, vault.root) : join(this.harnessVaultsDir, vaultId);
+  }
+
+  private async attach(vaultId: string): Promise<VaultChats> {
+    const dir = this.dir(vaultId);
+    let c = this.v.get(vaultId);
+    if (c && (c.dir === dir || c.running || c.queue.length)) return c;
+    if (c) this.vaultRemoved(vaultId);
+    c = { queue: [], running: null, adopted: null, listeners: new Map(), unsubscribe: () => undefined, dir };
+    this.v.set(vaultId, c);
+    c.unsubscribe = this.harness.subscribe(dir, (e) => this.onEvent(vaultId, e));
+    const busy = await this.harness.busySessions(dir).catch(() => []);
+    if (busy.length > 0) {
+      c.adopted = await this.vaults.lock(vaultId).acquireShared('turn');
+      this.startPoll(vaultId);
+    }
+    return c;
+  }
+
+  private async chats(vaultId: string): Promise<VaultChats> {
+    const vault = this.vaults.getVault(vaultId);
+    if (vault.state !== 'ready' && vault.state !== 'conflict') throw new HttpError(409, `vault is ${vault.state}`, 'not-ready');
+    return this.attach(vaultId);
+  }
+
+  private async requireChat(vaultId: string, chatId: string) {
+    await this.chats(vaultId);
+    if (!(await this.harness.sessionExists(this.dir(vaultId), chatId))) throw new HttpError(404, `no such chat: ${chatId}`);
+  }
+
+  turnState(vaultId: string, chatId: string): TurnState {
+    const c = this.v.get(vaultId);
+    // A turn stays in the queue until it holds the lock (the pull may still be running).
+    if (c?.queue.some((t) => t.chatId === chatId)) return 'queued';
+    if (c?.running?.holding && c.running.chatId === chatId) return 'running';
+    return 'idle';
+  }
+
+  async list(vaultId: string): Promise<ChatSummary[]> {
+    await this.chats(vaultId);
+    return this.harness.listSessions(this.dir(vaultId));
+  }
+
+  async create(vaultId: string): Promise<{ chatId: string }> {
+    await this.chats(vaultId);
+    return { chatId: await this.harness.createSession(this.dir(vaultId)) };
+  }
+
+  async get(vaultId: string, chatId: string): Promise<ChatDetail> {
+    await this.requireChat(vaultId, chatId);
+    const dir = this.dir(vaultId);
+    const [messages, sessions] = await Promise.all([this.harness.messages(dir, chatId), this.harness.listSessions(dir)]);
+    return { id: chatId, title: sessions.find((s) => s.id === chatId)?.title ?? '', messages, turn: this.turnState(vaultId, chatId) };
+  }
+
+  async remove(vaultId: string, chatId: string): Promise<void> {
+    await this.requireChat(vaultId, chatId);
+    if (this.turnState(vaultId, chatId) !== 'idle') throw new HttpError(409, 'stop the running turn first', 'busy');
+    await this.harness.deleteSession(this.dir(vaultId), chatId);
+  }
+
+  async prompt(vaultId: string, chatId: string, text: string): Promise<void> {
+    await this.requireChat(vaultId, chatId);
+    const c = this.v.get(vaultId)!;
+    if (this.turnState(vaultId, chatId) !== 'idle') throw new HttpError(409, 'this chat already has a turn running or queued', 'busy');
+    c.queue.push({ chatId, text });
+    this.emit(vaultId, chatId, { type: 'turn', state: 'queued' });
+    void this.kick(vaultId);
+  }
+
+  async abort(vaultId: string, chatId: string): Promise<void> {
+    await this.chats(vaultId);
+    const c = this.v.get(vaultId)!;
+    const i = c.queue.findIndex((t) => t.chatId === chatId);
+    if (i >= 0) {
+      c.queue.splice(i, 1);
+      this.emit(vaultId, chatId, { type: 'turn', state: 'idle' });
+      this.endStreams(vaultId, chatId);
+      return;
+    }
+    // The lock is released once opencode reports the session idle.
+    if (c.running?.chatId === chatId) await this.harness.abort(this.dir(vaultId), chatId);
+  }
+
+  /**
+   * Streams the mapped events of the running or queued turn; ends when the turn is idle.
+   * Returns an unsubscribe function.
+   */
+  stream(vaultId: string, chatId: string, send: Listener, end: () => void): () => void {
+    const state = this.v.has(vaultId) ? this.turnState(vaultId, chatId) : 'idle';
+    const running = this.v.get(vaultId)?.running;
+    send({ type: 'turn', state, ...(state === 'running' && running?.readonly ? { readonly: true } : {}) });
+    if (state === 'idle') {
+      end();
+      return () => undefined;
+    }
+    const c = this.v.get(vaultId)!;
+    let set = c.listeners.get(chatId);
+    if (!set) c.listeners.set(chatId, (set = new Set()));
+    const l: Listener = (e) => {
+      send(e);
+      if (e.type === 'turn' && e.state === 'idle') {
+        set!.delete(l);
+        end();
+      }
+    };
+    set.add(l);
+    return () => set!.delete(l);
+  }
+
+  // ---- turn lifecycle ----
+
+  private async kick(vaultId: string) {
+    const c = this.v.get(vaultId);
+    if (!c || c.running || c.queue.length === 0) return;
+    const turn = c.queue[0]!;
+    // Reserve the slot before awaiting anything, so a second kick doesn't start a turn too.
+    const running: Running = { chatId: turn.chatId, release: () => undefined, started: false, readonly: false, startedAt: Date.now(), holding: false };
+    c.running = running;
+    try {
+      running.release = await this.vaults.lock(vaultId).exclusiveThenShared('turn', async () => {
+        await this.vaults.pullUnlocked(vaultId);
+      });
+    } catch (e) {
+      c.queue.shift();
+      c.running = null;
+      this.emit(vaultId, turn.chatId, { type: 'error', message: `pull before the turn failed: ${(e as Error).message}` });
+      this.finish(vaultId, turn.chatId);
+      return void this.kick(vaultId);
+    }
+    if (c.queue[0] !== turn) {
+      // Aborted while waiting for the lock.
+      running.release();
+      c.running = null;
+      return void this.kick(vaultId);
+    }
+    c.queue.shift();
+    running.holding = true;
+    running.readonly = this.vaults.isConflict(vaultId);
+    running.startedAt = Date.now();
+    this.emit(vaultId, turn.chatId, { type: 'turn', state: 'running', ...(running.readonly ? { readonly: true } : {}) });
+    try {
+      await this.harness.prompt(this.dir(vaultId), turn.chatId, {
+        text: turn.text,
+        agent: running.readonly ? 'vault-readonly' : 'vault',
+        model: this.store.get().settings.model,
+      });
+      running.started = true;
+      this.startPoll(vaultId);
+    } catch (e) {
+      this.emit(vaultId, turn.chatId, { type: 'error', message: (e as Error).message });
+      this.endTurn(vaultId);
+    }
+  }
+
+  private endTurn(vaultId: string) {
+    const c = this.v.get(vaultId);
+    if (!c?.running) return;
+    const { chatId, release } = c.running;
+    c.running = null;
+    release();
+    this.finish(vaultId, chatId);
+    void this.kick(vaultId);
+  }
+
+  private finish(vaultId: string, chatId: string) {
+    this.emit(vaultId, chatId, { type: 'turn', state: 'idle' });
+    this.endStreams(vaultId, chatId);
+    this.stopPollIfIdle(vaultId);
+  }
+
+  private endStreams(vaultId: string, chatId: string) {
+    this.v.get(vaultId)?.listeners.delete(chatId);
+  }
+
+  private startPoll(vaultId: string) {
+    const c = this.v.get(vaultId);
+    if (!c || c.poll) return;
+    c.poll = setInterval(() => void this.resync(vaultId), POLL_MS);
+  }
+
+  private stopPollIfIdle(vaultId: string) {
+    const c = this.v.get(vaultId);
+    if (c && !c.running && !c.adopted && c.poll) {
+      clearInterval(c.poll);
+      c.poll = undefined;
+    }
+  }
+
+  /** Reconciles with opencode's busy list (missed idle events, adopted turns after restart). */
+  private async resync(vaultId: string) {
+    const c = this.v.get(vaultId);
+    if (!c) return;
+    let busy: string[];
+    try {
+      busy = await this.harness.busySessions(this.dir(vaultId));
+    } catch {
+      return;
+    }
+    if (c.adopted && busy.every((id) => id === c.running?.chatId)) {
+      c.adopted();
+      c.adopted = null;
+    }
+    if (c.running?.started && !busy.includes(c.running.chatId) && Date.now() - c.running.startedAt > POLL_MS) this.endTurn(vaultId);
+    this.stopPollIfIdle(vaultId);
+  }
+
+  private onEvent(vaultId: string, e: HarnessEvent) {
+    const c = this.v.get(vaultId);
+    if (!c) return;
+    switch (e.type) {
+      case 'file-edited':
+        void this.vaults.markAiTouched(vaultId, [e.path]).catch(() => undefined);
+        return;
+      case 'status':
+        if (!e.sessionId) return void this.resync(vaultId); // stream reconnected
+        if (c.running?.chatId !== e.sessionId) return;
+        if (e.state === 'busy') c.running.started = true;
+        else if (e.state === 'idle' && c.running.started) this.endTurn(vaultId);
+        return;
+      case 'message':
+        return this.emit(vaultId, e.sessionId, { type: 'message', message: e.message });
+      case 'part':
+        return this.emit(vaultId, e.sessionId, { type: 'part', messageId: e.messageId, part: e.part });
+      case 'text-delta':
+        return this.emit(vaultId, e.sessionId, { type: 'text-delta', messageId: e.messageId, partId: e.partId, delta: e.delta });
+      case 'error':
+        if (!e.aborted) this.emit(vaultId, e.sessionId, { type: 'error', message: e.message });
+        return;
+      case 'session-created':
+        return;
+    }
+  }
+
+  private emit(vaultId: string, chatId: string, e: ChatEvent) {
+    for (const l of [...(this.v.get(vaultId)?.listeners.get(chatId) ?? [])]) l(e);
+  }
+
+  vaultRemoved(vaultId: string) {
+    const c = this.v.get(vaultId);
+    if (!c) return;
+    c.unsubscribe();
+    clearInterval(c.poll);
+    this.v.delete(vaultId);
+  }
 }

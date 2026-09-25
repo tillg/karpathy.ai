@@ -34,7 +34,7 @@ function ReadView({ text }: { text: string }) {
   );
 }
 
-export function NotePane() {
+export function NotePane({ inert }: { inert?: boolean }) {
   const s = useApp();
   const { note, mode, setMode, readOnly, online, conflict, phone, wide } = s;
   const editor = useRef<EditorHandle>(null);
@@ -47,7 +47,7 @@ export function NotePane() {
   const del = () => { if (note && confirm(`Delete ${note.path}? It stays recoverable until you commit.`)) void s.deleteNote(); };
 
   return (
-    <section className="pane always" id="detail">
+    <section className="pane always" id="detail" inert={inert}>
       <div className="bar">
         {!phone && <button className="ib" title="Toggle sidebar" data-testid="sidebar-toggle" onClick={() => s.setSidebarOpen(!s.sidebarOpen)}><Icon n="sidebar_left" /></button>}
         {phone && <button className="ib back" data-testid="back" onClick={() => s.setPhoneNote(false)}><Icon n="chevron_left" size={24} /><span>{s.phoneTab === 'search' ? 'Search' : s.phoneTab === 'changes' ? 'Changes' : 'Files'}</span></button>}
@@ -56,11 +56,13 @@ export function NotePane() {
         {!wide && !phone && <GitPill small />}
         {note && (
           <>
-            <div className="seg" data-testid="mode-toggle">
-              <button className={mode === 'write' ? 'on' : ''} data-testid="mode-write" onClick={() => setMode('write')}>Write</button>
-              <button className={mode === 'read' ? 'on' : ''} data-testid="mode-read" onClick={() => setMode('read')}>Read</button>
-            </div>
-            {mode === 'write' && <button className="ib" title="Find in note" data-testid="find-in-note" onClick={() => editor.current?.openSearch()}><Icon n="search" /></button>}
+            {!note.binary && (
+              <div className="seg" role="group" aria-label="Mode" data-testid="mode-toggle">
+                <button className={mode === 'write' ? 'on' : ''} aria-pressed={mode === 'write'} data-testid="mode-write" onClick={() => setMode('write')}>Write</button>
+                <button className={mode === 'read' ? 'on' : ''} aria-pressed={mode === 'read'} data-testid="mode-read" onClick={() => setMode('read')}>Read</button>
+              </div>
+            )}
+            {mode === 'write' && !note.binary && <button className="ib" title="Find in note" data-testid="find-in-note" onClick={() => editor.current?.openSearch()}><Icon n="search" /></button>}
             <button className="ib" title="Delete note" data-testid="delete-note" disabled={readOnly || note.deleted} onClick={del}><Icon n="trash" /></button>
           </>
         )}
@@ -79,7 +81,12 @@ export function NotePane() {
           </div>
         )}
         {online && conflict && <div className="banner warn" data-testid="conflict-banner">This vault is in conflict with GitHub — read-only until resolved in <button className="link" onClick={() => { s.setSection('changes'); s.setPhoneTab('changes'); s.setPhoneNote(false); s.setSidebarOpen(true); }}>Changes</button>.</div>}
-        {note ? (
+        {note?.binary ? (
+          <div className="placeholder" data-testid="binary-file">
+            <Icon n="doc" size={48} />
+            <p><b>{note.path.split('/').pop()}</b><br />Binary file — can’t be edited here.</p>
+          </div>
+        ) : note ? (
           <div className="doc">
             <h1 className="note-title">{title}</h1>
             {mode === 'write'
@@ -93,8 +100,14 @@ export function NotePane() {
         ) : (
           <div className="placeholder">
             <img src="/icon-192.png" alt="" />
-            <p>{s.usable ? 'Pick a note from the file tree.' : s.active ? `Vault is ${s.active.state}…` : 'Add a vault to get started.'}</p>
-            {!s.active && <button className="btn" onClick={() => s.setAdminOpen(true)}>Manage vaults</button>}
+            {s.active?.state === 'clone-failed' ? (
+              <p data-testid="clone-failed">Vault could not be cloned{s.active.error ? `: ${s.active.error}` : '.'}</p>
+            ) : (
+              <p>{s.usable ? 'Pick a note from the file tree.' : s.active ? `Vault is ${s.active.state}…` : 'Add a vault to get started.'}</p>
+            )}
+            {(!s.active || s.active.state === 'clone-failed') && (
+              <button className="btn" data-testid="manage-vaults-cta" onClick={() => s.setAdminOpen(true)}>{s.active ? 'Edit vault' : 'Manage vaults'}</button>
+            )}
           </div>
         )}
       </div>

@@ -9,11 +9,11 @@ import { VaultSwitcher } from './VaultSwitcher';
 const TITLES: Record<Section, string> = { files: 'Files', search: 'Search', changes: 'Changes' };
 
 /** Sidebar column (desktop), overlay (tablet), or the Files/Search/Changes tab root (phone). */
-export function Sidebar() {
+export function Sidebar({ inert }: { inert?: boolean }) {
   const { section, setSection, phone, phoneTab, setAdminOpen, setSidebarOpen, wide, status } = useApp();
   const current: Section = phone ? (phoneTab === 'chat' ? 'files' : phoneTab) : section;
   return (
-    <section className="pane" id="sidebar">
+    <section className="pane" id="sidebar" inert={inert}>
       <div className="bar">
         {phone ? <span className="bar-title">{TITLES[current]}</span> : (
           <div className="seg" data-testid="sidebar-sections">

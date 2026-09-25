@@ -119,13 +119,15 @@ function ConflictFile({ path }: { path: string }) {
 }
 
 export function ChangesPanel() {
-  const { activeId, status, changesNonce, setCommitOpen, readOnly, toast, setStatus, online, usable, note } = useApp();
-  const [changes, setChanges] = useState<Change[] | null>(null);
+  const { activeId, status, changesNonce, setCommitOpen, readOnly, toast, setStatus, online, usable, note, active, setAdminOpen } = useApp();
+  // Tagged with its vault, so another vault's list is never shown (issue #22).
+  const [loaded, setLoaded] = useState<{ vault: string; changes: Change[] } | null>(null);
   const [pushing, setPushing] = useState(false);
   useEffect(() => {
     if (!activeId || !online || !usable) return;
-    api.changes(activeId).then(setChanges).catch(() => {});
+    api.changes(activeId).then((changes) => setLoaded({ vault: activeId, changes })).catch(() => {});
   }, [activeId, changesNonce, online, usable]);
+  const changes = usable && loaded?.vault === activeId ? loaded.changes : null;
 
   const retryPush = async () => {
     if (!activeId) return;
@@ -138,6 +140,17 @@ export function ChangesPanel() {
   };
 
   const unpushed = status?.unpushedCount ?? 0;
+  if (!usable) {
+    return (
+      <div className="changes">
+        <div className="empty" data-testid="changes-unavailable">
+          {active?.state === 'clone-failed'
+            ? <>Vault could not be cloned. <button className="link" onClick={() => setAdminOpen(true)}>Edit vault</button></>
+            : active ? `Vault is ${active.state}…` : 'No vault.'}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="changes">
       {status?.state === 'conflict' && (

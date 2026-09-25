@@ -27,7 +27,7 @@ function VaultFields({ f, set, prefix }: { f: Form; set(f: Form): void; prefix: 
 }
 
 function VaultRow({ v }: { v: Vault }) {
-  const { reloadVaults, toast } = useApp();
+  const { reloadVaults, toast, forgetVault } = useApp();
   const [edit, setEdit] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
@@ -43,7 +43,11 @@ function VaultRow({ v }: { v: Vault }) {
   };
   const remove = async () => {
     if (!confirm(`Remove vault “${v.name}”? This deletes the local clone only, never the GitHub repo.`)) return;
-    try { await api.removeVault(v.id); toast(`Removed ${v.name}`); await reloadVaults(); } catch (e) { setError(errorText(e)); }
+    try { await api.removeVault(v.id); forgetVault(v.id); toast(`Removed ${v.name}`); await reloadVaults(); } catch (e) { setError(errorText(e)); }
+  };
+  /** A PATCH without changes re-runs a failed clone (issue #23). */
+  const retry = async () => {
+    try { await api.patchVault(v.id, {}); setError(null); await reloadVaults(); } catch (e) { setError(errorText(e)); }
   };
   return (
     <div className="vrow" data-testid="admin-vault" data-vault={v.id} data-state={v.state}>
@@ -59,6 +63,7 @@ function VaultRow({ v }: { v: Vault }) {
         </div>
       ) : (
         <div className="acts">
+          {v.state === 'clone-failed' && <button className="btn g" data-testid="vault-retry" onClick={() => void retry()}>Retry</button>}
           <button className="btn g" data-testid="vault-edit" onClick={() => setEdit({ name: v.name, repo: v.repo, branch: v.branch, root: v.root })}>Edit</button>
           <button className="btn g danger" data-testid="vault-remove" onClick={() => void remove()}>Remove</button>
         </div>

@@ -1,11 +1,13 @@
 import { expect, it } from 'vitest';
-import { draftAction, dropDraft, getDraft, putDraft } from './drafts';
+import { draftAction, dropDraft, dropVaultDrafts, getDraft, putDraft } from './drafts';
 
 class MemStore {
   m = new Map<string, string>();
   getItem(k: string) { return this.m.get(k) ?? null; }
   setItem(k: string, v: string) { this.m.set(k, v); }
   removeItem(k: string) { this.m.delete(k); }
+  get length() { return this.m.size; }
+  key(i: number) { return [...this.m.keys()][i] ?? null; }
 }
 
 it('stores drafts per vault and path', () => {
@@ -26,4 +28,17 @@ it('decides restore vs stale by the base version', () => {
   expect(draftAction({ base: 'v1', text: 'x' }, 'v2', 'x')).toBe('none'); // already on the server
   expect(draftAction({ base: 'v1', text: 'mine' }, 'v1', 'server')).toBe('restore');
   expect(draftAction({ base: 'v1', text: 'mine' }, 'v2', 'server')).toBe('stale');
+});
+
+it('drops all drafts of a removed vault only (#24)', () => {
+  const s = new MemStore();
+  putDraft(s, 'a', 'Home.md', { base: 'v1', text: 'x' });
+  putDraft(s, 'a', 'sub/B.md', { base: 'v1', text: 'y' });
+  putDraft(s, 'ab', 'Home.md', { base: 'v1', text: 'z' });
+  s.setItem('karpathy.token', 't');
+  dropVaultDrafts(s, 'a');
+  expect(getDraft(s, 'a', 'Home.md')).toBeNull();
+  expect(getDraft(s, 'a', 'sub/B.md')).toBeNull();
+  expect(getDraft(s, 'ab', 'Home.md')).toEqual({ base: 'v1', text: 'z' });
+  expect(s.getItem('karpathy.token')).toBe('t');
 });

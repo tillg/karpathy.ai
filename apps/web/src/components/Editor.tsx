@@ -5,6 +5,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { liveMarkdown } from '../lib/cm';
 import { minimalChange } from '../lib/diff';
+import { editorText, eolExtension } from '../lib/eol';
 
 export interface EditorHandle {
   openSearch(): void;
@@ -35,8 +36,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
     const state = EditorState.create({
       doc,
       extensions: [
-        // Keep CRLF files CRLF: CM would otherwise normalize line breaks to \n.
-        ...(doc.includes('\r\n') ? [EditorState.lineSeparator.of('\r\n')] : []),
+        eolExtension(doc),
         history(),
         search({ top: true }),
         keymap.of([...searchKeymap, ...historyKeymap, ...defaultKeymap]),
@@ -44,7 +44,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
         ro.current.of([EditorState.readOnly.of(props.readOnly), EditorView.editable.of(!props.readOnly)]),
         EditorView.contentAttributes.of({ spellcheck: 'false', autocapitalize: 'sentences', 'aria-label': 'Note editor' }),
         EditorView.updateListener.of((u) => {
-          if (u.docChanged && !u.transactions.some((t) => t.annotation(External))) latest.current.onChange(u.state.doc.toString());
+          if (u.docChanged && !u.transactions.some((t) => t.annotation(External))) latest.current.onChange(editorText(u.state));
         }),
       ],
     });
@@ -58,7 +58,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
   useEffect(() => {
     const v = view.current;
     if (!v) return;
-    const cur = v.state.doc.toString();
+    const cur = editorText(v.state);
     const c = minimalChange(cur, props.doc);
     if (!c) return;
     // With a CRLF separator a line break is one position in CM but two chars in the string.

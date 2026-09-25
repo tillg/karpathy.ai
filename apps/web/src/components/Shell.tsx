@@ -30,12 +30,21 @@ export function Shell() {
     if (id === 'sidebar') return phoneNote ? 'behind' : 'cur';
     return phoneNote ? 'cur' : 'ahead';
   };
+  // Off-screen/covered panes are inert, so Tab and screen readers skip them (issue #26).
+  const tablet = !phone && !wide;
+  const inert = (id: 'sidebar' | 'detail' | 'chat') => {
+    if (phone) return pos(id) !== 'cur';
+    if (!tablet) return false;
+    if (id === 'sidebar') return !s.sidebarOpen;
+    if (id === 'chat') return !s.chatOpen;
+    return s.sidebarOpen || s.chatOpen;
+  };
   return (
     <>
       <div id="app" className={cls} data-sb={pos('sidebar')} data-dt={pos('detail')} data-ch={pos('chat')}>
-        <Sidebar />
-        <NotePane />
-        <ChatPane />
+        <Sidebar inert={inert('sidebar')} />
+        <NotePane inert={inert('detail')} />
+        <ChatPane inert={inert('chat')} />
         {phone && (
           <nav id="tabbar">
             {TABS.map((t) => (

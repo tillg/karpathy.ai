@@ -1,7 +1,7 @@
 import type { FileEntry, Settings, Vault, VaultEvent, VaultStatus } from '@karpathy/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, api, errorText } from './lib/api';
-import { draftAction, dropDraft, getDraft, putDraft } from './lib/drafts';
+import { draftAction, dropDraft, dropVaultDrafts, getDraft, putDraft } from './lib/drafts';
 import { readNdjson } from './lib/ndjson';
 import { formatRoute, parseRoute } from './lib/route';
 import { parseWikilink, resolveWikilink } from './lib/wikilink';
@@ -19,11 +19,13 @@ export interface NoteView {
   saving: boolean;
   /** Deleted elsewhere (AI, another device, discard) while open. */
   deleted?: boolean;
+  /** Not text (image, PDF…): shown as a placeholder, never edited or saved (issue #20). */
+  binary?: boolean;
   goto?: { line: number; nonce: number };
 }
 
 /** The open note's save state; `version` is the server version `saved` corresponds to. */
-interface OpenNote { vault: string; path: string; version: string; saved: string; draft: string; deleted?: boolean }
+interface OpenNote { vault: string; path: string; version: string; saved: string; draft: string; deleted?: boolean; binary?: boolean }
 
 const ACTIVE_KEY = 'karpathy.activeVault';
 const AUTOSAVE_MS = 1500;
@@ -66,7 +68,7 @@ export function useMedia(q: string) {
 }
 
 /** Live vault event stream with reconnect (backoff, on visible, on online). */
-function useVaultEvents(vaultId: string | null, enabled: boolean, onEvent: (e: VaultEvent) => void) {
+function useVaultEvents(vaultId: string | null, enabled: boolean, onEvent: (vault: string, e: VaultEvent) => void) {
   const handler = useRef(onEvent);
   handler.current = onEvent;
   useEffect(() => {
@@ -82,7 +84,7 @@ function useVaultEvents(vaultId: string | null, enabled: boolean, onEvent: (e: V
       ctrl = c;
       try {
         const res = await api.events(vaultId, c.signal);
-        await readNdjson<VaultEvent>(res, (e) => { attempt = 0; handler.current(e); });
+        await readNdjson<VaultEvent>(res, (e) => { attempt = 0; if (!c.signal.aborted) handler.current(vaultId, e); });
       } catch (e) {
         if (c.signal.aborted || (e instanceof ApiError && e.status === 401)) return;
       }
@@ -121,6 +123,8 @@ function useAppState() {
   const [activeId, setActiveIdState] = useState<string | null>(() => initialRoute.current.vault ?? localStorage.getItem(ACTIVE_KEY));
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
+  /** Set below (forgetVault); the vault list effect needs it before the note state exists. */
+  const vaultGone = useRef<(id: string) => void>(() => {});
   const reloadVaults = useCallback(async () => {
     try { setVaults(await api.vaults()); } catch (e) { toast(errorText(e)); setVaults((v) => v ?? []); }
   }, [toast]);
@@ -134,15 +138,21 @@ function useAppState() {
     return () => clearInterval(t);
   }, [vaults, reloadVaults]);
   const active = vaults?.find((v) => v.id === activeId) ?? null;
+  // Fall back to the first vault when the stored one is gone (removed here or on another device).
   useEffect(() => {
-    // Fall back to the first vault when the stored one is gone.
-    if (vaults && vaults.length && !active) setActiveIdState(vaults[0]!.id);
-  }, [vaults, active]);
+    if (!vaults || active) return;
+    if (activeId && !vaults.some((v) => v.id === activeId)) vaultGone.current(activeId);
+    if (vaults.length) setActiveIdState(vaults[0]!.id);
+  }, [vaults, active, activeId]);
   useEffect(() => { if (activeId) localStorage.setItem(ACTIVE_KEY, activeId); }, [activeId]);
   const usable = !!active && (active.state === 'ready' || active.state === 'conflict');
 
   // ---- status, files ----
-  const [status, setStatus] = useState<VaultStatus | null>(null);
+  // Tagged with its vault: a late response or event of the previous vault must not show up here (#22).
+  const [statusOf, setStatusOf] = useState<{ vault: string; status: VaultStatus } | null>(null);
+  const status = usable && statusOf?.vault === activeId ? statusOf.status : null;
+  const setStatusFor = useCallback((vault: string, st: VaultStatus) => setStatusOf({ vault, status: st }), []);
+  const setStatus = useCallback((st: VaultStatus) => { if (activeRef.current) setStatusFor(activeRef.current, st); }, [setStatusFor]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [changesNonce, setChangesNonce] = useState(0);
   const paths = useMemo(() => files.filter((f) => f.type === 'file').map((f) => f.path), [files]);
@@ -150,19 +160,22 @@ function useAppState() {
   pathsRef.current = paths;
   const refreshFiles = useCallback(async () => {
     if (!activeId) return;
-    try { setFiles(await api.files(activeId)); } catch (e) { toast(errorText(e)); }
+    try {
+      const f = await api.files(activeId);
+      if (activeRef.current === activeId) setFiles(f);
+    } catch (e) { toast(errorText(e)); }
   }, [activeId, toast]);
 
   useEffect(() => {
-    setStatus(null);
+    setStatusOf(null);
     setFiles([]);
   }, [activeId, usable]);
   // Going offline keeps the tree in memory (the refetch may fail without a cached copy).
   useEffect(() => {
     if (!usable || !activeId) return;
-    if (online) api.open(activeId).then(setStatus).catch((e) => toast(errorText(e)));
+    if (online) api.open(activeId).then((st) => setStatusFor(activeId, st)).catch((e) => toast(errorText(e)));
     void refreshFiles();
-  }, [activeId, usable, online, refreshFiles, toast]);
+  }, [activeId, usable, online, refreshFiles, toast, setStatusFor]);
 
   // ---- note + autosave ----
   // Unsaved text is mirrored to localStorage (lib/drafts) on every edit, so a reload, a closed tab
@@ -180,7 +193,7 @@ function useAppState() {
     clearTimeout(timer.current);
     while (inflight.current) await inflight.current;
     const n = noteRef.current;
-    if (!n || (!force && n.draft === n.saved)) return true;
+    if (!n || n.binary || (!force && n.draft === n.saved)) return true;
     if (n.deleted) { failed.current = 'deleted'; return false; }
     let ok = false;
     const text = n.draft;
@@ -232,7 +245,7 @@ function useAppState() {
 
   const editDraft = useCallback((text: string) => {
     const n = noteRef.current;
-    if (!n) return;
+    if (!n || n.binary) return;
     n.draft = text;
     persist(n);
     setNote((v) => v && (v.dirty === (text !== n.saved) ? v : { ...v, dirty: text !== n.saved }));
@@ -246,6 +259,13 @@ function useAppState() {
     if (!vault) return 'error';
     try {
       const f = await api.file(vault, path);
+      if (f.binary) {
+        clearTimeout(timer.current);
+        failed.current = null;
+        noteRef.current = { vault, path, version: f.version, saved: '', draft: '', binary: true };
+        setNote({ path, loaded: '', loadNonce: Date.now(), version: f.version, dirty: false, saving: false, binary: true });
+        return 'ok';
+      }
       const d = getDraft(drafts(), vault, path);
       const act = draftAction(d, f.version, f.content);
       if (act === 'none' && d) dropDraft(drafts(), vault, path);
@@ -337,6 +357,14 @@ function useAppState() {
     setNote(null);
     setNoteTab(null);
   }, []);
+
+  /** A vault was removed: forget its drafts; if it was active, drop its note and chat unsaved (issue #24). */
+  const forgetVault = useCallback((id: string) => {
+    dropVaultDrafts(drafts(), id);
+    if (noteRef.current?.vault === id) { failed.current = null; setStale(null); dropNote(); }
+    if (activeRef.current === id) { setChatId(null); pendingRoute.current = null; }
+  }, [dropNote]);
+  vaultGone.current = forgetVault;
 
   const closeNote = useCallback(async () => {
     if (!(await leave())) return false;
@@ -435,7 +463,7 @@ function useAppState() {
       await refreshFiles();
       await openNote(path);
     } catch (e) {
-      toast(e instanceof ApiError && e.code === 'exists-case' ? `Can’t create ${path}: ${e.message}` : e instanceof ApiError && e.status === 409 ? `${path} already exists` : errorText(e));
+      toast(e instanceof ApiError && (e.code === 'exists-case' || e.code === 'bad-name') ? `Can’t create ${path}: ${e.message}` : e instanceof ApiError && e.status === 409 ? `${path} already exists` : errorText(e));
     }
   }, [activeId, refreshFiles, openNote, toast]);
 
@@ -486,9 +514,10 @@ function useAppState() {
   }, [setActiveId, openNote, closeNote, syncRoute, phone, phoneTab]);
 
   // ---- event stream ----
-  const onEvent = useCallback((e: VaultEvent) => {
+  const onEvent = useCallback((vault: string, e: VaultEvent) => {
+    if (vault !== activeRef.current) return;
     if (e.type === 'status') {
-      setStatus(e.status);
+      setStatusFor(vault, e.status);
       setChangesNonce((x) => x + 1);
       return;
     }
@@ -513,7 +542,7 @@ function useAppState() {
     if (n.draft === n.saved && !inflight.current) {
       void load(n.path).then((ok) => ok && toast('Updated by AI or another device'));
     }
-  }, [refreshFiles, load, toast]);
+  }, [refreshFiles, load, toast, setStatusFor]);
   useVaultEvents(usable ? activeId : null, online, onEvent);
 
   const conflict = status?.state === 'conflict';
@@ -523,7 +552,7 @@ function useAppState() {
     online, phone, wide, toast, toastMsg,
     vaults, reloadVaults, settings, setSettings, active, activeId, setActiveId, usable,
     status, setStatus, files, paths, refreshFiles, changesNonce,
-    note, openNote, closeNote, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
+    note, openNote, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
     keepDeletedNote, closeDeletedNote,
     followLink, exists, readOnly, conflict,
     section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen,

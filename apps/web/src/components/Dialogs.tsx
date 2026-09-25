@@ -46,7 +46,7 @@ export function StaleDialog() {
 
 /** Commit reminder (mvp §2.4); the show/dismiss logic lives in lib/reminder. */
 export function ReminderDialog() {
-  const { status, settings, activeId, commitOpen, setCommitOpen } = useApp();
+  const { status, settings, activeId, commitOpen, setCommitOpen, conflict } = useApp();
   const [dismissed, setDismissed] = useState<Record<string, Dismissed>>({});
   const count = status?.changedCount ?? 0;
   const threshold = settings?.commitReminderThreshold ?? 4;
@@ -55,7 +55,8 @@ export function ReminderDialog() {
   useEffect(() => {
     if (activeId && r.dismissed !== level) setDismissed((d) => ({ ...d, [activeId]: r.dismissed }));
   }, [activeId, r.dismissed, level]);
-  if (!r.show || commitOpen || !activeId) return null;
+  // In Conflict a commit can only fail; the conflict banner is the call to action (issue #21).
+  if (!r.show || commitOpen || !activeId || conflict) return null;
   const dismiss = () => setDismissed((d) => ({ ...d, [activeId]: dismissReminder(count, threshold) }));
   return (
     <Modal title="Time to commit?" onClose={dismiss} testid="reminder-dialog">

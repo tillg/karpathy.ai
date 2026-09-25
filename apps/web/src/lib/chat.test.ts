@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChatEvent, changedPaths, settlePending, type ChatView, type PendingPrompt } from './chat';
+import { adoptQueued, applyChatEvent, changedPaths, settlePending, type ChatView, type PendingPrompt } from './chat';
 
 const empty: ChatView = { id: 'c1', title: 'T', messages: [], turn: 'idle' };
 
@@ -60,5 +60,20 @@ describe('settlePending', () => {
     const ran = settlePending(p, { ...empty, turn: 'running' });
     expect(ran).toEqual({ ...p, ran: true });
     expect(settlePending(ran as PendingPrompt, empty)).toBe('drop');
+  });
+});
+
+describe('adoptQueued (#13: queued prompt after reload / from another device)', () => {
+  it('shows the server-side queued prompt when there is no local one', () => {
+    const p = adoptQueued(null, { ...empty, turn: 'queued', queuedText: 'hello' });
+    expect(p).toEqual({ text: 'hello', userCount: 0, sent: true, ran: false });
+    // Stopped while queued → back into the composer.
+    expect(settlePending(p!, empty)).toBe('restore');
+  });
+  it('keeps a local pending prompt and ignores idle/running chats', () => {
+    const local: PendingPrompt = { text: 'mine', userCount: 0, sent: false, ran: false };
+    expect(adoptQueued(local, { ...empty, turn: 'queued', queuedText: 'x' })).toBe(local);
+    expect(adoptQueued(null, { ...empty, turn: 'queued' })).toBeNull();
+    expect(adoptQueued(null, { ...empty, turn: 'running', queuedText: 'x' })).toBeNull();
   });
 });

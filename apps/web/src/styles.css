@@ -348,3 +348,7 @@ mark { background: rgba(245,158,11,.35); color: inherit; border-radius: 3px; pad
 .banner-acts { display: inline-flex; gap: 14px; margin-left: 10px; }
 /* Not a scroll container: CM's scrollIntoView during the phone slide transition must not shift the layout (issue #2). */
 #app { overflow: clip; }
+
+/* Chat list: running/queued marker (issue #13). */
+.turn-mark { flex: none; font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 8px; margin-left: 6px; background: var(--tint-soft); color: var(--tint); }
+.turn-mark.queued { background: var(--fill); color: var(--label2); }

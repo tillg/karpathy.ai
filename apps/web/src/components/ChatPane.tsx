@@ -1,7 +1,7 @@
 import type { ChatEvent, ChatMessage, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
-import { applyChatEvent, changedPaths, settlePending, userCount, type ChatView, type PendingPrompt } from '../lib/chat';
+import { adoptQueued, applyChatEvent, changedPaths, settlePending, userCount, type ChatView, type PendingPrompt } from '../lib/chat';
 import { readNdjson } from '../lib/ndjson';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -127,10 +127,12 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
   useEffect(() => {
     // Keep the optimistic bubble until the server has the message; a prompt stopped while
     // still queued goes back into the composer.
-    if (!pending || !chat) return;
-    const r = settlePending(pending, chat);
+    // A prompt queued before a reload or from another device comes from the server (`queuedText`).
+    const p = chat && adoptQueued(pending, chat);
+    if (!p || !chat) return;
+    const r = settlePending(p, chat);
     if (r === 'drop') setPending(null);
-    else if (r === 'restore') { setPending(null); setText((t) => t || pending.text); }
+    else if (r === 'restore') { setPending(null); setText((t) => t || p.text); }
     else if (r !== pending) setPending(r);
   }, [chat, pending]);
 
@@ -193,6 +195,13 @@ function ChatList({ vaultId }: { vaultId: string }) {
       .catch((e) => setError(e instanceof ApiError && e.status === 503 ? 'The AI chat is not available on this server yet.' : errorText(e)));
   }, [vaultId]);
   useEffect(() => { if (online) load(); }, [load, online]);
+  // Refresh the running/queued markers until every chat is idle.
+  const busy = chats?.some((c) => c.turn !== 'idle');
+  useEffect(() => {
+    if (!busy || !online) return;
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, [busy, online, load]);
   const remove = async (c: ChatSummary) => {
     if (!confirm(`Delete chat “${c.title || 'Untitled'}”?`)) return;
     try { await api.deleteChat(vaultId, c.id); load(); } catch (e) { toast(errorText(e)); }
@@ -208,7 +217,9 @@ function ChatList({ vaultId }: { vaultId: string }) {
           {chats.map((c) => (
             <div className="row" key={c.id}>
               <button className="row-main" data-testid="chat-item" onClick={() => setChatId(c.id)}>
-                <span className="ic"><Icon n="bubble_left" size={20} /></span><span className="nm">{c.title || 'Untitled chat'}</span><span className="cnt">{when(c.updatedAt)}</span>
+                <span className="ic"><Icon n="bubble_left" size={20} /></span><span className="nm">{c.title || 'Untitled chat'}</span>
+                {c.turn !== 'idle' && <span className={`turn-mark ${c.turn}`} data-testid="chat-turn" data-turn={c.turn}>{c.turn === 'running' ? 'Running' : 'Queued'}</span>}
+                <span className="cnt">{when(c.updatedAt)}</span>
               </button>
               <button className="ib sm danger" title="Delete chat" data-testid="chat-delete" onClick={() => void remove(c)}><Icon n="trash" size={17} /></button>
             </div>
@@ -219,7 +230,7 @@ function ChatList({ vaultId }: { vaultId: string }) {
   );
 }
 
-export function ChatPane() {
+export function ChatPane({ inert }: { inert?: boolean }) {
   const { activeId, chatId, setChatId, usable, settings, phone, setChatOpen, toast } = useApp();
   /** Leaves the open chat; a chat that never got a message (e.g. its only prompt was stopped while queued) is deleted. */
   const leave = async (next: string | null) => {
@@ -236,7 +247,7 @@ export function ChatPane() {
     try { await leave((await api.newChat(activeId)).chatId); } catch (e) { toast(errorText(e)); }
   };
   return (
-    <section className="pane always" id="chat">
+    <section className="pane always" id="chat" inert={inert}>
       <div className="bar">
         {chatId
           ? <button className="ib back" data-testid="chat-back" onClick={() => void leave(null)}><Icon n="chevron_left" size={24} /><span>Chats</span></button>

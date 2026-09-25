@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,10 +43,11 @@ export function remoteShow(bare: string, path: string): string {
 }
 
 /** Simulates Obsidian: clone the bare repo on the host, change a file, commit, push. */
-export function pushFromObsidian(bare: string, path: string, content: string, message = 'Edit from Obsidian') {
+export function pushFromObsidian(bare: string, path: string, content: string | Buffer, message = 'Edit from Obsidian') {
   const work = mkdtempSync(join(tmpdir(), 'e2e-obsidian-'));
   try {
     git(work, 'clone', '-q', bare, '.');
+    mkdirSync(dirname(join(work, path)), { recursive: true });
     writeFileSync(join(work, path), content);
     git(work, 'add', '-A');
     git(work, 'commit', '-qm', message);
@@ -86,6 +87,7 @@ export class Api {
   status = (id: string) => this.json<{ state: string; changedCount: number; unpushedCount: number; conflictPaths: string[] }>('GET', `/vaults/${id}/status`);
   files = (id: string) => this.json<{ path: string; type: string }[]>('GET', `/vaults/${id}/files`);
   changes = (id: string) => this.json<{ path: string; kind: string }[]>('GET', `/vaults/${id}/changes`);
+  diff = (id: string, path: string) => this.json<{ diff: string }>('GET', `/vaults/${id}/changes/diff?path=${encodeURIComponent(path)}`);
   settings = () => this.json<{ commitReminderThreshold: number; model: string }>('GET', '/settings');
   patchSettings = (s: { commitReminderThreshold?: number }) => this.json('PATCH', '/settings', s);
 

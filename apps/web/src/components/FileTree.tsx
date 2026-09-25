@@ -18,7 +18,8 @@ export function FileTree() {
     const name = prompt('New note (path inside the vault)', `${dir}Untitled.md`);
     if (!name?.trim()) return;
     const path = name.trim().replace(/^\/+/, '');
-    void newNote(/\.[a-z0-9]+$/i.test(path) ? path : `${path}.md`);
+    // A trailing `/` goes to the server as typed, which rejects it with a readable message.
+    void newNote(/\.[a-z0-9]+$/i.test(path) || path.endsWith('/') ? path : `${path}.md`);
   };
 
   const render = (nodes: TreeNode[], depth: number) => nodes.map((n) => (
@@ -32,7 +33,7 @@ export function FileTree() {
         {n.dir
           ? <span className="tw"><Icon n={collapsed.has(n.path) ? 'chevron_right' : 'chevron_down'} size={12} /></span>
           : <span className="tw" />}
-        <span className="ic"><Icon n={n.dir ? 'folder' : 'doc_text'} size={18} /></span>
+        <span className="ic"><Icon n={n.dir ? 'folder' : /\.md$/i.test(n.name) ? 'doc_text' : 'doc'} size={18} /></span>
         <span className="nm">{n.dir ? n.name : n.name.replace(/\.md$/i, '')}</span>
       </button>
       {n.dir && !collapsed.has(n.path) && render(n.children, depth + 1)}

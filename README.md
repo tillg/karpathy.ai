@@ -59,7 +59,9 @@ deploy/dev.sh logs
 deploy/dev.sh down
 ```
 
-Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Unsaved edits
+Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Binary files
+(images, PDFs, …) are listed but not editable. A vault whose clone failed can be retried
+from the admin area. Unsaved edits
 are also kept on the device and restored after a reload or a lost connection. For the
 offline cache / PWA install in your own browser, trust Caddy's dev CA (in the proxy
 container under `/data/caddy/pki/authorities/local/root.crt`).

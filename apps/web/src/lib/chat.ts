@@ -88,3 +88,12 @@ export function settlePending(p: PendingPrompt, c: ChatView): PendingPrompt | 'd
   if (c.turn === 'idle') return p.ran ? 'drop' : 'restore';
   return p;
 }
+
+/**
+ * A prompt queued on the server (after a reload, or sent from another device) becomes the pending
+ * bubble when this client has none, so it is visible and a Stop restores it (pure).
+ */
+export function adoptQueued(p: PendingPrompt | null, c: ChatView): PendingPrompt | null {
+  if (p || c.turn !== 'queued' || !c.queuedText) return p;
+  return { text: c.queuedText, userCount: userCount(c), sent: true, ran: false };
+}

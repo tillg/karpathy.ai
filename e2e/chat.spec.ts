@@ -22,6 +22,8 @@ test.afterAll(async () => {
 async function newContextPage(browser: Browser, viewport: { width: number; height: number }) {
   const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, ignoreHTTPSErrors: true, baseURL: 'https://localhost:8443' });
   const page = await ctx.newPage();
+  const reminder = page.getByTestId('reminder-dialog');
+  await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());
   page.on('dialog', (d) => void d.accept());
   return { ctx, page };
 }
@@ -35,6 +37,14 @@ async function send(page: Page, text: string) {
 async function waitIdle(page: Page) {
   await expect(page.getByTestId('chat-send')).toBeVisible({ timeout: TURN });
 }
+
+// The small model sometimes writes stray files into the shared vault, which can push the
+// changes count over the commit reminder threshold. The reminder isn't what these tests are
+// about: dismiss it whenever it appears.
+test.beforeEach(async ({ page }) => {
+  const reminder = page.getByTestId('reminder-dialog');
+  await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());
+});
 
 test('chat on iPad: send, streaming answer, consulted-file chip; resume on iPhone; delete', async ({ browser }) => {
   const ipad = await newContextPage(browser, { width: 820, height: 1180 });
@@ -51,9 +61,11 @@ test('chat on iPad: send, streaming answer, consulted-file chip; resume on iPhon
     await expect(p.locator('.turn-state')).toBeVisible({ timeout: TURN });
 
     const chip = p.locator('[data-testid="tool-chip"][data-path$="Home.md"]');
-    await expect(chip).toBeVisible({ timeout: TURN });
+    await expect(chip.first()).toBeVisible({ timeout: TURN });
     await waitIdle(p);
-    await expect(chip.first()).toHaveAttribute('data-status', 'completed');
+    // The small model sometimes gets a call wrong first (e.g. `limit: null` → schema error) and
+    // retries; what matters is a completed read of Home.md.
+    await expect(p.locator('[data-testid="tool-chip"][data-path$="Home.md"][data-status="completed"]').first()).toBeVisible();
     await expect(p.getByTestId('assistant-message').first()).toBeVisible();
     // The small dev model sometimes ends the turn without any text; record it instead of failing.
     const answer = (await p.getByTestId('assistant-message').locator('.atext').allInnerTexts()).join(' ').trim();
@@ -83,9 +95,6 @@ test('chat on iPad: send, streaming answer, consulted-file chip; resume on iPhon
 test('AI write → changed chip, "Open changed page", changes counter increments', async ({ page }) => {
   test.setTimeout(30 * 60_000); // up to three model turns
   // The model sometimes writes several extra files, which can cross the commit-reminder threshold
-  // and put the reminder modal over the chat. Not what this test is about: dismiss it.
-  const reminder = page.getByTestId('reminder-dialog');
-  await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());
   await openApp(page, vault.id);
   const badge = page.getByTestId('changes-badge');
   const before = Number(await badge.getAttribute('data-count'));

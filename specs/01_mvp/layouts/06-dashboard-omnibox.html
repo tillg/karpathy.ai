@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<!--
+  06 · Home Dashboard + Omnibox — karpathy.ai UI prototype
+
+  Rationale: a launcher. Most sessions start with "find X" or "ask about X", so the home screen
+  is one omnibox (Files / Full-text / Ask AI in a single result list) plus cards that surface
+  what needs attention: recent notes, the raw/ inbox (one-tap Ingest), recent AI edits with diffs,
+  wiki health (lint findings) and git status. Opening a note pushes a full view with breadcrumbs
+  (Home › wiki › concepts › llm-wiki) and a persistent mini chat bar ("Ask about this page…")
+  that expands into the chat panel. Routing is hash-based, so browser back / swipe-back works.
+
+  Navigation per form factor:
+  - Phone (<700px): stacked cards, omnibox floats at the bottom (thumb zone); results open as a
+    full-height sheet above it. Note view: back button + condensed breadcrumb; file tree is a
+    left drawer (breadcrumb folder or tree button); mini chat bar expands to a full-screen sheet.
+  - iPad portrait (700-1179px): 2-column dashboard, omnibox in the hero. Note full-width, tree as
+    drawer, chat expands as a bottom sheet from the mini bar.
+  - iPad landscape / desktop (>=1180px): 12-col dashboard grid; note view = tree sidebar | note |
+    chat split (chat column toggled by the mini bar). Cmd/Ctrl+K opens the omnibox palette anywhere.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1e33">
+<title>karpathy.ai · Dashboard + Omnibox</title>
+<link rel="icon" type="image/png" sizes="32x32" href="../../../assets/icons/favicon-32x32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Silkscreen&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f6fa;--surface:#fff;--surface-2:#f0f3f8;--surface-3:#e7ebf2;--border:#e1e6ee;
+  --text:#0f1e33;--muted:#58677e;--faint:#8b97a9;
+  --primary:#0f1e33;--primary-ink:#fff;
+  --accent:#f2643a;--accent-soft:#fdebe4;--accent-ink:#c2410c;
+  --ok:#138a5b;--ok-soft:#e0f3ea;--warn:#a86a12;--warn-soft:#fbf0d9;--bad:#c53030;--bad-soft:#fbe5e5;
+  --add:#e3f5ea;--add-ink:#11663f;--del:#fce8e8;--del-ink:#a82727;
+  --shadow:0 1px 2px rgba(15,30,51,.05),0 6px 24px rgba(15,30,51,.06);
+  --shadow-lg:0 12px 48px rgba(15,30,51,.18);
+  --r:18px;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --st:env(safe-area-inset-top);--sb:env(safe-area-inset-bottom);--sl:env(safe-area-inset-left);--sr:env(safe-area-inset-right);
+  --strip:28px;--bar:56px;--top:calc(var(--st) + var(--strip) + var(--bar));
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a111d;--surface:#111b2b;--surface-2:#172437;--surface-3:#1f2e45;--border:#23324a;
+  --text:#e6ecf5;--muted:#9eabc0;--faint:#6f7e96;--primary:#e6ecf5;--primary-ink:#0f1e33;
+  --accent:#ff7a52;--accent-soft:#3a2119;--accent-ink:#ff9a78;
+  --ok:#3ecf8e;--ok-soft:#12302a;--warn:#f0b54a;--warn-soft:#33280f;--bad:#ff6b6b;--bad-soft:#3a1a1d;
+  --add:#123325;--add-ink:#7ee2ad;--del:#3a1a1d;--del-ink:#ff9b9b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 24px rgba(0,0,0,.25);--shadow-lg:0 12px 48px rgba(0,0,0,.5);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a111d;--surface:#111b2b;--surface-2:#172437;--surface-3:#1f2e45;--border:#23324a;
+  --text:#e6ecf5;--muted:#9eabc0;--faint:#6f7e96;--primary:#e6ecf5;--primary-ink:#0f1e33;
+  --accent:#ff7a52;--accent-soft:#3a2119;--accent-ink:#ff9a78;
+  --ok:#3ecf8e;--ok-soft:#12302a;--warn:#f0b54a;--warn-soft:#33280f;--bad:#ff6b6b;--bad-soft:#3a1a1d;
+  --add:#123325;--add-ink:#7ee2ad;--del:#3a1a1d;--del-ink:#ff9b9b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 24px rgba(0,0,0,.25);--shadow-lg:0 12px 48px rgba(0,0,0,.5);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+a{color:inherit;text-decoration:none}
+svg.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:var(--mono)}
+/* strip + topbar */
+.strip{position:fixed;top:0;left:0;right:0;z-index:28;padding:var(--st) calc(12px + var(--sr)) 0 calc(12px + var(--sl));height:calc(var(--strip) + var(--st));display:flex;align-items:center;gap:10px;background:#0f1e33;color:#fff;font-size:12px}
+.strip a{font-weight:600;opacity:.9}.strip a:hover{opacity:1;text-decoration:underline}
+.strip span{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar{position:fixed;left:0;right:0;top:calc(var(--st) + var(--strip));height:var(--bar);z-index:30;display:flex;align-items:center;gap:6px;padding:0 calc(12px + var(--sr)) 0 calc(12px + var(--sl));background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:9px;padding:4px 6px 4px 0;flex:none}
+.brand img{width:32px;height:32px;border-radius:9px;background:#fff;object-fit:cover;box-shadow:0 0 0 1px var(--border)}
+.wordmark{font-family:Silkscreen,monospace;font-size:17px;letter-spacing:.5px}
+.icon-btn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--muted);flex:none}
+.icon-btn:hover{background:var(--surface-2);color:var(--text)}
+.back{display:none}
+.crumbs{display:none;align-items:center;gap:2px;min-width:0;flex:1;overflow:hidden;white-space:nowrap;font-size:14px;color:var(--muted)}
+.crumbs button{padding:6px 7px;border-radius:8px}.crumbs button:hover{background:var(--surface-2);color:var(--text)}
+.crumbs .sep{color:var(--faint)}.crumbs .cur{color:var(--text);font-weight:600;padding:6px 4px;overflow:hidden;text-overflow:ellipsis}
+.spacer{flex:1}
+body.v-home #searchBtn{display:none}body.v-note .crumbs{display:flex}body.v-note .spacer{display:none}body.v-note .back{display:grid}
+.git-pill{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:13px;color:var(--muted);white-space:nowrap;flex:none}
+.git-pill:hover{color:var(--text)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft);flex:none}
+.dot.dirty{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}.dot.busy{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.kbd{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid var(--border);color:var(--faint);background:var(--surface)}
+/* app grid */
+.app{position:absolute;top:var(--top);left:0;right:0;bottom:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+main{grid-column:1/-1;min-width:0;min-height:0;position:relative}
+body.split .app{grid-template-columns:264px minmax(0,1fr)}
+body.split.chat-open .app{grid-template-columns:264px minmax(0,1fr) 420px}
+body.split main{grid-column:2}
+.view{position:absolute;inset:0;display:none}
+body.v-home #home{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body.v-note #note{display:flex;flex-direction:column}
+/* home */
+.home-inner{max-width:1320px;margin:0 auto;padding:28px calc(24px + var(--sr)) 48px calc(24px + var(--sl))}
+.hero{max-width:820px;margin:8px auto 28px;text-align:center}
+.hero h1{margin:0 0 4px;font-size:28px;letter-spacing:-.02em}
+.hero p{margin:0 0 18px;color:var(--muted);font-size:14px}
+.omni-wrap{position:relative;text-align:left;z-index:5}
+.omni{display:flex;align-items:center;gap:10px;height:60px;padding:0 10px 0 18px;border-radius:20px;background:var(--surface);border:1.5px solid var(--border);box-shadow:var(--shadow)}
+.omni:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),var(--shadow)}
+.omni input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:17px;height:100%}
+.omni input::placeholder{color:var(--faint)}
+.omni .ic{width:22px;height:22px;color:var(--faint)}
+.skills{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:13px;font-weight:500;color:var(--muted)}
+.chip:hover{border-color:var(--accent);color:var(--accent-ink)}
+.chip b{font-family:var(--mono);font-weight:500;color:var(--accent-ink)}
+.results{display:none;position:absolute;left:0;right:0;top:68px;max-height:min(62vh,560px);overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-lg);padding:6px}
+body.omni-open .omni-wrap .results{display:block}
+.rs-h{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);padding:10px 12px 4px}
+.ri{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:46px;padding:8px 12px;border-radius:12px}
+.ri:hover,.ri.sel{background:var(--surface-2)}
+.ri .ic{color:var(--faint)}.ri .t{font-weight:500}.ri .p{font-size:12px;color:var(--faint);font-family:var(--mono)}
+.ri .col{min-width:0;flex:1}.ri .snip{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+mark{background:var(--accent-soft);color:var(--accent-ink);border-radius:3px;padding:0 2px}
+.ri.ask{background:var(--accent-soft)}.ri.ask .ic{color:var(--accent-ink)}.ri.ask .t{color:var(--accent-ink)}
+.ri .meta{margin-left:auto;font-size:12px;color:var(--faint);white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;min-width:0;display:flex;flex-direction:column}
+.c-recent{grid-column:span 5}.c-inbox{grid-column:span 4}.c-git{grid-column:span 3}
+.c-edits{grid-column:span 6}.c-health{grid-column:span 3}.c-vault{grid-column:span 3}
+.card-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.card-h h2{margin:0;font-size:15px;font-weight:600}
+.card-h .ic{color:var(--accent)}
+.card-h .count{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink)}
+.card-h .more{margin-left:auto;font-size:13px;color:var(--muted);padding:6px 8px;border-radius:8px}.card-h .more:hover{background:var(--surface-2)}
+.row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:48px;padding:8px 10px;margin:0 -10px;border-radius:12px;width:calc(100% + 20px)}
+.row:hover{background:var(--surface-2)}
+.row .col{flex:1;min-width:0}.row .t{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.tag.entity{background:#e6eefc;color:#2a4fa8}.tag.concept{background:var(--accent-soft);color:var(--accent-ink)}.tag.source{background:var(--ok-soft);color:var(--ok)}.tag.synthesis{background:#efe7fb;color:#6b3fb8}
+[data-theme="dark"] .tag.entity{background:#17284a;color:#9dbbff}[data-theme="dark"] .tag.synthesis{background:#2a1d44;color:#c9a8ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tag.entity{background:#17284a;color:#9dbbff}:root:not([data-theme="light"]) .tag.synthesis{background:#2a1d44;color:#c9a8ff}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:11px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--surface);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--primary);color:var(--primary-ink);border-color:transparent}.btn.pri:hover{opacity:.9}
+.btn.acc{background:var(--accent);color:#fff;border-color:transparent}
+.btn.sm{height:32px;padding:0 11px;font-size:12px}
+.ftype{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--surface-2);color:var(--muted);flex:none}
+.ftype.new{background:var(--accent-soft);color:var(--accent-ink)}
+.edit{border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px}
+.edit-h{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.edit-h .path{font-family:var(--mono);font-size:12px;font-weight:500}
+.plus{color:var(--add-ink);font-family:var(--mono);font-size:12px}.minus{color:var(--del-ink);font-family:var(--mono);font-size:12px}
+.diff{font-family:var(--mono);font-size:12px;line-height:1.55;border-radius:10px;overflow:hidden;margin:8px 0;border:1px solid var(--border)}
+.diff div{padding:1px 10px;white-space:pre-wrap;word-break:break-word}
+.diff .a{background:var(--add);color:var(--add-ink)}.diff .d{background:var(--del);color:var(--del-ink)}.diff .c{color:var(--faint);background:var(--surface-2)}
+.health-top{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.ring{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--accent) 0 86%,var(--surface-3) 0);flex:none}
+.ring span{width:50px;height:50px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-weight:700;font-size:16px}
+.sev{width:8px;height:8px;border-radius:50%;flex:none;background:var(--warn)}.sev.bad{background:var(--bad)}.sev.info{background:var(--faint)}
+.git-stat{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.git-stat .tag{font-size:12px}
+.commit{font-size:12px;color:var(--muted);display:flex;gap:8px;padding:5px 0;border-top:1px dashed var(--border)}
+.commit code{color:var(--accent-ink);font-family:var(--mono)}
+.btns{display:flex;gap:8px;margin-top:auto;padding-top:10px;flex-wrap:wrap}
+/* tree */
+.tree{font-size:14px}
+.tree ul{list-style:none;margin:0;padding:0 0 0 14px}.tree>ul{padding:0}
+.tn{display:flex;align-items:center;gap:7px;width:100%;min-height:34px;padding:4px 8px;border-radius:9px;text-align:left;color:var(--muted);white-space:nowrap;overflow:hidden}
+.tn:hover{background:var(--surface-2);color:var(--text)}
+.tn.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.tn.flash{box-shadow:inset 0 0 0 2px var(--accent)}
+.tn .ic{width:16px;height:16px}.tn .chev{transition:transform .15s}.tn.open .chev{transform:rotate(90deg)}
+.tn .nb{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.c-vault .tree{max-height:330px;overflow:auto;margin:0 -8px}
+.tree-pane{position:fixed;top:0;bottom:0;left:0;width:min(320px,86vw);z-index:50;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(-105%);transition:transform .25s ease;padding-top:var(--st);padding-left:var(--sl)}
+body.tree-open .tree-pane{transform:none;box-shadow:var(--shadow-lg)}
+.pane-h{display:flex;align-items:center;gap:8px;padding:10px 12px 8px 16px;font-weight:600;font-size:14px}
+.pane-h .spacer{display:block}
+.tree-pane .tree{flex:1;overflow:auto;padding:0 8px 16px}
+body.split .tree-pane{position:static;grid-column:1;grid-row:1;transform:none;width:auto;z-index:1;padding-top:0;background:var(--bg)}
+body.split .tree-pane .close-tree{display:none}
+.scrim{position:fixed;inset:0;z-index:45;background:rgba(6,12,22,.45);opacity:0;pointer-events:none;transition:opacity .2s}
+body.tree-open .scrim,body.chat-open:not(.split) .scrim,body.pal-open .scrim{opacity:1;pointer-events:auto}
+/* note view */
+.notebar{display:flex;align-items:center;gap:8px;padding:10px calc(20px + var(--sr)) 10px calc(20px + var(--sl));border-bottom:1px solid var(--border);background:var(--surface);flex:none}
+body.split .notebar .files-btn{display:none}
+.notebar .path{font-family:var(--mono);font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.seg{display:flex;background:var(--surface-2);border-radius:10px;padding:3px;margin-left:auto;flex:none}
+.seg button{height:30px;padding:0 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.save{font-size:12px;color:var(--faint);white-space:nowrap;display:flex;align-items:center;gap:6px}
+.doc-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--surface)}
+.doc{max-width:760px;margin:0 auto;padding:28px calc(28px + var(--sr)) 40px calc(28px + var(--sl))}
+.cm{font-family:var(--mono);font-size:14px;line-height:1.75;outline:none;caret-color:var(--accent)}
+.cm .ln{min-height:1.75em;padding:0 8px;margin:0 -8px;border-radius:6px;white-space:pre-wrap;word-break:break-word}
+.cm .ln:focus-within,.cm .ln.cur{background:var(--surface-2)}
+.cm .mk{color:var(--faint)}
+.cm .fm{border-radius:0;color:var(--muted);background:var(--surface-2);font-size:13px}.cm .fm.f0{border-radius:6px 6px 0 0}.cm .fm.f1{border-radius:0 0 6px 6px}
+.cm .fk{color:var(--accent-ink)}
+.cm .h1{font-family:Inter,sans-serif;font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.35}
+.cm .h2{font-family:Inter,sans-serif;font-size:20px;font-weight:650;line-height:1.5;padding-top:10px}
+.cm .h3{font-family:Inter,sans-serif;font-size:16px;font-weight:650}
+.cm .ln.p{font-family:Inter,sans-serif;font-size:15.5px}
+.cm .ln.q{border-left:3px solid var(--accent);border-radius:0;padding-left:12px;margin-left:0;color:var(--muted);font-family:Inter,sans-serif;font-style:italic}
+.cm code,.pv code{font-family:var(--mono);font-size:.88em;background:var(--surface-3);padding:1px 5px;border-radius:5px}
+.wl{color:var(--accent-ink);font-weight:500;cursor:pointer;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--accent) 40%,transparent);text-underline-offset:3px}
+.wl:hover{text-decoration-color:var(--accent)}
+.wl.dead{color:var(--bad);text-decoration-style:dashed}
+.ln.chg,.pv .chg{background:var(--add)!important;box-shadow:inset 3px 0 var(--ok);transition:background 2s}
+.pv{font-size:16px;line-height:1.7}
+.pv h1{font-size:30px;letter-spacing:-.02em;margin:6px 0 10px;line-height:1.25}.pv h2{font-size:21px;margin:26px 0 6px}.pv h3{font-size:17px}
+.pv blockquote{margin:12px 0;border-left:3px solid var(--accent);padding:4px 14px;color:var(--muted);font-style:italic}
+.pv ul,.pv ol{padding-left:22px}
+.props{border:1px solid var(--border);border-radius:14px;padding:10px 14px;margin-bottom:20px;display:grid;grid-template-columns:110px 1fr;gap:6px 12px;font-size:13px;background:var(--surface-2)}
+.props dt{color:var(--faint)}.props dd{margin:0;display:flex;gap:6px;flex-wrap:wrap}
+.backlinks{margin-top:34px;padding-top:16px;border-top:1px solid var(--border)}
+.backlinks h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.minibar-wrap{flex:none;padding:10px calc(16px + var(--sr)) calc(10px + var(--sb)) calc(16px + var(--sl));background:linear-gradient(transparent,var(--surface) 30%);border-top:1px solid var(--border);background:var(--surface)}
+.minibar{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;min-height:50px;padding:5px 6px 5px 14px;border-radius:16px;border:1.5px solid var(--border);background:var(--bg);width:100%;text-align:left;box-shadow:var(--shadow)}
+.minibar:hover{border-color:var(--accent)}
+.minibar .ic{color:var(--accent)}.minibar .ph{flex:1;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.minibar .ctx{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:7px;background:var(--surface-3);color:var(--muted);white-space:nowrap}
+.minibar .go{width:38px;height:38px;border-radius:11px;background:var(--primary);color:var(--primary-ink);display:grid;place-items:center}
+body.split.chat-open .minibar-wrap{display:none}
+/* chat */
+.chat-pane{position:fixed;z-index:55;background:var(--surface);display:flex;flex-direction:column;min-height:0;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.chat-h{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 16px;border-bottom:1px solid var(--border);flex:none}
+.chat-h .ttl{flex:1;font-weight:600;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grab{display:none;width:40px;height:5px;border-radius:3px;background:var(--surface-3);margin:8px auto 0}
+.model{position:relative;flex:none}body.split .model .lbl2{display:none}
+.model>button{display:flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--border);font-size:12px;font-weight:500;white-space:nowrap}
+.model>button i{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.menu{display:none;position:absolute;right:0;top:40px;width:260px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);padding:6px;z-index:5}
+.menu.open{display:block}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:6px 10px;border-radius:10px;text-align:left;font-size:13px}
+.menu button:hover{background:var(--surface-2)}.menu small{color:var(--faint);display:block;font-size:11px}
+.menu .ck{margin-left:auto;color:var(--accent);visibility:hidden}.menu .on .ck{visibility:visible}
+.msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;-webkit-overflow-scrolling:touch}
+.msg.u{align-self:flex-end;max-width:85%;background:var(--primary);color:var(--primary-ink);padding:9px 14px;border-radius:16px 16px 4px 16px;font-size:14px}
+.msg.u code{font-family:var(--mono);font-size:13px}
+.msg.a{font-size:14.5px;line-height:1.6}
+.msg.a p{margin:6px 0}
+.who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint);margin-bottom:6px}
+.who img{width:20px;height:20px;border-radius:6px;background:#fff}
+.tools{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.tc{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-family:var(--mono);font-size:11.5px;color:var(--muted);max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.tc .ic{width:13px;height:13px}.tc.run .ic{animation:spin 1s linear infinite;color:var(--accent)}.tc.done .ic{color:var(--ok)}
+.tc.ed{background:var(--add);border-color:transparent;color:var(--add-ink);cursor:pointer}
+@keyframes spin{to{transform:rotate(360deg)}}
+.caret::after{content:"";display:inline-block;width:7px;height:15px;background:var(--accent);margin-left:2px;vertical-align:-2px;animation:pulse .8s infinite}
+.typing{display:flex;gap:4px;padding:6px 0}.typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:pulse 1s infinite}.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+.chat-foot{flex:none;border-top:1px solid var(--border);padding:10px 12px calc(10px + var(--sb))}
+.qa{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.qa .chip{height:32px;flex:none}
+.ctxrow{display:flex;gap:6px;margin-bottom:8px}
+.ctxchip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;height:26px;padding:0 4px 0 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink)}
+.ctxchip button{width:22px;height:22px;display:grid;place-items:center;border-radius:6px}
+.composer{display:flex;align-items:flex-end;gap:8px;border:1.5px solid var(--border);border-radius:16px;padding:6px 6px 6px 12px;background:var(--bg)}
+.composer:focus-within{border-color:var(--accent)}
+.composer textarea{flex:1;border:0;outline:0;background:none;resize:none;min-height:36px;max-height:140px;padding:7px 0;font-size:15px}
+.composer .go{width:38px;height:38px;border-radius:11px;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none}
+/* palette */
+.palette{display:none;position:fixed;z-index:58;left:50%;top:calc(var(--top) + 24px);transform:translateX(-50%);width:min(680px,calc(100% - 32px));background:var(--surface);border-radius:20px;box-shadow:var(--shadow-lg);border:1px solid var(--border);overflow:hidden}
+body.pal-open .palette{display:block}
+.palette .omni{border:0;border-bottom:1px solid var(--border);border-radius:0;box-shadow:none!important}
+.palette .results{display:block;position:static;box-shadow:none;border:0;border-radius:0;max-height:min(60vh,520px)}
+.toast{position:fixed;left:50%;bottom:calc(24px + var(--sb));transform:translate(-50%,20px);opacity:0;z-index:70;background:var(--primary);color:var(--primary-ink);padding:10px 16px;border-radius:12px;font-size:13px;box-shadow:var(--shadow-lg);transition:.25s;pointer-events:none;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.gitmenu{position:fixed;z-index:65;top:calc(var(--top) + 6px);right:calc(12px + var(--sr));width:300px;left:auto}
+.gitmenu .gm-body{padding:8px 10px 4px;font-size:13px;color:var(--muted)}
+/* responsive */
+@media (min-width:1180px){
+  .chat-pane{top:var(--top);right:0;bottom:0;width:440px;border-left:1px solid var(--border);transform:translateX(105%);box-shadow:var(--shadow-lg)}
+  body.chat-open .chat-pane{transform:none}
+  body.split .chat-pane{position:static;grid-column:3;grid-row:1;transform:none;width:auto;box-shadow:none;display:none}
+  body.split.chat-open .chat-pane{display:flex}
+}
+@media (min-width:700px) and (max-width:1179px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid .card{grid-column:span 1}.c-edits,.c-vault{grid-column:span 2!important}.c-edits{order:1}.c-vault{order:2}
+  .chat-pane{left:50%;bottom:0;width:min(780px,calc(100% - 24px));height:min(80dvh,860px);border-radius:22px 22px 0 0;transform:translate(-50%,105%);box-shadow:var(--shadow-lg)}
+  body.chat-open .chat-pane{transform:translate(-50%,0)}
+  .grab{display:block}
+}
+@media (max-width:699px){
+  :root{--bar:52px}
+  .icon-btn{width:44px;height:44px}
+  .wordmark{display:none}body.v-home .wordmark{display:inline}
+  .crumbs .mid,.crumbs [data-home]{display:none}
+  .git-pill{height:44px;padding:0 12px}
+  .home-inner{padding:18px calc(16px + var(--sr)) calc(110px + var(--sb)) calc(16px + var(--sl))}
+  .hero{margin:0 0 16px;text-align:left}.hero h1{font-size:23px}.hero p{margin-bottom:0}
+  .grid{grid-template-columns:minmax(0,1fr);gap:12px}.grid .card{grid-column:1!important}
+  .c-inbox{order:-2}.c-recent{order:-1}
+  .omni-wrap{position:fixed;left:calc(12px + var(--sl));right:calc(12px + var(--sr));bottom:calc(12px + var(--sb));z-index:20}
+  .omni{height:56px;box-shadow:var(--shadow-lg)}
+  .omni .kbd{display:none}
+  .skills{position:fixed;left:0;right:0;bottom:calc(76px + var(--sb));justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;padding:0 12px;margin:0;display:none;z-index:21}
+  body.omni-open .skills{display:flex}
+  .results{position:fixed;top:calc(var(--st) + 12px);left:calc(12px + var(--sl));right:calc(12px + var(--sr));bottom:calc(122px + var(--sb));max-height:none}
+  body.omni-open.v-home .scrim{opacity:1;pointer-events:auto}
+  .omni-wrap{z-index:46}.skills{z-index:47!important}
+  body.v-note .brand{display:none}
+  .git-pill .gt{display:none!important}.git-pill{min-width:44px;justify-content:center}
+  .notebar{padding:8px 12px}.notebar .path,.save .lbl{display:none}
+  .doc{padding:20px calc(18px + var(--sr)) 32px calc(18px + var(--sl))}
+  .cm .h1{font-size:24px}
+  .chat-pane{left:0;right:0;bottom:0;top:calc(var(--st) + 10px);border-radius:20px 20px 0 0;transform:translateY(105%);box-shadow:var(--shadow-lg)}
+  body.chat-open .chat-pane{transform:none}
+  .grab{display:block}
+  .chat-h .ic-only{display:none}
+  .row,.tn{min-height:44px}
+  .btn{height:44px}.btn.sm{height:40px}
+  .palette{top:calc(var(--st) + 10px);width:calc(100% - 20px)}
+  .gitmenu{right:10px;width:calc(100% - 20px)}
+  .model .lbl2{display:none}
+}
+</style>
+</head>
+<body class="v-home">
+<div class="strip"><a href="index.html">← All layouts</a><span>06 · Home Dashboard + Omnibox</span></div>
+
+<header class="topbar">
+  <button class="icon-btn back" id="backBtn" aria-label="Back"><i data-ic="back"></i></button>
+  <a class="brand" href="#/home" aria-label="Home"><img src="../../../assets/karpathy_ai_logo.png" alt=""><span class="wordmark">karpathy.ai</span></a>
+  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="searchBtn" aria-label="Search (Cmd K)"><i data-ic="search"></i></button>
+  <button class="git-pill" id="gitPill" aria-label="Git status"><span class="dot" id="gitDot"></span><span class="gt" id="gitText">synced · 2 min ago</span></button>
+  <button class="icon-btn" id="themeBtn" aria-label="Toggle theme"><i data-ic="moon"></i></button>
+</header>
+
+<div class="app">
+  <aside class="tree-pane" id="treePane" aria-label="Files">
+    <div class="pane-h"><i data-ic="folder"></i>Vault<span class="spacer"></span><button class="icon-btn" id="newNote" aria-label="New note"><i data-ic="plus"></i></button><button class="icon-btn close-tree" id="closeTree" aria-label="Close"><i data-ic="close"></i></button></div>
+    <div class="tree" id="treeSide"></div>
+  </aside>
+
+  <main>
+    <section class="view" id="home">
+      <div class="home-inner">
+        <div class="hero">
+          <h1 id="greet">Good morning</h1>
+          <p id="stats">24 pages · 6 raw sources · last ingest yesterday 21:14</p>
+          <div class="omni-wrap">
+            <label class="omni"><i data-ic="search"></i><input id="omniInput" placeholder="Search the vault or ask the AI…" autocomplete="off" enterkeyhint="go"><span class="kbd">⌘K</span></label>
+            <div class="results" id="omniRes"></div>
+          </div>
+          <div class="skills" id="skillsHome"></div>
+        </div>
+
+        <div class="grid">
+          <section class="card c-recent"><div class="card-h"><i data-ic="clock"></i><h2>Recent notes</h2><button class="more" data-tree>Browse all</button></div><div id="recentList"></div></section>
+          <section class="card c-inbox"><div class="card-h"><i data-ic="inbox"></i><h2>Inbox</h2><span class="count" id="inboxCount">3</span><button class="more" id="ingestAll">Ingest all</button></div><div id="inboxList"></div></section>
+          <section class="card c-git"><div class="card-h"><i data-ic="git"></i><h2>Git</h2><span class="more mono" style="font-size:12px">main</span></div><div id="gitCard"></div></section>
+          <section class="card c-edits"><div class="card-h"><i data-ic="spark"></i><h2>Recent AI edits</h2><button class="more" data-chat>Open chat</button></div><div id="editsList"></div></section>
+          <section class="card c-health"><div class="card-h"><i data-ic="pulse"></i><h2>Wiki health</h2><button class="more" data-skill="/lint">Run /lint</button></div><div id="healthCard"></div></section>
+          <section class="card c-vault"><div class="card-h"><i data-ic="folder"></i><h2>Vault</h2><button class="more" id="expandAll">Expand</button></div><div class="tree" id="treeHome"></div></section>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="note">
+      <div class="notebar">
+        <button class="icon-btn files-btn" data-tree aria-label="Files"><i data-ic="sidebar"></i></button>
+        <span class="path" id="notePath"></span>
+        <div class="seg" role="tablist"><button id="mLive" class="on">Live</button><button id="mPrev">Preview</button></div>
+        <span class="save" id="saveState"><i data-ic="check"></i><span class="lbl">saved</span></span>
+      </div>
+      <div class="doc-scroll" id="docScroll"><div class="doc" id="doc"></div></div>
+      <div class="minibar-wrap"><button class="minibar" id="miniBar"><i data-ic="spark"></i><span class="ph">Ask about this page…</span><span class="ctx" id="miniCtx">llm-wiki.md</span><span class="go"><i data-ic="up"></i></span></button></div>
+    </section>
+  </main>
+
+  <aside class="chat-pane" id="chatPane" aria-label="AI chat">
+    <div class="grab"></div>
+    <div class="chat-h">
+      <i data-ic="spark" style="color:var(--accent)"></i><span class="ttl" id="chatTitle">Chat · Vault</span>
+      <div class="model"><button id="modelBtn"><i></i><span id="modelLbl">claude-sonnet-5</span><span class="lbl2" id="modelProv" style="color:var(--faint)">· Anthropic</span><i data-ic="down"></i></button><div class="menu" id="modelMenu"></div></div>
+      <button class="icon-btn ic-only" id="newChat" aria-label="New session"><i data-ic="plus"></i></button>
+      <button class="icon-btn" id="closeChat" aria-label="Close chat"><i data-ic="close"></i></button>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="chat-foot">
+      <div class="qa" id="skillsChat"></div>
+      <div class="ctxrow" id="ctxRow"></div>
+      <div class="composer"><textarea id="chatIn" rows="1" placeholder="Ask, or type / for skills…" enterkeyhint="send"></textarea><button class="go" id="sendBtn" aria-label="Send"><i data-ic="up"></i></button></div>
+    </div>
+  </aside>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="palette" id="palette"><label class="omni"><i data-ic="search"></i><input id="palInput" placeholder="Search the vault or ask the AI…" autocomplete="off"><span class="kbd">esc</span></label><div class="results" id="palRes"></div></div>
+<div class="menu gitmenu" id="gitMenu"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const IC={search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',chev:'<path d="m9 6 6 6-6 6"/>',back:'<path d="m15 6-6 6 6 6"/>',spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',git:'<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-7 3-11.2 6.5"/>',moon:'<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',close:'<path d="M6 6l12 12M18 6 6 18"/>',up:'<path d="M12 19V5M5 12l7-7 7 7"/>',sidebar:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',check:'<path d="m5 12 5 5 9-10"/>',down:'<path d="m6 9 6 6 6-6"/>',pull:'<path d="M12 4v14M6 12l6 6 6-6"/>',push:'<path d="M12 20V6M6 12l6-6 6 6"/>',plus:'<path d="M12 5v14M5 12h14"/>',edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',inbox:'<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/>',pulse:'<path d="M3 12h4l3-7 4 14 3-7h4"/>',spin:'<path d="M12 3a9 9 0 1 0 9 9"/>',hash:'<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'};
+const ic=(n,s='')=>`<svg class="ic" viewBox="0 0 24 24" ${s}>${IC[n]||''}</svg>`;
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function hydrate(root=document){root.querySelectorAll('i[data-ic]').forEach(i=>{i.outerHTML=ic(i.dataset.ic)})}
+
+/* ---------- vault data ---------- */
+const V={};
+V['index.md']=`---
+type: topic
+tags: [index]
+updated: 2026-09-24
+sources: []
+confidence: high
+---
+# Wiki Index
+
+## Entities
+- [[entities/andrej-karpathy]] — Researcher, coined "LLM Wiki" (5 sources)
+- [[entities/obsidian]] — Markdown vault app, our reading frontend (3 sources)
+- [[entities/opencode]] — MIT agent harness, runs the skills (2 sources)
+- [[entities/anthropic]] — Model provider (2 sources)
+
+## Concepts
+- [[concepts/llm-wiki]] — Persistent, LLM-maintained knowledge base (4 sources)
+- [[concepts/rag]] — Retrieval-augmented generation (3 sources)
+- [[concepts/context-engineering]] — Curating what goes into the context window (2 sources)
+- [[concepts/software-3-0]] — Prompts as programs (1 source)
+
+## Synthesis
+- [[synthesis/rag-vs-llm-wiki]] — When to retrieve vs. when to compile
+
+## Recent Ingests
+- [[sources/karpathy-llm-wiki-gist]] — 2026-09-24 (6 pages updated)
+- [[sources/software-3-0-talk]] — 2026-09-18 (4 pages updated)`;
+V['log.md']=`---
+type: topic
+tags: [log]
+updated: 2026-09-24
+sources: []
+confidence: high
+---
+# Wiki Log
+
+## [2026-09-24] ingest | Karpathy — LLM Wiki (gist)
+- Updated: [[concepts/llm-wiki]], [[entities/andrej-karpathy]], [[index]]
+- New: [[sources/karpathy-llm-wiki-gist]]
+
+## [2026-09-22] lint
+- Dead link: [[timeline-of-llm-tools]] in [[concepts/llm-wiki]]
+- Orphan: [[synthesis/obsidian-vs-notion-for-agents]]
+
+## [2026-09-18] ingest | Software 3.0 talk
+- New: [[sources/software-3-0-talk]], [[concepts/software-3-0]]`;
+V['wiki/concepts/llm-wiki.md']=`---
+type: concept
+tags: [llm, knowledge-management, karpathy]
+updated: 2026-09-24
+sources: [karpathy-llm-wiki-gist.md, software-3-0-talk.md]
+related: [andrej-karpathy, rag, obsidian]
+confidence: high
+---
+# LLM Wiki
+
+Ein **LLM Wiki** ist eine persistente Wissensbasis, die ein LLM aus Rohquellen pflegt — statt bei jeder Frage neu zu retrieven (vgl. [[rag]]). Begriff und Idee stammen von [[andrej-karpathy]].
+
+## Kernidee
+- Rohquellen landen unveränderlich in \`raw/\`
+- Das LLM schreibt und pflegt Seiten in \`wiki/\` (entities, concepts, sources, synthesis)
+- Der Mensch liest, das LLM schreibt — *compile once, query often*
+
+## Workflow
+1. **Ingest** — Quelle lesen, Summary unter [[sources/karpathy-llm-wiki-gist]] anlegen
+2. **Query** — Fragen gegen den [[index]] beantworten, gute Antworten als Synthesis ablegen
+3. **Lint** — tote Links, Waisen und Widersprüche finden
+
+## Abgrenzung
+> RAG re-derives knowledge on every query; an LLM wiki accumulates it.
+
+Siehe auch [[synthesis/rag-vs-llm-wiki]], [[obsidian]] als Frontend und [[context-engineering]].
+
+## Offene Fragen
+- Wie skaliert der [[index]] über ~500 Seiten?
+- Konflikte bei gleichzeitigen Edits aus Obsidian mobile — siehe [[timeline-of-llm-tools]]`;
+V['wiki/entities/andrej-karpathy.md']=`---
+type: entity
+tags: [person, ai-research]
+updated: 2026-09-24
+sources: [karpathy-llm-wiki-gist.md, software-3-0-talk.md, intro-to-llms-video.md]
+confidence: high
+---
+# Andrej Karpathy
+
+AI researcher and educator. Former Director of AI at Tesla, founding member of OpenAI, founder of Eureka Labs.
+
+## Ideas in this wiki
+- [[llm-wiki]] — the pattern this vault implements
+- [[software-3-0]] — "the hottest new programming language is English"
+- [[vibe-coding]] — coined in early 2025
+
+## Sources
+- [[sources/karpathy-llm-wiki-gist]]
+- [[sources/software-3-0-talk]]
+- [[sources/intro-to-llms-video]]`;
+V['wiki/synthesis/rag-vs-llm-wiki.md']=`---
+type: synthesis
+tags: [comparison, retrieval]
+updated: 2026-09-20
+sources: [karpathy-llm-wiki-gist.md]
+confidence: medium
+---
+# RAG vs. LLM Wiki
+
+- **Wissen:** RAG leitet bei jeder Anfrage neu ab; das Wiki akkumuliert.
+- **Kosten:** RAG billig beim Schreiben, teuer beim Lesen — Wiki umgekehrt.
+- **Widersprüche:** im Wiki explizit markiert, bei RAG unsichtbar.
+
+## Fazit
+Für ein persönliches Wissens-Vault gewinnt das Wiki; RAG bleibt sinnvoll für große, volatile Korpora.`;
+V['raw/articles/karpathy-llm-wiki-gist.md']=`# LLM Wiki — Andrej Karpathy (gist)
+
+> Clipped with Obsidian Web Clipper · 2026-09-23
+
+A pattern for building personal knowledge bases using LLMs. Instead of retrieving from raw documents at query time, the LLM incrementally builds and maintains a persistent wiki — a structured, interlinked collection of markdown files.
+
+The wiki is a persistent, compounding artifact. You never (or rarely) write the wiki yourself — the LLM writes and maintains all of it.`;
+const DESC={'wiki/entities/obsidian.md':'Local-first Markdown editor. Our vault opens here too — git keeps both in sync. Frontend for the [[llm-wiki]].','wiki/entities/opencode.md':'MIT-licensed agent harness (TypeScript on Bun). Runs `opencode serve`; reads SKILL.md and AGENTS.md. Drives [[llm-wiki]] skills.','wiki/entities/anthropic.md':'Model provider (Claude). One of many providers configured in [[opencode]].','wiki/concepts/rag.md':'Retrieval-augmented generation: fetch chunks at query time and stuff them into the prompt. Contrast with [[llm-wiki]].','wiki/concepts/context-engineering.md':'The craft of filling the context window with just the right information. Coined in the wake of [[andrej-karpathy]]\'s posts.','wiki/concepts/software-3-0.md':'Prompts as programs; LLMs as a new kind of computer. From the [[sources/software-3-0-talk]].','wiki/concepts/vibe-coding.md':'Coding by describing intent and accepting the diff. Term by [[andrej-karpathy]], Feb 2025.','wiki/sources/karpathy-llm-wiki-gist.md':'Summary of the gist that defines the [[llm-wiki]] pattern: raw/, wiki/, index, log, ingest/query/lint.','wiki/sources/software-3-0-talk.md':'YC AI Startup School talk by [[andrej-karpathy]]. Introduces [[software-3-0]] and partial-autonomy apps.','wiki/sources/intro-to-llms-video.md':'1h intro to LLMs by [[andrej-karpathy]] — pretraining, finetuning, LLM OS.','wiki/synthesis/obsidian-vs-notion-for-agents.md':'Why plain Markdown + git beats a proprietary block store for agent edits. Relates to [[obsidian]].'};
+const RAW_NEW=['raw/articles/vibe-coding-thread.md','raw/articles/cursor-agents-blog.md','raw/articles/zettelkasten-llm-paper.md'];
+const PATHS=['index.md','log.md',...Object.keys(DESC),'wiki/concepts/llm-wiki.md','wiki/entities/andrej-karpathy.md','wiki/synthesis/rag-vs-llm-wiki.md','raw/articles/karpathy-llm-wiki-gist.md','raw/articles/software-3-0-talk.md','raw/articles/intro-to-llms-transcript.md',...RAW_NEW];
+const title=p=>{const m=V[p]&&V[p].match(/^# (.+)$/m);return m?m[1].replace(/ — .*/,'').replace(/ \(.*\)$/,''):slugT(p)};
+const slugT=p=>p.split('/').pop().replace(/\.md$/,'').split('-').map(w=>({llm:'LLM',rag:'RAG',vs:'vs.'})[w]||w[0].toUpperCase()+w.slice(1)).join(' ');
+const typeOf=p=>({entities:'entity',concepts:'concept',sources:'source',synthesis:'synthesis'})[p.split('/')[1]]||(p.startsWith('raw/')?'raw':'topic');
+PATHS.forEach(p=>{if(V[p])return;
+  if(p.startsWith('raw/'))V[p]=`# ${slugT(p)}\n\n> Clipped with Obsidian Web Clipper · 2026-09-2${p.length%5}\n\nRohtext der Quelle. Erwähnt Andrej Karpathy, LLM Wiki und Context Engineering. Noch nicht ingested.`;
+  else V[p]=`---\ntype: ${typeOf(p)}\ntags: [llm, ${p.split('/')[1]}]\nupdated: 2026-09-1${p.length%9}\nsources: [karpathy-llm-wiki-gist.md]\nconfidence: medium\n---\n# ${slugT(p)}\n\n${DESC[p]}\n\n## Notes\n- Verknüpft mit [[llm-wiki]] und [[andrej-karpathy]]\n- Offene Punkte beim nächsten **/lint** prüfen`;});
+
+const S={path:'wiki/concepts/llm-wiki.md',mode:'live',chat:false,ctx:null,open:new Set(['wiki','wiki/concepts']),inbox:[...RAW_NEW],dirty:0,ahead:0,synced:'2 min ago',model:0,busy:false,changed:{},edits:[
+  {path:'wiki/concepts/llm-wiki.md',when:'yesterday 21:14',skill:'/ingest',add:12,del:3,diff:[['c','@@ ## Workflow @@'],['d','3. **Lint** — tote Links finden'],['a','3. **Lint** — tote Links, Waisen und Widersprüche finden'],['a','## Abgrenzung'],['a','> RAG re-derives knowledge on every query; an LLM wiki accumulates it.']]},
+  {path:'wiki/entities/andrej-karpathy.md',when:'yesterday 21:13',skill:'/ingest',add:4,del:0,diff:[['c','@@ ## Ideas in this wiki @@'],['a','- [[llm-wiki]] — the pattern this vault implements']]},
+  {path:'index.md',when:'Sep 18',skill:'/ingest',add:2,del:1,diff:[['a','- [[sources/software-3-0-talk]] — 2026-09-18 (4 pages updated)']]}]};
+const MODELS=[['claude-sonnet-5','Anthropic'],['claude-opus-5','Anthropic'],['gpt-5.1','OpenAI'],['gemini-3-pro','Google'],['qwen3-coder:32b','Ollama · local']];
+const RECENT=['wiki/concepts/llm-wiki.md','wiki/entities/andrej-karpathy.md','wiki/synthesis/rag-vs-llm-wiki.md','index.md','wiki/concepts/context-engineering.md'];
+const WHEN=['2 min ago','yesterday','yesterday','Sep 22','Sep 19'];
+
+function resolve(t){t=t.replace(/\.md$/,'');return Object.keys(V).find(p=>p.replace(/\.md$/,'')===t||p.replace(/\.md$/,'').endsWith('/'+t))}
+function parse(txt){const m=txt.match(/^---\n([\s\S]*?)\n---\n?/);const fm={};if(m)m[1].split('\n').forEach(l=>{const i=l.indexOf(':');if(i>0)fm[l.slice(0,i).trim()]=l.slice(i+1).trim()});return{fm,fmRaw:m?m[0]:'',body:m?txt.slice(m[0].length):txt}}
+function inl(s,live){s=esc(s);
+  s=s.replace(/`([^`]+)`/g,(m,c)=>live?`<span class="mk">\`</span><code>${c}</code><span class="mk">\`</span>`:`<code>${c}</code>`);
+  s=s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,(m,t,a)=>{const p=resolve(t);const lab=live?t:(a||t.split('/').pop());const el=`<a class="wl${p?'':' dead'}" data-link="${t}"${p?` data-path="${p}"`:''} title="${p||'No such page — click to create'}">${lab}</a>`;return live?`<span class="mk">[[</span>${el}<span class="mk">]]</span>`:el});
+  s=s.replace(/\*\*([^*]+)\*\*/g,(m,c)=>live?`<span class="mk">**</span><strong>${c}</strong><span class="mk">**</span>`:`<strong>${c}</strong>`);
+  s=s.replace(/(^|[^*])\*([^*]+)\*/g,(m,b,c)=>live?`${b}<span class="mk">*</span><em>${c}</em><span class="mk">*</span>`:`${b}<em>${c}</em>`);
+  return s}
+
+/* ---------- note rendering ---------- */
+function renderLive(p){const txt=V[p],lines=txt.split('\n'),chg=S.changed[p]||[];let inFm=lines[0]==='---',fmEnd=-1;
+  if(inFm)fmEnd=lines.indexOf('---',1);
+  return '<div class="cm" contenteditable="true" spellcheck="false" id="cm">'+lines.map((l,i)=>{let cls='ln',h;
+    if(inFm&&i<=fmEnd){cls+=' fm'+(i===0?' f0':i===fmEnd?' f1':'');const k=l.indexOf(':');h=l==='---'?`<span class="mk">---</span>`:k>0?`<span class="fk">${esc(l.slice(0,k))}</span><span class="mk">:</span>${esc(l.slice(k+1))}`:esc(l)}
+    else{let m;
+      if(m=l.match(/^(#{1,3}) (.*)/)){cls+=' h'+m[1].length;h=`<span class="mk">${m[1]} </span>${inl(m[2],1)}`}
+      else if(m=l.match(/^(\s*(?:[-*]|\d+\.) )(.*)/)){cls+=' p';h=`<span class="mk">${esc(m[1])}</span>${inl(m[2],1)}`}
+      else if(m=l.match(/^> (.*)/)){cls+=' q';h=`<span class="mk">&gt; </span>${inl(m[1],1)}`}
+      else{cls+=' p';h=inl(l,1)}}
+    if(chg.includes(l))cls+=' chg';
+    return `<div class="${cls}">${h||'<br>'}</div>`}).join('')+'</div>'}
+function renderPreview(p){const {fm,body}=parse(V[p]),chg=S.changed[p]||[];let h='';
+  if(Object.keys(fm).length){h+='<dl class="props">'+Object.entries(fm).map(([k,v])=>{const arr=v.match(/^\[(.*)\]$/);const val=arr?arr[1].split(',').filter(x=>x.trim()).map(x=>`<span class="tag${k==='type'?' '+x.trim():''}">${esc(x.trim())}</span>`).join('')||'<span style="color:var(--faint)">—</span>':k==='type'?`<span class="tag ${v}">${v}</span>`:k==='confidence'?`<span class="tag" style="background:var(--ok-soft);color:var(--ok)">${v}</span>`:esc(v);return`<dt>${k}</dt><dd>${val}</dd>`}).join('')+'</dl>'}
+  let list=null;const close=()=>{if(list){h+=`</${list}>`;list=null}};
+  body.split('\n').forEach(l=>{let m;const c=chg.includes(l)?' class="chg"':'';
+    if(m=l.match(/^(#{1,3}) (.*)/)){close();h+=`<h${m[1].length}${c}>${inl(m[2])}</h${m[1].length}>`}
+    else if(m=l.match(/^\s*[-*] (.*)/)){if(list!=='ul'){close();h+='<ul>';list='ul'}h+=`<li${c}>${inl(m[1])}</li>`}
+    else if(m=l.match(/^\s*\d+\. (.*)/)){if(list!=='ol'){close();h+='<ol>';list='ol'}h+=`<li${c}>${inl(m[1])}</li>`}
+    else if(m=l.match(/^> (.*)/)){close();h+=`<blockquote${c}>${inl(m[1])}</blockquote>`}
+    else if(l.trim()){close();h+=`<p${c}>${inl(l)}</p>`}else close()});
+  close();return '<div class="pv">'+h+'</div>'}
+function backlinks(p){const slug=p.replace(/\.md$/,'').split('/').pop();return Object.keys(V).filter(q=>q!==p&&V[q].includes('[['+slug)||(q!==p&&V[q].includes('/'+slug+']]')))}
+function renderNote(){const p=S.path;S.rendered=p;S.stale=false;if((S.changed[p]||[]).length){clearTimeout(S.chgT);S.chgT=setTimeout(()=>{S.changed[p]=[];$$('#doc .chg').forEach(e=>e.classList.remove('chg'))},5000)}if(!V[p]){$('#doc').innerHTML='<p>Not found.</p>';return}
+  $('#notePath').textContent=p;$('#miniCtx').textContent=p.split('/').pop();
+  const bl=backlinks(p);
+  $('#doc').innerHTML=(S.mode==='live'?renderLive(p):renderPreview(p))+`<div class="backlinks"><h4>Linked mentions · ${bl.length}</h4>${bl.map(q=>`<button class="row" data-open="${q}"><span class="ftype">${ic('file')}</span><span class="col"><div class="t">${title(q)}</div><div class="s mono">${q}</div></span></button>`).join('')||'<div class="s" style="color:var(--faint);font-size:13px">No backlinks yet.</div>'}</div>`;
+  $('#mLive').classList.toggle('on',S.mode==='live');$('#mPrev').classList.toggle('on',S.mode!=='live');
+  const cm=$('#cm');if(cm)cm.addEventListener('input',()=>{S.editedLocal=true;$('#saveState').innerHTML=ic('edit')+'<span class="lbl">editing…</span>';clearTimeout(S.saveT);S.saveT=setTimeout(()=>{V[p]=[...cm.querySelectorAll('.ln')].map(d=>d.innerText.replace(/\n$/,'')).join('\n');$('#saveState').innerHTML=ic('check')+'<span class="lbl">saved · uncommitted</span>';bumpDirty()},900)});
+  const first=$('#doc .chg');if(first)setTimeout(()=>first.scrollIntoView({block:'center',behavior:'smooth'}),60);else $('#docScroll').scrollTop=0}
+function renderCrumbs(){const parts=S.path.split('/');let h=`<button data-home>Home</button>`;parts.forEach((seg,i)=>{const last=i===parts.length-1,f=parts.slice(0,i+1).join('/');const mid=(!last&&i<parts.length-2)?' mid':'';h+=`<span class="sep${mid}">›</span>`+(last?`<span class="cur">${seg.replace(/\.md$/,'')}</span>`:`<button class="${mid.trim()}" data-folder="${f}">${seg}</button>`)});$('#crumbs').innerHTML=h}
+
+/* ---------- tree ---------- */
+function buildTree(){const root={};Object.keys(V).sort().forEach(p=>{let n=root;const s=p.split('/');s.forEach((x,i)=>{if(i===s.length-1)(n.__f=n.__f||[]).push(p);else n=n[x]=n[x]||{}})});return root}
+function treeHTML(node,base){const dirs=Object.keys(node).filter(k=>k!=='__f').sort((a,b)=>a==='wiki'?-1:b==='wiki'?1:a.localeCompare(b));
+  let h='<ul>';dirs.forEach(d=>{const f=base?base+'/'+d:d,o=S.open.has(f);h+=`<li><button class="tn${o?' open':''}" data-dir="${f}">${ic('chev','class="ic chev"').replace('class="ic" ','')}${ic('folder')}<span>${d}</span></button>${o?treeHTML(node[d],f):''}</li>`});
+  (node.__f||[]).forEach(p=>{h+=`<li><button class="tn${p===S.path&&document.body.classList.contains('v-note')?' active':''}" data-open="${p}">${ic('file')}<span>${p.split('/').pop().replace(/\.md$/,'')}</span>${S.inbox.includes(p)?'<span class="nb" title="Not ingested"></span>':''}</button></li>`});
+  return h+'</ul>'}
+function renderTrees(){const t=buildTree(),h=treeHTML(t,'');$('#treeSide').innerHTML=h;$('#treeHome').innerHTML=h}
+function revealFolder(f){const s=f.split('/');s.forEach((_,i)=>S.open.add(s.slice(0,i+1).join('/')));renderTrees();
+  if(!document.body.classList.contains('split'))document.body.classList.add('tree-open');
+  const b=$(`#treeSide [data-dir="${f}"]`);if(b){b.classList.add('flash');b.scrollIntoView({block:'nearest'});setTimeout(()=>b.classList.remove('flash'),1400)}}
+
+/* ---------- dashboard ---------- */
+function renderHome(){const h=new Date().getHours();$('#greet').textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+' — what are we working on?';
+  $('#stats').textContent=`${Object.keys(V).filter(p=>p.startsWith('wiki/')).length} wiki pages · ${Object.keys(V).filter(p=>p.startsWith('raw/')).length} raw sources · last ingest yesterday 21:14`;
+  $('#recentList').innerHTML=RECENT.map((p,i)=>`<button class="row" data-open="${p}"><span class="ftype">${ic('file')}</span><span class="col"><div class="t">${title(p)}</div><div class="s mono">${p}</div></span><span class="tag ${typeOf(p)}">${typeOf(p)}</span><span class="s" style="min-width:62px;text-align:right">${WHEN[i]}</span></button>`).join('');
+  $('#inboxCount').textContent=S.inbox.length;
+  $('#inboxList').innerHTML=S.inbox.length?S.inbox.map(p=>`<div class="row" style="cursor:default"><span class="ftype new">${ic('inbox')}</span><button class="col" data-open="${p}" style="text-align:left"><div class="t">${title(p)}</div><div class="s mono">${p}</div></button><button class="btn sm acc" data-ingest="${p}">Ingest</button></div>`).join(''):`<div style="padding:18px 0;color:var(--faint);font-size:14px;display:flex;gap:8px;align-items:center">${ic('check')} Inbox zero — everything in raw/ is ingested.</div>`;
+  $('#editsList').innerHTML=S.edits.slice(0,3).map((e,i)=>`<div class="edit"><div class="edit-h"><span class="tag concept">${e.skill}</span><span class="path">${e.path}</span><span class="plus">+${e.add}</span><span class="minus">−${e.del}</span><span class="s" style="margin-left:auto;color:var(--faint);font-size:12px">${e.when}</span></div>${i<2?diffHTML(e.diff):''}<div style="display:flex;gap:8px"><button class="btn sm" data-open="${e.path}">Open page</button>${i<2?`<button class="btn sm" data-toast="Reverted as new commit (demo)">Revert</button>`:''}</div></div>`).join('');
+  $('#healthCard').innerHTML=`<div class="health-top"><div class="ring"><span>86</span></div><div><div style="font-weight:600">Good shape</div><div style="font-size:12px;color:var(--faint)">last lint · Sep 22</div></div></div>
+    <button class="row" data-open="wiki/concepts/llm-wiki.md"><span class="sev bad"></span><span class="col"><div class="t">1 dead link</div><div class="s">[[timeline-of-llm-tools]] in llm-wiki</div></span></button>
+    <button class="row" data-open="wiki/synthesis/obsidian-vs-notion-for-agents.md"><span class="sev"></span><span class="col"><div class="t">1 orphan page</div><div class="s">obsidian-vs-notion-for-agents</div></span></button>
+    <button class="row" data-open="wiki/synthesis/rag-vs-llm-wiki.md"><span class="sev"></span><span class="col"><div class="t">Contradiction</div><div class="s">rag-vs-llm-wiki ↔ rag (cost claim)</div></span></button>
+    <button class="row" data-inbox><span class="sev info"></span><span class="col"><div class="t">${S.inbox.length} sources not ingested</div><div class="s">raw/articles</div></span></button>`;
+  renderGit()}
+function diffHTML(d){return '<div class="diff">'+d.map(([t,l])=>`<div class="${t}">${t==='a'?'+ ':t==='d'?'− ':''}${esc(l)}</div>`).join('')+'</div>'}
+function renderGit(){const dirty=S.dirty,ahead=S.ahead;
+  $('#gitDot').className='dot'+(S.busy?' busy':dirty||ahead?' dirty':'');
+  $('#gitText').textContent=S.busy?S.busy:dirty?`${dirty} uncommitted`:ahead?`${ahead} to push`:`synced · ${S.synced}`;
+  $('#gitCard').innerHTML=`<div class="git-stat"><span class="tag" style="${dirty?'background:var(--warn-soft);color:var(--warn)':'background:var(--ok-soft);color:var(--ok)'}">${dirty?dirty+' uncommitted':'clean'}</span><span class="tag">↑ ${ahead}</span><span class="tag">↓ 0</span></div>
+    <div class="commit"><code>a41f9c2</code><span>ingest: karpathy-llm-wiki-gist (AI)</span></div><div class="commit"><code>9be07d1</code><span>obsidian mobile: edit log.md</span></div><div class="commit"><code>3c2a8e0</code><span>lint: fix 2 dead links (AI)</span></div>
+    <div class="btns"><button class="btn sm" data-git="pull">${ic('pull')}Pull</button>${dirty?`<button class="btn sm" data-git="commit">${ic('check')}Commit</button>`:''}<button class="btn sm pri" data-git="push">${ic('push')}Push</button></div>`;
+  $('#gitMenu').innerHTML=`<div class="gm-body"><b style="color:var(--text)">main</b> → origin (GitHub) · Obsidian attached<br>${dirty?dirty+' uncommitted change(s)':'working tree clean'} · ${ahead} ahead · 0 behind</div><button data-git="pull">${ic('pull')}<span>Pull<small>fetch edits from Obsidian</small></span></button><button data-git="commit">${ic('check')}<span>Commit all<small>auto message</small></span></button><button data-git="push">${ic('push')}<span>Push<small>to origin/main</small></span></button>`}
+function bumpDirty(n=1){S.dirty+=n;renderGit()}
+function git(a){$('#gitMenu').classList.remove('open');
+  if(a==='commit'){if(!S.dirty)return toast('Nothing to commit');S.ahead++;S.dirty=0;renderGit();return toast('Committed · "vault: '+(S.path.split('/').pop())+' (+AI edits)"')}
+  S.busy=a==='pull'?'pulling…':'pushing…';renderGit();
+  setTimeout(()=>{S.busy=false;if(a==='push'){if(S.dirty){S.ahead++;S.dirty=0}S.ahead=0;S.synced='just now';toast('Pushed to origin/main')}else toast('Already up to date · 0 new from Obsidian');renderGit()},900)}
+
+/* ---------- omnibox ---------- */
+function search(q){const ql=q.toLowerCase(),files=[],full=[];
+  Object.keys(V).forEach(p=>{if(p.toLowerCase().includes(ql)||title(p).toLowerCase().includes(ql))files.push(p);
+    const {body}=parse(V[p]);body.split('\n').some(l=>{const i=l.toLowerCase().indexOf(ql);if(i<0)return false;const s=Math.max(0,i-38);full.push({p,snip:(s?'…':'')+esc(l.slice(s,i))+'<mark>'+esc(l.slice(i,i+q.length))+'</mark>'+esc(l.slice(i+q.length,i+q.length+60))});return true})});
+  return{files:files.slice(0,4),full:full.slice(0,5),total:full.length}}
+function hl(t,q){const i=t.toLowerCase().indexOf(q.toLowerCase());return i<0?esc(t):esc(t.slice(0,i))+'<mark>'+esc(t.slice(i,i+q.length))+'</mark>'+esc(t.slice(i+q.length))}
+function renderResults(q,box){q=q.trim();let h='';
+  if(!q){h=`<div class="rs-h">Recent</div>`+RECENT.slice(0,4).map(p=>`<button class="ri" data-open="${p}">${ic('file')}<span class="col"><div class="t">${title(p)}</div><div class="p">${p}</div></span><span class="meta">${typeOf(p)}</span></button>`).join('')+`<div class="rs-h">Skills</div>`+[['/ingest','Pull a raw/ source into the wiki'],['/query','Answer from the wiki with citations'],['/lint','Wiki health check'],['/timeline','Build a Gantt from dated events']].map(([s,d])=>`<button class="ri" data-skill="${s}">${ic('spark')}<span class="col"><div class="t mono">${s}</div><div class="snip">${d}</div></span></button>`).join('')}
+  else{const r=search(q);
+    h+=`<button class="ri ask" data-ask="1">${ic('spark')}<span class="col"><div class="t">Ask AI: “${esc(q)}”</div><div class="snip">${MODELS[S.model].join(' · ')} · reads your vault</div></span><span class="meta kbd">↵</span></button>`;
+    if(r.files.length)h+=`<div class="rs-h">Files</div>`+r.files.map(p=>`<button class="ri" data-open="${p}">${ic('file')}<span class="col"><div class="t">${hl(title(p),q)}</div><div class="p">${p}</div></span><span class="meta">${typeOf(p)}</span></button>`).join('');
+    h+=`<div class="rs-h">Full-text · ${r.total} match${r.total===1?'':'es'}</div>`+(r.full.map(x=>`<button class="ri" data-open="${x.p}">${ic('hash')}<span class="col"><div class="p">${x.p}</div><div class="snip">${x.snip}</div></span></button>`).join('')||`<div class="ri" style="color:var(--faint)">No text matches — try asking the AI.</div>`)}
+  box.innerHTML=h;box._sel=q?0:-1;markSel(box)}
+function markSel(box){const it=[...box.querySelectorAll('button.ri')];it.forEach((b,i)=>b.classList.toggle('sel',i===box._sel));if(it[box._sel])it[box._sel].scrollIntoView({block:'nearest'})}
+function omniKeys(inp,box){inp.addEventListener('input',()=>renderResults(inp.value,box));
+  inp.addEventListener('keydown',e=>{const it=[...box.querySelectorAll('button.ri')];
+    if(e.key==='ArrowDown'){box._sel=Math.min(it.length-1,box._sel+1);markSel(box);e.preventDefault()}
+    else if(e.key==='ArrowUp'){box._sel=Math.max(0,box._sel-1);markSel(box);e.preventDefault()}
+    else if(e.key==='Enter'){const b=it[Math.max(0,box._sel)];if(b)b.click()}
+    else if(e.key==='Escape'){closeOmni();inp.blur()}})}
+function openOmni(){document.body.classList.add('omni-open');renderResults($('#omniInput').value,$('#omniRes'))}
+function closeOmni(){document.body.classList.remove('omni-open','pal-open')}
+function openPalette(){if(document.body.classList.contains('v-home')){$('#omniInput').focus();return}document.body.classList.add('pal-open');$('#palInput').value='';renderResults('',$('#palRes'));setTimeout(()=>$('#palInput').focus(),10)}
+
+/* ---------- routing ---------- */
+const isSplitW=()=>matchMedia('(min-width:1180px)').matches;
+function base(){return (location.hash.slice(1)||'/home').replace(/\?chat$/,'')}
+function go(h){if(location.hash==='#'+h)route();else location.hash=h}
+function openFile(p){closeOmni();document.body.classList.remove('tree-open');const keep=S.chat&&isSplitW();go('/note/'+p+(keep?'?chat':''))}
+function route(){const h=location.hash.slice(1)||'/home',chat=h.endsWith('?chat'),b=h.replace(/\?chat$/,'');const B=document.body;
+  closeOmni();
+  if(b.startsWith('/note/')){const p=decodeURIComponent(b.slice(6));const was=B.classList.contains('v-note');if(p!==S.path||!was){S.path=p;S.ctx=p}B.classList.remove('v-home');B.classList.add('v-note');const s=p.split('/');s.slice(0,-1).forEach((_,i)=>S.open.add(s.slice(0,i+1).join('/')));renderCrumbs();if(p!==S.rendered||!was||S.stale)renderNote()}
+  else{B.classList.add('v-home');B.classList.remove('v-note');S.ctx=null;renderHome()}
+  S.chat=chat;B.classList.toggle('chat-open',chat);layout();renderTrees();renderCtx();
+  $('#chatTitle').textContent=B.classList.contains('v-note')?'Chat · '+title(S.path):'Chat · Vault'}
+function layout(){document.body.classList.toggle('split',document.body.classList.contains('v-note')&&isSplitW())}
+function openChat(focus=true){S.chatPushed=!S.chat;if(!S.chat)go(base()+'?chat');if(focus&&!matchMedia('(max-width:699px)').matches)setTimeout(()=>$('#chatIn').focus(),300);scrollMsgs()}
+function closeChat(){if(S.chatPushed&&history.length>1){S.chatPushed=false;history.back()}else go(base())}
+
+/* ---------- chat ---------- */
+const SKILLS=['/ingest','/query','/lint','/timeline'];
+function renderCtx(){$('#ctxRow').innerHTML=S.ctx?`<span class="ctxchip">${ic('file')}${S.ctx.split('/').pop()}<button id="rmCtx" aria-label="Remove context">${ic('close')}</button></span>`:'';$('#ctxRow').style.display=S.ctx?'flex':'none'}
+function scrollMsgs(){const m=$('#msgs');m.scrollTop=m.scrollHeight}
+function addMsg(role,html){const d=document.createElement('div');d.className='msg '+role;d.innerHTML=html;$('#msgs').appendChild(d);scrollMsgs();return d}
+const WHO=()=>`<div class="who"><img src="../../../assets/karpathy_ai_logo.png" alt="">${MODELS[S.model][0]} · ${MODELS[S.model][1]}</div>`;
+function chipHTML(t,cls){return `<span class="tc ${cls}"${cls==='ed'?` data-open="${t.path}"`:''}>${ic(cls==='run'?'spin':cls==='ed'?'edit':'check')}${esc(t.label)}</span>`}
+function seedChat(){addMsg('u','<code>/ingest raw/articles/karpathy-llm-wiki-gist.md</code>');
+  const e=S.edits[0];addMsg('a',WHO()+`<div class="tools">${chipHTML({label:'read raw/articles/karpathy-llm-wiki-gist.md'},'done')}${chipHTML({label:'read wiki/index.md'},'done')}${chipHTML({label:"grep 'Karpathy'"},'done')}${chipHTML({label:'edited wiki/concepts/llm-wiki.md +12 −3',path:e.path},'ed')}${chipHTML({label:'edited wiki/index.md +1',path:'index.md'},'ed')}</div><p>Ingested. Created ${inl('[[sources/karpathy-llm-wiki-gist]]')}, extended ${inl('[[llm-wiki]]')} with <em>Abgrenzung</em> and a sharper lint step, and added the index entry.</p>${diffHTML(e.diff)}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-open="${e.path}">${ic('file')}Open changed page</button><button class="btn sm" data-open="wiki/sources/karpathy-llm-wiki-gist.md">Open source summary</button></div>`)}
+function plan(text){const t=text.trim(),ctx=S.ctx||'wiki/concepts/llm-wiki.md';
+  if(t.startsWith('/lint'))return{tools:['read wiki/index.md',"glob 'wiki/**/*.md'","grep '\\[\\['"],text:`Checked 17 wiki pages. **1 dead link**: [[timeline-of-llm-tools]] in [[llm-wiki]]. **1 orphan**: [[synthesis/obsidian-vs-notion-for-agents]] has no inbound links. **1 contradiction**: [[rag-vs-llm-wiki]] vs. [[rag]] on cost. ${S.inbox.length} raw sources are not ingested yet. Want me to fix the dead link?`};
+  if(t.startsWith('/ingest')){const src=(t.split(/\s+/)[1])||S.inbox[0]||'raw/articles/vibe-coding-thread.md';const name=src.split('/').pop();
+    return{tools:['read '+src,'read wiki/index.md',"grep 'Karpathy'"],text:`Ingested **${title(src)}**. New summary [[sources/${name.replace('.md','')}]]; it strengthens [[vibe-coding]] and adds a dated claim to [[llm-wiki]].`,edit:{path:'wiki/concepts/llm-wiki.md',lines:['## Neu aus '+title(src),'- '+title(src)+' bestätigt: Agenten editieren lieber rohes Markdown als Blöcke','- Siehe [[vibe-coding]] und [[sources/'+name.replace('.md','')+']]'],del:0},newFile:'wiki/sources/'+name,src};}
+  if(t.startsWith('/timeline'))return{tools:["grep 'updated: 2026'",'read log.md'],text:`Built a timeline of 9 dated events (Feb 2025 → Sep 2026) and saved it as [[synthesis/llm-tools-timeline]].`,newFile:'wiki/synthesis/llm-tools-timeline.md'};
+  const kw=(t.replace(/^\/query\s*/,'').match(/[A-Za-zÄÖÜäöü]{5,}/)||['Karpathy'])[0];
+  if(/\b(add|update|fix|ergänz|füg|improve|edit)/i.test(t))return{tools:['read '+ctx,"grep '"+kw+"'",'read wiki/synthesis/rag-vs-llm-wiki.md'],text:`Done — I added a short *Praxis* section to [[${ctx.replace(/\.md$/,'').split('/').pop()}]] with two cross-links.`,edit:{path:ctx,lines:['## Praxis','- Dieses Vault ist selbst ein [[llm-wiki]]: Obsidian liest, der Agent schreibt','- Vergleich zu klassischem Retrieval: [[synthesis/rag-vs-llm-wiki]]'],del:1}};
+  return{tools:['read wiki/index.md',"grep '"+kw+"'",'read '+ctx],text:`From the wiki: an [[llm-wiki]] *compiles* knowledge once into interlinked pages, while [[rag]] re-derives it per query. [[andrej-karpathy]] frames the human as reader and the LLM as maintainer. Sources: [[sources/karpathy-llm-wiki-gist]], [[synthesis/rag-vs-llm-wiki]]. Should I file this answer as a synthesis page?`}}
+function send(text){text=(text||'').trim();if(!text||S.streaming)return;S.streaming=true;
+  $('#chatIn').value='';addMsg('u',esc(text).replace(/^(\/\w+)/,'<code>$1</code>'));
+  const P=plan(text),m=addMsg('a',WHO()+'<div class="tools"></div><div class="body"><div class="typing"><i></i><i></i><i></i></div></div><div class="after"></div>');
+  if(P.newFile)V[P.newFile]=`---\ntype: ${typeOf(P.newFile)}\ntags: [llm, ai-generated]\nupdated: 2026-09-25\nsources: [${(P.src||'log.md').split('/').pop()}]\nconfidence: medium\n---\n# ${slugT(P.newFile)}\n\nAI-generated on 2026-09-25. Links: [[llm-wiki]], [[andrej-karpathy]].\n\n## Key points\n- Agents prefer raw Markdown + git over block stores\n- See [[index]] for context`;
+  const tools=m.querySelector('.tools'),body=m.querySelector('.body'),after=m.querySelector('.after');let t=400;
+  P.tools.forEach(label=>{setTimeout(()=>{tools.insertAdjacentHTML('beforeend',chipHTML({label},'run'));scrollMsgs()},t);t+=550;setTimeout(()=>{const c=tools.lastElementChild;c.className='tc done';c.innerHTML=ic('check')+esc(label)},t);t+=150});
+  setTimeout(()=>{const words=P.text.split(' ');let i=0;body.innerHTML='<p class="caret"></p>';const p=body.firstChild;
+    const iv=setInterval(()=>{i+=2;p.innerHTML=inl(words.slice(0,i).join(' '));scrollMsgs();if(i>=words.length){clearInterval(iv);p.classList.remove('caret');finish()}},45)},t);
+  function finish(){const acts=[];
+    S.stale=true;if(P.newFile){
+      tools.insertAdjacentHTML('beforeend',chipHTML({label:'created '+P.newFile+' +9',path:P.newFile},'ed'));S.dirty++;acts.push(P.newFile)}
+    if(P.edit){const e=P.edit;V[e.path]=V[e.path]+'\n\n'+e.lines.join('\n');S.changed[e.path]=e.lines;
+      const lab=`edited ${e.path} +${e.lines.length+1} −${e.del}`;tools.insertAdjacentHTML('beforeend',chipHTML({label:lab,path:e.path},'ed'));
+      const d=[['c','@@ end of file @@'],...(e.del?[['d','- Offene Punkte beim nächsten **/lint** prüfen']]:[]),...e.lines.map(l=>['a',l])];after.innerHTML=diffHTML(d);
+      S.edits.unshift({path:e.path,when:'just now',skill:text.split(' ')[0].startsWith('/')?text.split(' ')[0]:'chat',add:e.lines.length+1,del:e.del,diff:d});S.dirty++;acts.unshift(e.path)}
+    if(P.src){S.inbox=S.inbox.filter(x=>x!==P.src)}
+    if(acts.length)after.insertAdjacentHTML('beforeend',`<div style="display:flex;gap:8px;flex-wrap:wrap">${acts.map((a,i)=>`<button class="btn sm ${i?'':'pri'}" data-open="${a}">${ic('file')}${i?'Open '+a.split('/').pop():'Open changed page'}</button>`).join('')}<button class="btn sm" data-git="commit">${ic('check')}Commit</button></div>`);
+    renderGit();renderTrees();if(document.body.classList.contains('v-home'))renderHome();else if(P.edit&&P.edit.path===S.path)renderNote();
+    scrollMsgs();S.streaming=false;if(!S.chat)toast('AI finished · '+(acts.length?acts[0].split('/').pop()+' changed':'answer ready'))}}
+
+/* ---------- misc ---------- */
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2400)}
+function renderModels(){$('#modelMenu').innerHTML=MODELS.map((m,i)=>`<button data-model="${i}" class="${i===S.model?'on':''}"><span>${m[0]}<small>${m[1]}</small></span><span class="ck">${ic('check')}</span></button>`).join('')+`<button data-toast="Provider settings live server-side (opencode config)"><span style="color:var(--faint)">Manage providers…</span></button>`;$('#modelLbl').textContent=MODELS[S.model][0];$('#modelProv').textContent='· '+MODELS[S.model][1].split(' ')[0]}
+function skillChips(){return SKILLS.map(s=>`<button class="chip" data-skill="${s}"><b>${s}</b></button>`).join('')}
+function runSkill(s){closeOmni();openChat(false);if(s==='/query'){$('#chatIn').value='/query ';setTimeout(()=>$('#chatIn').focus(),300)}else setTimeout(()=>send(s==='/ingest'?'/ingest '+(S.inbox[0]||''):s),250)}
+function setTheme(t){document.documentElement.dataset.theme=t;$('#themeBtn').innerHTML=ic(t==='dark'?'sun':'moon');try{localStorage.setItem('kai-theme',t)}catch(e){}}
+
+document.addEventListener('click',e=>{const t=e.target.closest('[data-open],[data-path],[data-link],[data-dir],[data-folder],[data-home],[data-tree],[data-chat],[data-skill],[data-ingest],[data-ask],[data-git],[data-model],[data-toast],[data-inbox]');
+  if(!e.target.closest('.model'))$('#modelMenu').classList.remove('open');
+  if(!e.target.closest('#gitMenu,#gitPill'))$('#gitMenu').classList.remove('open');
+  if(!t){if(!e.target.closest('.omni-wrap,.skills,.palette'))document.body.classList.remove('omni-open');return}
+  const d=t.dataset;
+  if(d.open)openFile(d.open);
+  else if(d.path){e.preventDefault();openFile(d.path)}
+  else if(d.link)toast(`“${d.link}” doesn't exist yet — ask the AI to create it`);
+  else if(d.dir){S.open.has(d.dir)?S.open.delete(d.dir):S.open.add(d.dir);renderTrees()}
+  else if(d.folder!==undefined)revealFolder(d.folder);
+  else if(d.home!==undefined)go('/home');
+  else if(d.tree!==undefined){if(document.body.classList.contains('v-home')){$('.c-vault').scrollIntoView({behavior:'smooth',block:'center'})}else document.body.classList.add('tree-open')}
+  else if(d.chat!==undefined)openChat();
+  else if(d.skill)runSkill(d.skill);
+  else if(d.ingest){openChat(false);setTimeout(()=>send('/ingest '+d.ingest),250)}
+  else if(d.ask){const q=$('#omniInput').value||$('#palInput').value;$('#omniInput').value='';closeOmni();document.activeElement.blur();openChat(false);setTimeout(()=>send(q),250)}
+  else if(d.git)git(d.git);
+  else if(d.model){S.model=+d.model;renderModels();$('#modelMenu').classList.remove('open');toast('Model → '+MODELS[S.model].join(' · '))}
+  else if(d.toast)toast(d.toast);
+  else if(d.inbox!==undefined)$('.c-inbox').scrollIntoView({behavior:'smooth',block:'center'})});
+$('#omniInput').addEventListener('focus',openOmni);
+omniKeys($('#omniInput'),$('#omniRes'));omniKeys($('#palInput'),$('#palRes'));
+$('#searchBtn').onclick=openPalette;
+$('#backBtn').onclick=()=>history.length>1?history.back():go('/home');
+$('#scrim').onclick=()=>{const B=document.body;if(B.classList.contains('tree-open'))B.classList.remove('tree-open');else if(B.classList.contains('pal-open')||B.classList.contains('omni-open'))closeOmni();else if(S.chat)closeChat()};
+$('#closeTree').onclick=()=>document.body.classList.remove('tree-open');
+$('#miniBar').onclick=()=>openChat();
+$('#closeChat').onclick=closeChat;
+$('#newChat').onclick=()=>{$('#msgs').innerHTML='';toast('New session started')};
+$('#modelBtn').onclick=e=>{e.stopPropagation();$('#modelMenu').classList.toggle('open')};
+$('#gitPill').onclick=()=>$('#gitMenu').classList.toggle('open');
+$('#themeBtn').onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');setTheme(cur==='dark'?'light':'dark')};
+$('#mLive').onclick=()=>{S.mode='live';renderNote()};$('#mPrev').onclick=()=>{S.mode='preview';renderNote()};
+$('#sendBtn').onclick=()=>send($('#chatIn').value);
+$('#chatIn').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(e.target.value)}});
+$('#chatIn').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(140,e.target.scrollHeight)+'px'});
+$('#ctxRow').addEventListener('click',e=>{if(e.target.closest('#rmCtx')){S.ctx=null;renderCtx()}});
+$('#ingestAll').onclick=()=>{if(!S.inbox.length)return toast('Inbox is empty');openChat(false);setTimeout(()=>send('/ingest '+S.inbox[0]),250)};
+$('#expandAll').onclick=()=>{Object.keys(V).forEach(p=>{const s=p.split('/');s.slice(0,-1).forEach((_,i)=>S.open.add(s.slice(0,i+1).join('/')))});renderTrees()};
+$('#newNote').onclick=()=>toast('New note in wiki/ (demo)');
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette()}else if(e.key==='Escape'){if(document.body.classList.contains('tree-open'))document.body.classList.remove('tree-open');else if(document.body.classList.contains('pal-open')||document.body.classList.contains('omni-open'))closeOmni();else if(S.chat)closeChat()}});
+addEventListener('hashchange',route);addEventListener('resize',layout);
+
+hydrate();
+try{const t=localStorage.getItem('kai-theme');if(t)setTheme(t);else $('#themeBtn').innerHTML=ic(matchMedia('(prefers-color-scheme: dark)').matches?'sun':'moon')}catch(e){}
+$('#skillsHome').innerHTML=skillChips();$('#skillsChat').innerHTML=skillChips();
+renderModels();seedChat();renderGit();route();
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>karpathy.ai Layouts</title>
+<link rel="icon" href="../../../assets/icons/favicon-32x32.png">
+<style>
+  :root { --bg:#f7f6f2; --fg:#0f1e33; --muted:#5b6678; --card:#fff; --line:#dcdad3; --accent:#0f1e33; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0b1422; --fg:#e8ecf2; --muted:#96a1b3; --card:#121e30; --line:#22324a; --accent:#8fb3ff; }
+  }
+  :root[data-theme="dark"] { --bg:#0b1422; --fg:#e8ecf2; --muted:#96a1b3; --card:#121e30; --line:#22324a; --accent:#8fb3ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:40px 16px 64px; }
+  header { display:flex; gap:16px; align-items:center; margin-bottom:8px; }
+  header img { width:56px; height:56px; border-radius:6px; background:#fff; }
+  h1 { margin:0; font-size:28px; letter-spacing:-.01em; }
+  .lead { color:var(--muted); margin:4px 0 32px; max-width:70ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px; }
+  a.card { display:block; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; color:inherit; text-decoration:none; transition:border-color .15s, transform .15s; }
+  a.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+  a.card.hot { border:2px solid var(--accent); grid-column:1 / -1; }
+  .num { font:600 12px/1 ui-monospace, "SF Mono", Menlo, monospace; color:var(--muted); }
+  h2 { margin:6px 0 8px; font-size:19px; }
+  p { margin:0 0 12px; color:var(--muted); font-size:14.5px; }
+  dl { margin:0; font-size:13.5px; display:grid; grid-template-columns:auto 1fr; gap:2px 10px; }
+  dt { font-weight:600; }
+  dd { margin:0; color:var(--muted); }
+  .hint { margin-top:32px; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="../../../assets/karpathy_ai_logo.png" alt="karpathy.ai logo">
+    <div><h1>karpathy.ai — UI layouts</h1></div>
+  </header>
+  <p class="lead">The hot candidate (07, based on 05) plus six HTML prototypes for the MVP UI (vault + editor + search + AI chat), each with a different navigation model. All are clickable and responsive — resize the window or open them on phone/iPad.</p>
+  <div class="grid">
+    <a class="card hot" href="07-hot-candidate.html">
+      <div class="num">07 · HOT CANDIDATE</div><h2>Hot Candidate</h2>
+      <p>Chosen direction: working copy of 05 · Apple-Native, elaborated further here.</p>
+      <dl><dt>Desktop</dt><dd>3-column split + inspector</dd><dt>iPad</dt><dd>Split view, overlay sidebar</dd><dt>Phone</dt><dd>iOS tab bar + push navigation</dd></dl>
+    </a>
+    <a class="card" href="01-three-pane.html">
+      <div class="num">01</div><h2>Three-Pane Classic</h2>
+      <p>Obsidian/VS Code-like: tree · editor tabs · chat side by side. Dense, dark-first.</p>
+      <dl><dt>Desktop</dt><dd>Sidebar + editor + chat panel</dd><dt>iPad</dt><dd>Collapsible panes / slide-over</dd><dt>Phone</dt><dd>Bottom tab bar</dd></dl>
+    </a>
+    <a class="card" href="02-chat-first.html">
+      <div class="num">02</div><h2>Chat-First</h2>
+      <p>The conversation is home; notes open as cards in a canvas panel or bottom sheet.</p>
+      <dl><dt>Desktop</dt><dd>History drawer + chat + canvas</dd><dt>iPad</dt><dd>Chat + canvas</dd><dt>Phone</dt><dd>Chat + note sheet, @/ in composer</dd></dl>
+    </a>
+    <a class="card" href="03-writer-focus.html">
+      <div class="num">03</div><h2>Writer Focus</h2>
+      <p>Chrome disappears; one command palette navigates, searches, runs skills and asks the AI.</p>
+      <dl><dt>Desktop</dt><dd>⌘K palette + AI drawer</dd><dt>iPad</dt><dd>Palette + drawers</dd><dt>Phone</dt><dd>Floating button + AI bottom sheet</dd></dl>
+    </a>
+    <a class="card" href="04-pixel-brand.html">
+      <div class="num">04</div><h2>Pixel Brand</h2>
+      <p>Derived from the logo: navy on paper, square pixels, monospace chrome, block cursor.</p>
+      <dl><dt>Desktop</dt><dd>Icon rail + panel + note/chat split</dd><dt>iPad</dt><dd>Rail + split</dd><dt>Phone</dt><dd>NOTE|CHAT switch + bottom bar</dd></dl>
+    </a>
+    <a class="card" href="05-ipad-native.html">
+      <div class="num">05</div><h2>Apple-Native</h2>
+      <p>Feels like Notes/Files: split view, large titles, translucent bars, inspector chat.</p>
+      <dl><dt>Desktop</dt><dd>3-column split + inspector</dd><dt>iPad</dt><dd>Split view, overlay sidebar</dd><dt>Phone</dt><dd>iOS tab bar + push navigation</dd></dl>
+    </a>
+    <a class="card" href="06-dashboard-omnibox.html">
+      <div class="num">06</div><h2>Home Dashboard + Omnibox</h2>
+      <p>Launcher: omnibox for search-or-ask, cards for inbox, AI edits, wiki health, git.</p>
+      <dl><dt>Desktop</dt><dd>Card grid → note + chat split</dd><dt>iPad</dt><dd>Grid + breadcrumbs</dd><dt>Phone</dt><dd>Stacked cards, bottom omnibox</dd></dl>
+    </a>
+  </div>
+  <p class="hint">Sample data only. Spec: <code>specs/01_mvp/mvp.md</code>.</p>
+</main>
+</body>
+</html>

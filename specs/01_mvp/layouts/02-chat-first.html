@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<!--
+  karpathy.ai · Layout 02 · Chat-First
+  Rationale: the conversation is home (like the ChatGPT/Claude apps). Most vault work starts by asking the
+  agent (ingest, query, lint), so the chat owns the main stage. Notes come to the user: every note the agent
+  reads or edits shows up as an inline card; tapping opens it in a "canvas" next to (or over) the chat.
+  Search lives in the composer: "@" mentions a file, "/" runs a skill, the magnifier switches to full-text search.
+  Navigation per form factor:
+   - Desktop (≥1280): drawer inline on the left (Chats | Vault tree, collapsible via ☰), chat in the center,
+     canvas as a right split panel when a note is open.
+   - iPad landscape (1024–1279): drawer is an overlay (☰); chat + canvas side by side.
+   - iPad portrait (700–1023): drawer overlay from the left; canvas slides over from the right (≈80% width), chat stays behind.
+   - Phone (<700): full-screen chat; ☰ opens the drawer; notes open in a full-height bottom sheet with a swipe-down grip.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f3ec">
+<title>Chat-First · karpathy.ai</title>
+<link rel="icon" type="image/png" href="../../../assets/icons/favicon-32x32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f3ec; --bg2:#efe8dc; --surface:#fffdf9; --surface2:#fbf7f0; --ink:#1d1a16; --ink2:#5b544a; --ink3:#8d8579;
+  --line:#e7dfd2; --line2:#d9cfbf; --navy:#0f1e33; --accent:#b9632a; --accent-soft:#f7e7d7; --link:#1f4f8a; --link-soft:#e4ecf6;
+  --user:#0f1e33; --user-ink:#fbf8f2; --ok:#2f7d4f; --warn:#b7791f; --add:#e4f3e7; --add-ink:#1f6b3a; --del:#fbe5e1; --del-ink:#a33a2c;
+  --mark:#fbe39a; --scrim:rgba(40,28,14,.28); --shadow:0 1px 2px rgba(60,40,20,.06),0 10px 30px rgba(60,40,20,.10);
+  --r:18px; --bar:30px; --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom); --sal:env(safe-area-inset-left); --sar:env(safe-area-inset-right);
+  --ui:'Inter',system-ui,-apple-system,sans-serif; --serif:'Newsreader',Georgia,serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14120f; --bg2:#1c1915; --surface:#201d18; --surface2:#1a1814; --ink:#f1ebe1; --ink2:#c0b6a7; --ink3:#8a8174;
+  --line:#322d26; --line2:#433c33; --navy:#dfe7f3; --accent:#e79a5b; --accent-soft:#3a2a1c; --link:#94b9ec; --link-soft:#1f2a3a;
+  --user:#2a3b58; --user-ink:#f4f1ea; --add:#1b3223; --add-ink:#8fd6a5; --del:#3b211d; --del-ink:#f0a598; --mark:#6a5516;
+  --scrim:rgba(0,0,0,.5); --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#14120f; --bg2:#1c1915; --surface:#201d18; --surface2:#1a1814; --ink:#f1ebe1; --ink2:#c0b6a7; --ink3:#8a8174;
+  --line:#322d26; --line2:#433c33; --navy:#dfe7f3; --accent:#e79a5b; --accent-soft:#3a2a1c; --link:#94b9ec; --link-soft:#1f2a3a;
+  --user:#2a3b58; --user-ink:#f4f1ea; --add:#1b3223; --add-ink:#8fd6a5; --del:#3b211d; --del-ink:#f0a598; --mark:#6a5516;
+  --scrim:rgba(0,0,0,.5); --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.5 var(--ui);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input,textarea{font:inherit;color:inherit}
+svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+i[data-i]{display:inline-flex;font-style:normal}
+code,.mono{font-family:var(--mono);font-size:.86em}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+
+/* top layouts bar */
+.layoutbar{height:calc(var(--bar) + var(--sat));padding:var(--sat) calc(12px + var(--sar)) 0 calc(12px + var(--sal));display:flex;align-items:center;gap:10px;background:var(--navy);color:var(--bg);font-size:12px;letter-spacing:.02em}
+.layoutbar a,.layoutbar b{white-space:nowrap}.layoutbar a{color:inherit;text-decoration:none;opacity:.85}.layoutbar a:hover{opacity:1}
+.layoutbar b{font-weight:600}.layoutbar span{opacity:.6;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.app{position:relative;display:flex;height:calc(100dvh - var(--bar) - var(--sat));overflow:hidden}
+
+/* ---------- drawer ---------- */
+.drawer{flex:0 0 292px;display:flex;flex-direction:column;background:var(--bg2);border-right:1px solid var(--line);min-width:0;padding-left:var(--sal);transition:margin .25s ease}
+.app.drawer-collapsed .drawer{margin-left:-292px}
+.brand{display:flex;align-items:center;gap:10px;padding:14px 14px 10px 16px}
+.logo{width:36px;height:36px;border-radius:10px;background:#fff;border:1px solid var(--line);padding:3px;image-rendering:pixelated;flex:none}
+.brand b{font-size:16px;letter-spacing:-.01em}.brand small{display:block;color:var(--ink3);font-size:12px;font-weight:400}
+.brand .icon-btn{margin-left:auto}
+.newchat{margin:4px 14px 10px;display:flex;align-items:center;gap:8px;justify-content:center;min-height:44px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-weight:600;box-shadow:0 1px 1px rgba(0,0,0,.03)}
+.newchat:hover{border-color:var(--line2)}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
+.seg button{flex:1;min-height:34px;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink2);padding:0 12px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.drawer .seg{margin:0 14px}
+.dfilter{margin:10px 14px 6px;display:flex;align-items:center;gap:8px;padding:0 12px;min-height:40px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--ink3)}
+.dfilter input{border:0;background:none;outline:0;flex:1;min-width:0;color:var(--ink)}
+.dlist{flex:1;overflow-y:auto;padding:4px 8px 12px;overscroll-behavior:contain}
+.grp{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);padding:12px 10px 4px}
+.conv{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;padding:9px 10px;border-radius:12px;min-height:44px}
+.conv:hover{background:var(--surface2)}.conv.active{background:var(--surface);box-shadow:inset 3px 0 0 var(--accent)}
+.conv b{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.conv small{color:var(--ink3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tree details>summary{list-style:none;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;min-height:36px;cursor:pointer;font-weight:500;font-size:14px;color:var(--ink2)}
+.tree details>summary::-webkit-details-marker{display:none}
+.tree details>summary .chev{transition:transform .15s;color:var(--ink3)}
+.tree details[open]>summary .chev{transform:rotate(90deg)}
+.tree summary:hover,.tfile:hover{background:var(--surface2)}
+.tree .kids{padding-left:14px;border-left:1px solid var(--line);margin-left:16px}
+.tfile{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 8px;border-radius:10px;min-height:36px;font-size:14px;color:var(--ink)}
+.tfile svg{width:15px;height:15px;color:var(--ink3)}
+.tfile span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tfile.active{background:var(--accent-soft);color:var(--accent);font-weight:600}.tfile.active svg{color:var(--accent)}
+.tfile .dot{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--warn);flex:none}
+.tree .cnt{margin-left:auto;font-size:11px;color:var(--ink3)}
+.dfoot{border-top:1px solid var(--line);padding:10px 12px calc(10px + var(--sab));display:flex;align-items:center;gap:8px}
+.dfoot .sync{flex:1}
+
+/* ---------- common ---------- */
+.icon-btn{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;color:var(--ink2);flex:none}
+.icon-btn:hover{background:var(--bg2);color:var(--ink)}
+.sync{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:500;color:var(--ink2);white-space:nowrap}
+.sync .led{width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 20%,transparent)}
+.sync.ok .led{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 20%,transparent)}
+.sync.busy .led{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.btn{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:13.5px;white-space:nowrap}
+.btn:hover{border-color:var(--line2)}
+.btn.primary{background:var(--navy);color:var(--bg);border-color:transparent}
+.btn.primary:hover{filter:brightness(1.1)}
+.scrim{display:none;position:fixed;inset:0;background:var(--scrim);z-index:30;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+
+/* ---------- chat ---------- */
+.chat{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);position:relative}
+.chead{display:flex;align-items:center;gap:6px;padding:8px calc(12px + var(--sar)) 8px 10px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);min-height:60px}
+.ctitle{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;padding-left:4px}
+.ctitle b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.modelbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink2);padding:2px 8px 2px 6px;margin-left:-6px;border-radius:8px;min-height:26px;max-width:100%}
+.modelbtn:hover{background:var(--bg2)}
+.modelbtn .pdot{width:8px;height:8px;border-radius:2px;background:var(--accent);flex:none}
+.modelbtn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modelbtn svg{width:14px;height:14px}
+.msgs{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:24px 16px 12px}
+.inner{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.day{align-self:center;font-size:12px;color:var(--ink3);background:var(--bg2);padding:3px 12px;border-radius:999px}
+.msg.user{align-self:flex-end;max-width:min(80%,560px);background:var(--user);color:var(--user-ink);padding:11px 16px;border-radius:22px 22px 6px 22px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.msg.user .mention{background:rgba(255,255,255,.14);padding:1px 6px;border-radius:6px;font-family:var(--mono);font-size:.86em}
+.msg.user .skill{color:#f6c79b;font-weight:600}
+.msg.ai{display:flex;gap:12px;align-items:flex-start}
+.av{width:34px;height:34px;border-radius:10px;background:#fff;border:1px solid var(--line);padding:3px;image-rendering:pixelated;flex:none}
+.aib{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.aib .who{font-size:12px;color:var(--ink3);margin-bottom:-6px}
+.tools{display:flex;flex-wrap:wrap;gap:6px}
+.tool{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:30px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;color:var(--ink2);animation:pop .25s ease}
+.tool code{color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tool svg{width:14px;height:14px}
+.tool.edit{background:var(--accent-soft);border-color:transparent;color:var(--accent);cursor:pointer}
+.tool .plus{color:var(--add-ink);font-weight:600}.tool .minus{color:var(--del-ink);font-weight:600}
+.tool.run svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}}
+.text{font-size:15.5px;line-height:1.62}
+.text p{margin:0 0 10px}.text p:last-child{margin:0}.text ul{margin:0 0 10px;padding-left:20px}
+.caret{display:inline-block;width:8px;height:17px;background:var(--accent);vertical-align:-3px;margin-left:2px;border-radius:2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.wl{color:var(--link);background:var(--link-soft);padding:0 5px;border-radius:6px;text-decoration:none;cursor:pointer;font-weight:500;white-space:nowrap}
+.wl:hover{text-decoration:underline}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.ncard{display:flex;flex-direction:column;gap:3px;text-align:left;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--line);box-shadow:0 1px 1px rgba(0,0,0,.02);min-width:0;transition:transform .12s,border-color .12s}
+.ncard:hover{border-color:var(--line2);transform:translateY(-1px)}
+.ncard .tp{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--accent)}
+.ncard b{font-family:var(--serif);font-size:17px;font-weight:600}
+.ncard .pth{font-family:var(--mono);font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ncard .ex{font-size:13px;color:var(--ink2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.diff{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.diff header{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12.5px;border-bottom:1px solid var(--line);background:var(--surface2)}
+.diff header code{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diff pre{margin:0;padding:6px 0;font:12.5px/1.6 var(--mono);overflow-x:auto;max-height:190px;transition:max-height .3s}
+.diff.open pre{max-height:600px}
+.diff pre div{padding:0 12px;white-space:pre}
+.diff .a{background:var(--add);color:var(--add-ink)}.diff .d{background:var(--del);color:var(--del-ink)}.diff .c{color:var(--ink3)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.meta{font-size:12px;color:var(--ink3);display:flex;gap:10px;align-items:center}
+
+/* composer */
+.composer{padding:8px 16px calc(12px + var(--sab));background:linear-gradient(to bottom,transparent,var(--bg) 18px)}
+.cwrap{max-width:760px;margin:0 auto;position:relative}
+.skills{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+.skills::-webkit-scrollbar{display:none}
+.skills button{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;font-weight:500;color:var(--ink2)}
+.skills button b{color:var(--accent);font-family:var(--mono);font-weight:600}
+.skills button:hover{border-color:var(--line2);color:var(--ink)}
+.box{display:flex;align-items:flex-end;gap:4px;padding:6px;border-radius:24px;background:var(--surface);border:1px solid var(--line2);box-shadow:var(--shadow)}
+.box.search{border-color:var(--link);box-shadow:0 0 0 3px var(--link-soft)}
+.box textarea{flex:1;min-width:0;border:0;outline:0;resize:none;background:none;padding:10px 6px;max-height:160px;min-height:44px;font-size:16px;line-height:1.45}
+.box .icon-btn{width:44px;height:44px;border-radius:50%}
+.box .icon-btn[aria-pressed="true"]{background:var(--link-soft);color:var(--link)}
+.send{width:44px;height:44px;border-radius:50%;background:var(--navy);color:var(--bg);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.send:disabled{opacity:.35;cursor:default}
+.hint{font-size:11.5px;color:var(--ink3);text-align:center;margin-top:6px}
+.hint kbd{font-family:var(--mono);background:var(--bg2);padding:0 5px;border-radius:5px;border:1px solid var(--line)}
+.suggest{position:absolute;left:0;right:0;bottom:calc(100% - 38px);background:var(--surface);border:1px solid var(--line2);border-radius:18px;box-shadow:var(--shadow);max-height:min(360px,48dvh);overflow-y:auto;display:none;z-index:20;padding:6px}
+.suggest.show{display:block;animation:pop .15s}
+.suggest .sh{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);padding:8px 10px 4px}
+.sitem{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;padding:9px 10px;border-radius:12px;min-height:44px}
+.sitem:hover,.sitem.sel{background:var(--bg2)}
+.sitem .t{display:flex;align-items:center;gap:8px;font-weight:500;font-size:14px;max-width:100%}
+.sitem .t code{color:var(--ink3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sitem .s{font-size:13px;color:var(--ink2);line-height:1.45}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
+
+/* popovers */
+.pop{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow);padding:6px;min-width:260px;max-width:calc(100vw - 24px);display:none}
+.pop.show{display:block;animation:pop .15s}
+.pop .sh{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);padding:8px 10px 4px}
+.mitem{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;min-height:44px;text-align:left}
+.mitem:hover{background:var(--bg2)}
+.mitem small{display:block;color:var(--ink3);font-size:12px}
+.mitem .ck{margin-left:auto;color:var(--accent);visibility:hidden}.mitem.on .ck{visibility:visible}
+.gitrow{display:flex;align-items:center;gap:8px;padding:5px 10px;font:12.5px var(--mono)}
+.gitrow b{width:14px;font-weight:700}.gitrow .M{color:var(--warn)}.gitrow .A{color:var(--ok)}
+.gitact{display:flex;gap:8px;padding:8px 6px 4px}.gitact .btn{flex:1;justify-content:center;min-height:44px}
+
+/* ---------- canvas ---------- */
+.canvas{flex:0 0 clamp(400px,38vw,580px);display:none;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);min-width:0;padding-right:var(--sar)}
+.app.canvas-open .canvas{display:flex}
+.grip{display:none;padding:8px 0 2px;justify-content:center;touch-action:none;cursor:grab}
+.grip span{width:40px;height:5px;border-radius:3px;background:var(--line2)}
+.cvh{padding:10px 12px 10px 18px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px;touch-action:pan-x}
+.cvh .r1,.cvh .r2{display:flex;align-items:center;gap:8px;min-width:0}
+.crumb{flex:1;min-width:0;font-size:13px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb b{color:var(--ink);font-weight:600}
+.cvh .seg{background:var(--bg2)}
+.cvh .seg button{flex:none;min-height:32px}
+.status{font-size:12px;color:var(--ink3);margin-left:auto;white-space:nowrap}
+.cvb{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:22px 26px calc(40px + var(--sab))}
+.props{border:1px solid var(--line);border-radius:14px;padding:6px 14px;margin-bottom:22px;background:var(--surface2);font-size:13px}
+.prow{display:flex;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
+.prow:last-child{border:0}
+.prow>span:first-child{width:88px;flex:none;color:var(--ink3);font-family:var(--mono);font-size:12px}
+.prow .v{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.tag{background:var(--bg2);border-radius:999px;padding:1px 9px;font-size:12px;color:var(--ink2)}
+.conf{display:inline-flex;gap:3px;align-items:center}.conf i{width:14px;height:6px;border-radius:2px;background:var(--line2)}.conf i.on{background:var(--ok)}
+.doc{font-family:var(--serif);font-size:18px;line-height:1.65;color:var(--ink)}
+.doc h1{font-size:32px;line-height:1.15;margin:0 0 14px;letter-spacing:-.01em}
+.doc h2{font-size:23px;margin:28px 0 8px}.doc h3{font-size:19px;margin:22px 0 6px}
+.doc p{margin:0 0 14px}.doc ul{margin:0 0 14px;padding-left:22px}.doc li{margin:3px 0}
+.doc blockquote{margin:0 0 14px;padding:4px 16px;border-left:3px solid var(--accent);color:var(--ink2);font-style:italic}
+.doc code{background:var(--bg2);padding:1px 5px;border-radius:5px}
+.doc .wl{font-family:var(--ui);font-size:.86em}
+.doc .wl.ghost{color:var(--ink3);background:none;border-bottom:1px dashed var(--ink3);border-radius:0}
+.backl{margin-top:30px;padding-top:16px;border-top:1px solid var(--line)}
+.backl h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.backl .cards{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+/* CM6-like live source */
+.cm{font:14px/1.75 var(--mono);outline:0;counter-reset:ln;caret-color:var(--accent)}
+.cm .ln{position:relative;padding-left:40px;white-space:pre-wrap;word-break:break-word;min-height:1.75em}
+.cm .ln::before{counter-increment:ln;content:counter(ln);position:absolute;left:0;width:26px;text-align:right;color:var(--ink3);opacity:.55;font-size:11.5px}
+.cm .fm{color:var(--ink2);background:var(--surface2)}
+.cm .fk{color:var(--accent)}
+.cm .mk{color:var(--ink3);opacity:.6}
+.cm .h1{font:600 22px/1.5 var(--serif)}.cm .h2{font:600 19px/1.5 var(--serif)}.cm .h3{font:600 17px/1.5 var(--serif)}
+.cm .cl .wl{font-size:13px}
+.cm b{font-weight:700}
+
+/* ---------- breakpoints ---------- */
+@media (max-width:1279px){
+  .drawer{position:fixed;left:0;top:calc(var(--bar) + var(--sat));bottom:0;z-index:40;width:min(320px,86vw);transform:translateX(-102%);transition:transform .25s ease;box-shadow:var(--shadow);margin:0!important}
+  .app.drawer-open .drawer{transform:none}
+  .app.drawer-open .scrim{display:block}
+}
+@media (min-width:1280px){.brand .close-drawer{display:none}}
+@media (max-width:1023px){
+  .canvas{position:fixed;right:0;top:calc(var(--bar) + var(--sat));bottom:0;z-index:35;width:min(640px,82vw);display:flex;transform:translateX(102%);transition:transform .28s ease;box-shadow:var(--shadow);border-radius:20px 0 0 20px}
+  .app.canvas-open .canvas{transform:none}
+  .app.canvas-open .scrim{display:block}
+}
+@media (max-width:699px){
+  body{font-size:15px}
+  .canvas{left:0;right:0;width:auto;top:calc(var(--sat) + 10px);border-radius:22px 22px 0 0;transform:translateY(104%);border-left:0;padding:0 var(--sar) 0 var(--sal)}
+  .app.canvas-open .canvas{transform:translateY(var(--drag,0px))}
+  .canvas.dragging{transition:none}
+  .grip{display:flex}
+  .cvh{padding:4px 12px 10px 16px}
+  .cvb{padding:18px 18px calc(40px + var(--sab))}
+  .doc{font-size:17px}.doc h1{font-size:27px}
+  .chead{padding-left:6px;min-height:56px}
+  .chead .icon-btn,.dfoot .icon-btn{width:44px;height:44px}
+  .sync .lbl{display:none}.chead .sync{width:44px;height:44px;padding:0;justify-content:center}
+  .msgs{padding:18px 14px 8px}
+  .composer{padding:6px 10px calc(8px + var(--sab))}
+  .hint{display:none}
+  .layoutbar span{display:none}
+  .msg.user{max-width:88%}
+  .cards{grid-template-columns:1fr}
+  .tfile,.tree details>summary,.conv{min-height:44px}
+  .prow>span:first-child{width:72px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="layoutbar"><a href="index.html">← All layouts</a><b>02 · Chat-First</b><span>conversation is home · notes open in a canvas</span></div>
+
+<div class="app" id="app">
+  <!-- LEFT DRAWER: conversations + vault tree -->
+  <aside class="drawer" id="drawer" aria-label="Conversations and vault">
+    <div class="brand">
+      <img class="logo" src="../../../assets/karpathy_ai_logo.png" alt="">
+      <div><b>karpathy.ai</b><small>vault · ~/wiki</small></div>
+      <button class="icon-btn close-drawer" data-act="drawer" aria-label="Close drawer"><i data-i="x"></i></button>
+    </div>
+    <button class="newchat" data-act="newchat"><i data-i="plus"></i> New chat</button>
+    <div class="seg" role="tablist">
+      <button aria-pressed="true" data-tab="chats">Chats</button>
+      <button aria-pressed="false" data-tab="vault">Vault</button>
+    </div>
+    <label class="dfilter"><i data-i="search"></i><input id="dfilter" placeholder="Filter chats…" autocomplete="off"></label>
+    <div class="dlist" id="dlist"></div>
+    <div class="dfoot">
+      <button class="sync" data-act="sync"><span class="led"></span><span class="lbl">3 uncommitted</span></button>
+      <button class="icon-btn" data-act="theme" aria-label="Toggle theme"><i data-i="moon"></i></button>
+      <button class="icon-btn" aria-label="Settings"><i data-i="gear"></i></button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- CENTER: conversation -->
+  <main class="chat">
+    <header class="chead">
+      <button class="icon-btn" data-act="drawer" aria-label="Open drawer"><i data-i="menu"></i></button>
+      <div class="ctitle">
+        <b id="ctitle">Ingest: Karpathy LLM-Wiki gist</b>
+        <button class="modelbtn" data-act="model" aria-haspopup="true"><span class="pdot"></span><span id="modelname">claude-sonnet-5 · Anthropic</span><i data-i="chev-d"></i></button>
+      </div>
+      <button class="sync" data-act="sync" aria-label="Git sync status"><span class="led"></span><span class="lbl">3 uncommitted</span></button>
+      <button class="icon-btn" data-act="theme" aria-label="Toggle theme"><i data-i="moon"></i></button>
+    </header>
+
+    <div class="msgs" id="msgs"><div class="inner" id="thread"></div></div>
+
+    <div class="composer">
+      <div class="cwrap">
+        <div class="suggest" id="suggest" role="listbox"></div>
+        <div class="skills" id="skills">
+          <button data-skill="/ingest"><b>/ingest</b> new sources</button>
+          <button data-skill="/query"><b>/query</b> ask the wiki</button>
+          <button data-skill="/lint"><b>/lint</b> health check</button>
+          <button data-skill="/timeline"><b>/timeline</b> build</button>
+        </div>
+        <div class="box" id="box">
+          <button class="icon-btn" id="searchToggle" aria-pressed="false" aria-label="Search vault (⌘K)" title="Search vault (⌘K)"><i data-i="search"></i></button>
+          <textarea id="input" rows="1" placeholder="Ask about your vault…  @ file · / skill" aria-label="Message"></textarea>
+          <button class="icon-btn" data-act="at" aria-label="Mention a file"><i data-i="at"></i></button>
+          <button class="send" id="send" aria-label="Send" disabled><i data-i="up"></i></button>
+        </div>
+        <div class="hint"><kbd>@</kbd> mention file · <kbd>/</kbd> skill · <kbd>⌘K</kbd> search vault · edits are committed to git</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT: note canvas (split / slide-over / bottom sheet) -->
+  <section class="canvas" id="canvas" aria-label="Note canvas">
+    <div class="grip" id="grip"><span></span></div>
+    <div class="cvh" id="cvh">
+      <div class="r1"><div class="crumb" id="crumb"></div>
+        <button class="icon-btn" data-act="canvas-close" aria-label="Close note"><i data-i="x"></i></button></div>
+      <div class="r2">
+        <div class="seg"><button data-mode="preview" aria-pressed="true">Preview</button><button data-mode="live" aria-pressed="false">Live edit</button></div>
+        <span class="status" id="cstatus"></span>
+        <button class="btn" data-act="ask"><i data-i="spark"></i> Ask</button>
+      </div>
+    </div>
+    <div class="cvb" id="cvb"></div>
+  </section>
+</div>
+
+<div class="pop" id="modelPop" role="menu"></div>
+<div class="pop" id="syncPop" role="dialog"></div>
+
+<script>
+const ICONS={
+  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 13.7H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10.3 3V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  'chev-d':'<path d="M6 9l6 6 6-6"/>',chev:'<path d="M9 6l6 6-6 6"/>',at:'<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
+  up:'<path d="M12 19V5M5 12l7-7 7 7"/>',file:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/>',folder:'<path d="M3 6h6l2 2h10v11H3z"/>',
+  spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',grep:'<path d="M4 6h16M4 12h10M4 18h6"/><circle cx="18" cy="16" r="3"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',check:'<path d="M5 12l5 5 9-10"/>',spin:'<path d="M12 3a9 9 0 1 0 9 9"/>',
+  open:'<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>',pull:'<path d="M12 4v12M6 10l6 6 6-6M5 20h14"/>',push:'<path d="M12 20V8M6 14l6-6 6 6M5 4h14"/>',
+  undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',plusfile:'<path d="M14 3H6v18h12V7z"/><path d="M12 11v6M9 14h6"/>'
+};
+const ic=n=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||''}</svg>`;
+const hydrate=root=>root.querySelectorAll('i[data-i]').forEach(e=>{if(!e.firstChild)e.innerHTML=ic(e.dataset.i)});
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- vault sample data ---------- */
+const NOTES={
+'index.md':`---
+type: index
+tags: [wiki, catalog]
+updated: 2026-09-25
+---
+# Wiki Index
+
+## Entities
+- [[andrej-karpathy]] — AI researcher, author of the LLM-Wiki gist (5 sources)
+- [[opencode]] — open-source agent harness, runs headless (2 sources)
+- [[obsidian]] — Markdown vault app, CM6 based (3 sources)
+
+## Concepts
+- [[llm-wiki]] — an LLM maintains a persistent, interlinked wiki (4 sources)
+- [[retrieval-augmented-generation]] — retrieve chunks at query time (2 sources)
+- [[codemirror-6]] — editor toolkit behind live preview (1 source)
+
+## Synthesis
+- [[rag-vs-llm-wiki]] — Vergleich: RAG vs. kompiliertes Wissen
+
+## Recent Ingests
+- [[karpathy-llm-wiki-gist]] — 2026-09-25 (4 pages updated)`,
+'log.md':`---
+type: log
+tags: [wiki, log]
+updated: 2026-09-25
+---
+# Wiki Log
+
+## [2026-09-25] ingest | Karpathy – LLM Wiki gist
+- Updated: [[llm-wiki]], [[andrej-karpathy]], [[index]]
+- New: [[karpathy-llm-wiki-gist]]
+- Contradictions: none
+
+## [2026-09-24] lint
+- Dead link: [[vector-databases]] in [[retrieval-augmented-generation]]
+- Orphan: [[codemirror-6]] (0 inbound links)
+
+## [2026-09-21] query | "Wie unterscheidet sich RAG vom LLM-Wiki?"
+- Result: [[rag-vs-llm-wiki]] (new page)`,
+'wiki/concepts/llm-wiki.md':`---
+type: concept
+tags: [llm, knowledge-management, pattern]
+updated: 2026-09-25
+sources: [karpathy-llm-wiki-gist.md, obsidian-live-preview.md]
+related: [andrej-karpathy, retrieval-augmented-generation, obsidian]
+confidence: high
+---
+# LLM Wiki
+
+An **LLM Wiki** is a personal knowledge base that an LLM *writes and maintains*, while the human curates sources and asks questions. Proposed by [[andrej-karpathy]] as an alternative to plain [[retrieval-augmented-generation]].
+
+## Kernidee
+- Rohquellen landen unverändert in \`raw/\` — sie sind immutable.
+- Das LLM kompiliert sie zu Seiten in \`wiki/\`: entities, concepts, synthesis.
+- Jede Ingestion aktualisiert 5–15 Seiten, den [[index]] und das [[log]].
+- Widersprüche werden explizit markiert statt überschrieben.
+
+## Warum es funktioniert
+> The wiki is a persistent, compounding artifact — knowledge is compiled once, not re-derived on every query.
+
+- Wissen **akkumuliert** über Sessions hinweg.
+- Menschen lesen es in [[obsidian]]; das LLM editiert denselben Markdown-Text.
+- Git macht jede AI-Änderung reviewbar und revertierbar.
+
+## Operations
+- **ingest** — Quelle lesen, Zusammenfassung schreiben, Querverweise pflegen
+- **query** — Index durchsuchen, Seiten lesen, mit Zitaten antworten
+- **lint** — tote Links, verwaiste Seiten, veraltete Aussagen finden
+
+## Siehe auch
+- [[rag-vs-llm-wiki]]
+- [[karpathy-llm-wiki-gist]]`,
+'wiki/entities/andrej-karpathy.md':`---
+type: entity
+tags: [person, ai-research]
+updated: 2026-09-25
+sources: [karpathy-llm-wiki-gist.md]
+confidence: high
+---
+# Andrej Karpathy
+
+AI researcher and educator; formerly at OpenAI and Tesla (Autopilot). Known for *Neural Networks: Zero to Hero* and for coining "vibe coding".
+
+## Relevant ideas
+- Proposed the [[llm-wiki]] pattern: LLM as the librarian of a personal wiki.
+- Frames LLMs as a new kind of operating system ("LLM OS").
+
+## Sources
+- [[karpathy-llm-wiki-gist]]`,
+'wiki/entities/opencode.md':`---
+type: entity
+tags: [tool, agent-harness, open-source]
+updated: 2026-09-20
+sources: [opencode-readme.md]
+confidence: medium
+---
+# opencode
+
+MIT-licensed agent harness in TypeScript/Bun. Runs headless via \`opencode serve\` and speaks to **75+ providers**.
+
+- Built-in file tools: read, edit, write, grep, glob
+- Reads \`SKILL.md\` and \`.claude/skills\` — so the [[llm-wiki]] skills run unchanged
+- Alternative harnesses: pi, Goose (via ACP)`,
+'wiki/synthesis/rag-vs-llm-wiki.md':`---
+type: synthesis
+tags: [comparison, rag, llm]
+updated: 2026-09-21
+sources: [karpathy-llm-wiki-gist.md]
+confidence: medium
+---
+# RAG vs. LLM Wiki
+
+## Kurzfassung
+[[retrieval-augmented-generation]] sucht bei **jeder Frage** neu nach passenden Chunks. Das [[llm-wiki]] kompiliert Wissen **einmal** zu verlinkten Seiten.
+
+## Vergleich
+- **Zeitpunkt:** RAG zur Query-Zeit · Wiki zur Ingest-Zeit
+- **Artefakt:** RAG: Vektorindex · Wiki: lesbares Markdown
+- **Widersprüche:** RAG: unsichtbar · Wiki: explizit markiert
+- **Kosten:** RAG günstiger pro Quelle, Wiki günstiger pro Frage
+
+## Fazit
+Für ein persönliches Wiki mit < 10k Seiten gewinnt das Wiki; RAG bleibt nützlich als Fallback-Suche.`,
+'wiki/sources/karpathy-llm-wiki-gist.md':`---
+type: source
+tags: [gist, karpathy, llm-wiki]
+updated: 2026-09-25
+sources: [raw/articles/karpathy-llm-wiki-gist.md]
+confidence: high
+---
+# Source: Karpathy – "LLM Wiki" gist
+
+**Author:** [[andrej-karpathy]] · **Captured:** 2026-09-25 via Web Clipper
+
+## Summary
+- Instead of RAG over raw documents, let an LLM *incrementally build* a wiki.
+- Three layers: raw sources, the wiki, and the schema (\`CLAUDE.md\` / \`AGENTS.md\`).
+- Operations: ingest, query, lint. Index and log files keep the agent oriented.
+
+## Pages touched
+- [[llm-wiki]] (+12 −3)
+- [[andrej-karpathy]] (+4)
+- [[index]], [[log]]`,
+'raw/articles/karpathy-llm-wiki-gist.md':`---
+source: https://gist.github.com/karpathy/llm-wiki
+clipped: 2026-09-25
+---
+# LLM Wiki
+
+A pattern for building personal knowledge bases using LLMs. Instead of just retrieving from raw documents at query time, the LLM incrementally builds and maintains a persistent wiki — a structured, interlinked collection of markdown files.
+
+The wiki is a persistent, compounding artifact. The human curates sources and asks questions; the LLM does the summarizing, cross-referencing, filing and bookkeeping.`
+};
+const EXTRA=['wiki/entities/obsidian.md','wiki/concepts/retrieval-augmented-generation.md','wiki/concepts/codemirror-6.md','wiki/sources/obsidian-live-preview.md','raw/articles/obsidian-live-preview.md','raw/articles/opencode-readme.md'];
+const titleOf=p=>{const m=getNote(p).match(/^# (.+)$/m);return m?m[1]:base(p)};
+const base=p=>p.split('/').pop().replace(/\.md$/,'');
+function getNote(p){
+  if(NOTES[p]) return NOTES[p];
+  const t=base(p).split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+  const type=p.includes('/entities/')?'entity':p.includes('/concepts/')?'concept':p.includes('/sources/')?'source':'article';
+  return NOTES[p]=`---\ntype: ${type}\ntags: [stub]\nupdated: 2026-09-18\nconfidence: low\n---\n# ${t}\n\nStub page — not yet expanded. Linked from [[index]] and related to [[llm-wiki]].\n\n- Ask the agent to expand it: \`/query ${t}\``;
+}
+const PATHS=[...Object.keys(NOTES),...EXTRA];
+const DIRTY=new Set(['wiki/concepts/llm-wiki.md','wiki/sources/karpathy-llm-wiki-gist.md','log.md']);
+function resolve(t){t=t.replace(/\.md$/,'').toLowerCase();return PATHS.find(p=>p.toLowerCase()===t+'.md')||PATHS.find(p=>base(p).toLowerCase()===t)||null}
+
+/* ---------- markdown rendering ---------- */
+function inline(s){
+  return esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\*([^*]+)\*/g,'<em>$1</em>')
+   .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,(m,t,a)=>{const p=resolve(t);return `<a class="wl${p?'':' ghost'}" ${p?`data-open="${p}"`:''} title="${p||'not created yet'}">${a||t}</a>`});
+}
+function splitFM(md){const m=md.match(/^---\n([\s\S]*?)\n---\n?/);if(!m)return[{},md];const fm={};
+  m[1].split('\n').forEach(l=>{const i=l.indexOf(':');if(i>0){let v=l.slice(i+1).trim();if(/^\[.*\]$/.test(v))v=v.slice(1,-1).split(',').map(x=>x.trim()).filter(Boolean);fm[l.slice(0,i).trim()]=v}});
+  return[fm,md.slice(m[0].length)]}
+function mdToHtml(body){
+  let out='',list=false;
+  for(const l of body.split('\n')){
+    const li=l.match(/^- (.*)/);
+    if(li){if(!list){out+='<ul>';list=true}out+=`<li>${inline(li[1])}</li>`;continue}
+    if(list){out+='</ul>';list=false}
+    let h=l.match(/^(#{1,3}) (.*)/);
+    if(h)out+=`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`;
+    else if(l.startsWith('> '))out+=`<blockquote>${inline(l.slice(2))}</blockquote>`;
+    else if(l.trim())out+=`<p>${inline(l)}</p>`;
+  }
+  return out+(list?'</ul>':'');
+}
+function propsHtml(fm){
+  const row=(k,v)=>`<div class="prow"><span>${k}</span><div class="v">${v}</div></div>`;let h='';
+  if(fm.type)h+=row('type',`<span class="tag" style="background:var(--accent-soft);color:var(--accent);font-weight:600">${esc(fm.type)}</span>`);
+  if(fm.tags)h+=row('tags',[].concat(fm.tags).map(t=>`<span class="tag">#${esc(t)}</span>`).join(''));
+  if(fm.updated)h+=row('updated',esc(fm.updated));
+  if(fm.sources)h+=row('sources',[].concat(fm.sources).map(s=>inline(`[[${s.replace(/\.md$/,'')}]]`)).join(''));
+  if(fm.source)h+=row('source',`<span class="mono" style="word-break:break-all">${esc(fm.source)}</span>`);
+  if(fm.confidence){const n={low:1,medium:2,high:3}[fm.confidence]||0;h+=row('confidence',`<span class="conf">${[1,2,3].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>&nbsp;${esc(fm.confidence)}`)}
+  return h?`<div class="props">${h}</div>`:'';
+}
+function liveHtml(md){
+  const lines=md.split('\n');let inFm=lines[0]==='---',fmEnd=inFm?lines.indexOf('---',1):-1;
+  return lines.map((l,i)=>{
+    if(inFm&&i<=fmEnd){const m=l.match(/^(\w+):(.*)$/);return `<div class="ln fm">${m?`<span class="fk">${m[1]}</span>:${esc(m[2])}`:`<span class="mk">${esc(l)}</span>`}</div>`}
+    let h=l.match(/^(#{1,3}) (.*)/);
+    if(h)return `<div class="ln h${h[1].length}"><span class="mk">${h[1]} </span>${inl(h[2])}</div>`;
+    let li=l.match(/^(- |> )(.*)/);
+    if(li)return `<div class="ln cl"><span class="mk">${esc(li[1])}</span>${inl(li[2])}</div>`;
+    return `<div class="ln cl">${inl(l)||'<br>'}</div>`;
+  }).join('');
+  function inl(s){return esc(s).replace(/\*\*([^*]+)\*\*/g,'<span class="mk">**</span><b>$1</b><span class="mk">**</span>')
+    .replace(/\[\[([^\]]+)\]\]/g,(m,t)=>{const p=resolve(t);return `<span class="mk">[[</span><a class="wl" ${p?`data-open="${p}"`:''}>${t}</a><span class="mk">]]</span>`})}
+}
+
+/* ---------- state ---------- */
+const app=$('#app'),S={tab:'chats',path:null,mode:'preview',model:'claude-sonnet-5',synced:false};
+const wide=()=>innerWidth>=1280, phone=()=>innerWidth<700;
+
+/* ---------- drawer ---------- */
+const CONVS=[['Today',[['Ingest: Karpathy LLM-Wiki gist','/ingest · 4 pages changed',1],['Was ist der Unterschied zu RAG?','/query · rag-vs-llm-wiki']]],
+ ['Yesterday',[['Lint pass — 4 dead links','/lint · fixed 3, 1 open'],['Timeline Japan-Reise 2026','/timeline · timeline.html']]],
+ ['Last week',[['opencode vs. pi as harness','query · 2 sources'],['Weekly review KW 38','log.md · 12 entries'],['Obsidian live preview internals','ingest · codemirror-6']]]];
+function renderDrawer(){
+  const q=$('#dfilter').value.toLowerCase(),el=$('#dlist');
+  $('#dfilter').placeholder=S.tab==='chats'?'Filter chats…':'Filter files…';
+  if(S.tab==='chats'){
+    el.className='dlist';
+    el.innerHTML=CONVS.map(([g,items])=>{const f=items.filter(c=>c[0].toLowerCase().includes(q));return f.length?`<div class="grp">${g}</div>`+f.map(c=>`<button class="conv${c[2]?' active':''}" data-conv="${esc(c[0])}"><b>${esc(c[0])}</b><small>${esc(c[1])}</small></button>`).join(''):''}).join('');
+    return;
+  }
+  el.className='dlist tree';
+  const root={};PATHS.filter(p=>!q||p.toLowerCase().includes(q)).forEach(p=>{let n=root;const parts=p.split('/');parts.slice(0,-1).forEach(d=>n=n[d]=n[d]||{});n[parts.at(-1)]=p});
+  const order=k=>({wiki:0,raw:1}[k]??(k.endsWith('.md')?9:5));
+  const count=n=>Object.values(n).reduce((a,v)=>a+(typeof v==='string'?1:count(v)),0);
+  const walk=n=>Object.keys(n).sort((a,b)=>order(a)-order(b)||a.localeCompare(b)).map(k=>typeof n[k]==='string'
+    ?`<button class="tfile${n[k]===S.path?' active':''}" data-open="${n[k]}">${ic('file')}<span>${k}</span>${DIRTY.has(n[k])&&!S.synced?'<i class="dot" title="uncommitted"></i>':''}</button>`
+    :`<details open><summary>${ic('chev').replace('<svg','<svg class="chev"')}${ic('folder')}${k}<span class="cnt">${count(n[k])}</span></summary><div class="kids">${walk(n[k])}</div></details>`).join('');
+  el.innerHTML=walk(root)||'<div class="grp">No matches</div>';
+}
+function setTab(t){S.tab=t;$$('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===t));$('#dfilter').value='';renderDrawer()}
+function toggleDrawer(force){
+  if(wide()){app.classList.toggle('drawer-collapsed',force===undefined?undefined:!force);return}
+  app.classList.toggle('drawer-open',force);
+}
+
+/* ---------- canvas ---------- */
+function openNote(p){
+  if(!p)return;S.path=p;renderCanvas();app.classList.add('canvas-open');canvas.style.removeProperty('--drag');
+  if(!wide())app.classList.remove('drawer-open');
+  if(S.tab==='vault')renderDrawer();
+}
+const canvas=$('#canvas');
+function renderCanvas(){
+  const p=S.path,md=getNote(p),[fm,body]=splitFM(md),parts=p.split('/');
+  $('#crumb').innerHTML=parts.slice(0,-1).map(esc).join(' / ')+(parts.length>1?' / ':'')+`<b>${esc(parts.at(-1))}</b>`;
+  $('#cstatus').textContent=DIRTY.has(p)&&!S.synced?'● uncommitted':'saved · in git';
+  $$('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===S.mode));
+  const cvb=$('#cvb');
+  if(S.mode==='live'){cvb.innerHTML=`<div class="cm" id="cm" contenteditable="true" spellcheck="false">${liveHtml(md)}</div>`;
+    $('#cm').addEventListener('input',()=>{$('#cstatus').textContent='saving…';clearTimeout(S.t);S.t=setTimeout(()=>{DIRTY.add(p);S.synced=false;updateSync();$('#cstatus').textContent='● uncommitted'},700)});
+  } else {
+    const b=base(p),back=PATHS.filter(q=>q!==p&&getNote(q).includes('[['+b+']]'));
+    cvb.innerHTML=propsHtml(fm)+`<article class="doc">${mdToHtml(body)}</article>`+
+      (back.length?`<div class="backl"><h4>${back.length} backlinks</h4><div class="cards">${back.map(card).join('')}</div></div>`:'');
+  }
+  cvb.scrollTop=0;
+}
+function card(p){const [fm,body]=splitFM(getNote(p));const ex=body.split('\n').find(l=>l&&!l.startsWith('#')&&!l.startsWith('-'))||'';
+  return `<button class="ncard" data-open="${p}"><span class="tp">${esc(fm.type||'note')}</span><b>${esc(titleOf(p))}</b><span class="pth">${p}</span><span class="ex">${esc(ex.replace(/\[\[|\]\]|\*\*|`/g,''))}</span></button>`}
+function closeCanvas(){app.classList.remove('canvas-open')}
+
+/* bottom-sheet swipe-down (phone) */
+(()=>{let y0=null,dy=0;const start=e=>{if(!phone())return;if(e.currentTarget.id==='cvh'&&e.target.closest('button'))return;y0=e.clientY;dy=0;canvas.classList.add('dragging')};
+  const move=e=>{if(y0===null)return;dy=Math.max(0,e.clientY-y0);canvas.style.setProperty('--drag',dy+'px')};
+  const end=()=>{if(y0===null)return;canvas.classList.remove('dragging');if(dy>110)closeCanvas();canvas.style.removeProperty('--drag');y0=null};
+  ['grip','cvh'].forEach(id=>{const el=document.getElementById(id);el.addEventListener('pointerdown',start)});
+  addEventListener('pointermove',move);addEventListener('pointerup',end);addEventListener('pointercancel',end);})();
+
+/* ---------- chat ---------- */
+const thread=$('#thread');
+const tool=(icon,html,cls='')=>`<span class="tool ${cls}">${ic(icon)}${html}</span>`;
+const DIFF=`<div class="diff" id="diff1"><header>${ic('edit')}<code>wiki/concepts/llm-wiki.md</code><span class="plus">+12</span><span class="minus">−3</span></header><pre>
+<div class="c">@@ -8,9 +8,18 @@ ## Kernidee</div><div class="c"> - Rohquellen landen unverändert in raw/ — sie sind immutable.</div><div class="d">-- Das LLM fasst Quellen zusammen.</div><div class="a">+- Das LLM kompiliert sie zu Seiten in wiki/: entities, concepts, synthesis.</div><div class="a">+- Jede Ingestion aktualisiert 5–15 Seiten, den [[index]] und das [[log]].</div><div class="a">+- Widersprüche werden explizit markiert statt überschrieben.</div><div class="c"> </div><div class="d">-## Notizen</div><div class="a">+## Warum es funktioniert</div><div class="a">+> The wiki is a persistent, compounding artifact — knowledge is</div><div class="a">+> compiled once, not re-derived on every query.</div><div class="a">+- Wissen **akkumuliert** über Sessions hinweg.</div><div class="a">+- Menschen lesen es in [[obsidian]]; das LLM editiert denselben Text.</div><div class="d">-- TODO: Quelle finden</div><div class="a">+- Git macht jede AI-Änderung reviewbar und revertierbar.</div><div class="a">+</div><div class="a">+## Siehe auch</div><div class="a">+- [[rag-vs-llm-wiki]] · [[karpathy-llm-wiki-gist]]</div></pre></div>`;
+function userMsg(t){return `<div class="msg user">${esc(t).replace(/^(\/\w+)/,'<span class="skill">$1</span>').replace(/@([\w\/.\-]+)/g,'<span class="mention">@$1</span>')}</div>`}
+function aiShell(){const d=document.createElement('div');d.className='msg ai';d.innerHTML=`<img class="av" src="../../../assets/karpathy_ai_logo.png" alt=""><div class="aib"><div class="who">karpathy.ai · ${S.model}</div><div class="tools"></div><div class="text"></div></div>`;thread.appendChild(d);return d}
+function seed(){
+  thread.innerHTML=`<div class="day">Today · 09:41</div>`+userMsg('/ingest raw/articles/karpathy-llm-wiki-gist.md — und verlinke es mit dem Konzept LLM Wiki');
+  const a=aiShell();a.querySelector('.tools').innerHTML=tool('file','read <code>raw/articles/karpathy-llm-wiki-gist.md</code>')+tool('file','read <code>wiki/index.md</code>')+tool('grep',"grep <code>'Karpathy'</code> · 7 hits")+
+    `<button class="tool edit" data-open="wiki/concepts/llm-wiki.md">${ic('edit')}edited <code>wiki/concepts/llm-wiki.md</code><span class="plus">+12</span><span class="minus">−3</span></button>`+
+    `<button class="tool edit" data-open="wiki/sources/karpathy-llm-wiki-gist.md">${ic('plusfile')}created <code>wiki/sources/karpathy-llm-wiki-gist.md</code></button>`;
+  a.querySelector('.text').innerHTML=`<p>Ingested. Die Quelle beschreibt das ${inline('[[llm-wiki]]')}-Pattern: ein LLM pflegt ein persistentes, verlinktes Wiki statt bei jeder Frage neu zu suchen.</p><ul><li>New source page ${inline('[[karpathy-llm-wiki-gist]]')}</li><li>${inline('[[llm-wiki]]')}: Kernidee präzisiert, Zitat + „Siehe auch“ ergänzt</li><li>${inline('[[andrej-karpathy]]')}, ${inline('[[index]]')} und ${inline('[[log]]')} aktualisiert</li></ul>`;
+  a.querySelector('.aib').insertAdjacentHTML('beforeend',DIFF+`<div class="actions"><button class="btn primary" data-open="wiki/concepts/llm-wiki.md">${ic('open')} Open changed page</button><button class="btn" data-act="expand-diff">Full diff</button><button class="btn">${ic('undo')} Revert</button></div><div class="cards">${['wiki/concepts/llm-wiki.md','wiki/sources/karpathy-llm-wiki-gist.md','wiki/entities/andrej-karpathy.md'].map(card).join('')}</div><div class="meta">4 files changed · not yet committed · 2.1k tokens</div>`);
+  thread.insertAdjacentHTML('beforeend',userMsg('Was ist der Unterschied zu RAG? Kurz bitte.'));
+  const b=aiShell();
+  run(b,[['file','read <code>wiki/synthesis/rag-vs-llm-wiki.md</code>'],['grep',"grep <code>'RAG'</code> · 5 hits"]],
+    'Kurz: [[retrieval-augmented-generation]] sucht bei **jeder Frage** neu nach passenden Textstücken — das Wissen wird jedes Mal frisch „abgeleitet“. Das [[llm-wiki]] kompiliert Wissen **einmal** beim Ingest in lesbare, verlinkte Seiten; Widersprüche werden dabei explizit markiert. Details stehen in [[rag-vs-llm-wiki]].',
+    ['wiki/synthesis/rag-vs-llm-wiki.md']);
+}
+function run(el,tools,text,cards,after){
+  const tb=el.querySelector('.tools'),tx=el.querySelector('.text');let i=0;
+  const nextTool=()=>{
+    if(i<tools.length){const [ico,h]=tools[i++];tb.insertAdjacentHTML('beforeend',`<span class="tool run">${ic('spin')}${h}</span>`);scroll();
+      setTimeout(()=>{const t=tb.lastElementChild;t.classList.remove('run');t.querySelector('svg').outerHTML=ic(ico);nextTool()},650);return}
+    const words=text.split(/(\s+)/);let n=0;
+    const tick=()=>{n+=2;const done=n>=words.length;tx.innerHTML='<p>'+inline(words.slice(0,n).join(''))+(done?'':'<span class="caret"></span>')+'</p>';scroll(true);
+      if(!done)return setTimeout(tick,45);
+      if(after)after(el);
+      if(cards&&cards.length)el.querySelector('.aib').insertAdjacentHTML('beforeend',`<div class="cards">${cards.map(card).join('')}</div>`);scroll()};
+    tick();
+  };nextTool();
+}
+function scroll(soft){const m=$('#msgs');if(!soft||m.scrollHeight-m.scrollTop-m.clientHeight<160)m.scrollTop=m.scrollHeight}
+function send(){
+  const inp=$('#input'),t=inp.value.trim();if(!t)return;
+  if(S.search){const f=$('#suggest .sitem');if(f)f.click();return}
+  thread.insertAdjacentHTML('beforeend',userMsg(t));inp.value='';autosize();hideSuggest();
+  const mention=(t.match(/@([\w\/.\-]+)/)||[])[1],skill=(t.match(/^\/(\w+)/)||[])[1],a=aiShell(),tools=[['file','read <code>wiki/index.md</code>']];
+  if(mention)tools.push(['file',`read <code>${esc(mention)}</code>`]);
+  const kw=(t.replace(/^\/\w+|@\S+/g,'').match(/[A-Za-zÄÖÜäöü]{5,}/)||['wiki'])[0];tools.push(['grep',`grep <code>'${esc(kw)}'</code> · ${2+kw.length%5} hits`]);
+  if(skill==='lint')run(a,[['file','read <code>wiki/index.md</code>'],['grep',"grep <code>'[['</code> · 142 links"]],'Lint done: 1 dead link ([[vector-databases]] in [[retrieval-augmented-generation]]), 1 orphan ([[codemirror-6]]). I added [[codemirror-6]] to the [[index]].',['wiki/concepts/codemirror-6.md'],el=>{el.querySelector('.tools').insertAdjacentHTML('beforeend',`<button class="tool edit" data-open="index.md">${ic('edit')}edited <code>index.md</code><span class="plus">+1</span><span class="minus">−0</span></button>`);el.querySelector('.aib').insertAdjacentHTML('beforeend',`<div class="actions"><button class="btn primary" data-open="index.md">${ic('open')} Open changed page</button></div>`);DIRTY.add('index.md');S.synced=false;updateSync()});
+  else run(a,tools,`Laut Wiki hängt „${kw}“ vor allem mit [[llm-wiki]] und [[andrej-karpathy]] zusammen. ${mention?`In [[${base(mention)}]] finde ich dazu die relevantesten Stellen; `:''}der Vergleich in [[rag-vs-llm-wiki]] ist die beste Einstiegsseite. Soll ich daraus eine Synthesis-Seite anlegen?`,[mention&&resolve(base(mention)),'wiki/concepts/llm-wiki.md'].filter(Boolean));
+}
+
+/* ---------- composer: @ mention, / skills, search ---------- */
+const SKILLS=[['/ingest','Hol neue Quellen rein und schreib die Wiki-Seiten'],['/query','Beantworte eine Frage aus dem Wiki mit Quellen'],['/lint','Tote Links, Waisen, Widersprüche finden'],['/timeline','Grafische Zeitleiste aus datierten Einträgen']];
+function snippets(q,max=2){
+  const ql=q.toLowerCase(),res=[];
+  for(const p of PATHS){const txt=splitFM(getNote(p))[1].replace(/(^|\n)#+ /g,'$1').replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g,'$1').replace(/\*\*|`|\*/g,'').replace(/\n+/g,' · '),low=txt.toLowerCase(),hits=[];let i=low.indexOf(ql);
+    while(i>=0&&hits.length<max){const s=Math.max(0,i-38),e=Math.min(txt.length,i+q.length+60);
+      hits.push((s?'…':'')+esc(txt.slice(s,i))+'<mark>'+esc(txt.slice(i,i+q.length))+'</mark>'+esc(txt.slice(i+q.length,e))+(e<txt.length?'…':''));i=low.indexOf(ql,i+q.length)}
+    if(hits.length||p.toLowerCase().includes(ql))res.push({p,hits,n:(low.split(ql).length-1)})}
+  return res.sort((a,b)=>b.n-a.n);
+}
+function showSuggest(html){const s=$('#suggest');s.innerHTML=html;s.classList.add('show');S.sel=0;markSel()}
+function hideSuggest(){$('#suggest').classList.remove('show')}
+function markSel(){$$('#suggest .sitem').forEach((e,i)=>e.classList.toggle('sel',i===S.sel))}
+function onInput(){
+  const inp=$('#input'),v=inp.value;autosize();$('#send').disabled=!v.trim();
+  if(S.search){if(v.trim().length<2){showSuggest('<div class="sh">Search the vault · type at least 2 characters</div>');return}
+    const r=snippets(v.trim());const hits=r.reduce((a,x)=>a+x.n,0);
+    showSuggest(`<div class="sh">${hits} matches in ${r.length} files</div>`+(r.slice(0,8).map(x=>`<button class="sitem" data-open="${x.p}" data-close-search><span class="t">${ic('file')}${esc(titleOf(x.p))}<code>${x.p}</code></span>${x.hits.map(h=>`<span class="s">${h}</span>`).join('')}</button>`).join('')||'<div class="sh">No results</div>'));return}
+  const at=v.match(/(^|\s)@([\w\/.\-]*)$/);
+  if(at){const q=at[2].toLowerCase(),r=PATHS.filter(p=>p.toLowerCase().includes(q)).slice(0,7);
+    showSuggest('<div class="sh">Mention a file</div>'+r.map(p=>`<button class="sitem" data-mention="${p}"><span class="t">${ic('file')}${esc(titleOf(p))}<code>${p}</code></span></button>`).join(''));return}
+  if(/^\/\w*$/.test(v)){const r=SKILLS.filter(s=>s[0].startsWith(v));
+    showSuggest('<div class="sh">Skills</div>'+r.map(s=>`<button class="sitem" data-skill="${s[0]}"><span class="t"><b style="color:var(--accent);font-family:var(--mono)">${s[0]}</b></span><span class="s">${s[1]}</span></button>`).join(''));return}
+  hideSuggest();
+}
+function autosize(){const t=$('#input');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,160)+'px'}
+function setSearch(on){S.search=on;$('#searchToggle').setAttribute('aria-pressed',on);$('#box').classList.toggle('search',on);
+  const i=$('#input');i.placeholder=on?'Search vault — e.g. Karpathy, RAG, Widersprüche…':(phone()?'Ask your vault…':'Ask about your vault…  @ file · / skill');i.focus();onInput();if(!on)hideSuggest()}
+function insertAtCursor(s){const i=$('#input');i.value=i.value.replace(/@[\w\/.\-]*$/,'')+s;i.focus();onInput()}
+
+/* ---------- popovers ---------- */
+const MODELS=[['Anthropic',[['claude-sonnet-5','fast · default'],['claude-opus-5','deepest reasoning']]],['OpenAI',[['gpt-5.1','general'],['gpt-5-mini','cheap & quick']]],['Ollama · local',[['qwen3-coder:30b','on Mac mini · private'],['llama-4-scout','on Mac mini']]]];
+function place(pop,anchor){const r=anchor.getBoundingClientRect();pop.classList.add('show');const w=pop.offsetWidth;
+  pop.style.left=Math.max(12,Math.min(r.left,innerWidth-w-12))+'px';
+  const below=r.bottom+6,h=pop.offsetHeight;pop.style.top=(below+h>innerHeight-8?Math.max(8,r.top-h-6):below)+'px'}
+function closePops(){$$('.pop').forEach(p=>p.classList.remove('show'))}
+function modelPop(a){const p=$('#modelPop');p.innerHTML=MODELS.map(([prov,ms])=>`<div class="sh">${prov}</div>`+ms.map(([m,d])=>`<button class="mitem${m===S.model?' on':''}" data-model="${m}" data-prov="${prov}"><span><b style="font-weight:600">${m}</b><small>${d}</small></span><span class="ck">${ic('check')}</span></button>`).join('')).join('');place(p,a)}
+function syncPop(a){const p=$('#syncPop');const files=[...DIRTY];
+  p.innerHTML=S.synced?`<div class="sh">main · origin/main</div><div class="gitrow">${ic('check')} Up to date · pushed just now</div><div class="gitact"><button class="btn" data-git="pull">${ic('pull')} Pull</button></div>`
+   :`<div class="sh">main · ${files.length} uncommitted · 0 behind</div>`+files.map(f=>`<div class="gitrow"><b class="${f.includes('sources/')?'A':'M'}">${f.includes('sources/')?'A':'M'}</b>${f}</div>`).join('')+`<div class="gitact"><button class="btn" data-git="pull">${ic('pull')} Pull</button><button class="btn primary" data-git="push">${ic('push')} Commit & push</button></div>`;
+  place(p,a)}
+function updateSync(label){$$('.sync').forEach(s=>{s.classList.toggle('ok',S.synced);s.classList.toggle('busy',!!label);s.querySelector('.lbl').textContent=label||(S.synced?'synced · just now':DIRTY.size+' uncommitted')});if(S.tab==='vault')renderDrawer();if(S.path&&S.mode==='preview')$('#cstatus').textContent=DIRTY.has(S.path)&&!S.synced?'● uncommitted':'saved · in git'}
+function theme(){const d=document.documentElement,cur=d.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');d.dataset.theme=cur==='dark'?'light':'dark';
+  $$('[data-act="theme"] i').forEach(i=>i.innerHTML=ic(d.dataset.theme==='dark'?'sun':'moon'))}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-open],[data-act],[data-tab],[data-mode],[data-skill],[data-mention],[data-model],[data-git],[data-conv]');
+  if(!e.target.closest('.pop')&&!e.target.closest('[data-act="model"],[data-act="sync"]'))closePops();
+  if(!e.target.closest('.cwrap'))hideSuggest();
+  if(!t)return;const d=t.dataset;
+  if(d.open){e.preventDefault();if('closeSearch' in d){setSearch(false);$('#input').value='';onInput()}openNote(d.open);return}
+  if(d.tab)return setTab(d.tab);
+  if(d.mode){S.mode=d.mode;return renderCanvas()}
+  if(d.skill){$('#input').value=d.skill+' ';setSearch(false);hideSuggest();return}
+  if(d.mention){insertAtCursor('@'+d.mention+' ');hideSuggest();return}
+  if(d.conv){$('#ctitle').textContent=d.conv;$$('.conv').forEach(c=>c.classList.toggle('active',c===t));if(!wide())toggleDrawer(false);return}
+  if(d.model){S.model=d.model;$('#modelname').textContent=d.model+' · '+d.prov.replace(' · local','');closePops();return}
+  if(d.git){closePops();updateSync(d.git==='pull'?'pulling…':'pushing…');setTimeout(()=>{if(d.git==='push'){S.synced=true;DIRTY.clear()}updateSync();if(S.path)renderCanvas()},1200);return}
+  switch(d.act){
+    case 'drawer':return toggleDrawer();
+    case 'newchat':thread.innerHTML='<div class="day">New conversation</div>';$('#ctitle').textContent='New chat';if(!wide())toggleDrawer(false);return $('#input').focus();
+    case 'canvas-close':return closeCanvas();
+    case 'theme':return theme();
+    case 'model':return $('#modelPop').classList.contains('show')?closePops():(closePops(),modelPop(t));
+    case 'sync':return $('#syncPop').classList.contains('show')?closePops():(closePops(),syncPop(t));
+    case 'at':setSearch(false);insertAtCursor(($('#input').value&&!/\s$/.test($('#input').value)?' ':'')+'@');return;
+    case 'expand-diff':return $('#diff1').classList.toggle('open');
+    case 'ask':if(phone()||innerWidth<1024)closeCanvas();setSearch(false);$('#input').value=`@${S.path} `;return onInput();
+  }
+});
+$('#scrim').addEventListener('click',()=>{app.classList.remove('drawer-open');if(innerWidth<1024)closeCanvas()});
+$('#searchToggle').addEventListener('click',()=>setSearch(!S.search));
+$('#dfilter').addEventListener('input',renderDrawer);
+const inp=$('#input');inp.addEventListener('input',onInput);
+inp.addEventListener('keydown',e=>{const items=$$('#suggest .sitem'),open=$('#suggest').classList.contains('show')&&items.length;
+  if(open&&(e.key==='ArrowDown'||e.key==='ArrowUp')){e.preventDefault();S.sel=(S.sel+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;return markSel()}
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(open&&(S.search||/(^|\s)@[\w\/.\-]*$|^\/\w*$/.test(inp.value)))return items[S.sel].click();send()}
+  if(e.key==='Escape'){hideSuggest();if(S.search)setSearch(false)}});
+$('#send').addEventListener('click',send);
+addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setSearch(true)}
+  if(e.key==='Escape'&&document.activeElement!==inp){closePops();if(app.classList.contains('drawer-open'))app.classList.remove('drawer-open');else closeCanvas()}});
+addEventListener('resize',()=>{closePops();if(wide())app.classList.remove('drawer-open')});
+
+/* ---------- boot ---------- */
+hydrate(document);if(phone())$('#input').placeholder='Ask your vault…';renderDrawer();updateSync();seed();
+if(innerWidth>=1024)openNote('wiki/concepts/llm-wiki.md');
+if(matchMedia('(prefers-color-scheme: dark)').matches)$$('[data-act="theme"] i').forEach(i=>i.innerHTML=ic('sun'));
+</script>
+</body>
+</html>

@@ -15,29 +15,38 @@ Spec-only — no code, build, lint, or test commands yet. The source of truth is
 
 ## What this is
 
-Mobile-friendly PWA that combines an Obsidian-style Markdown vault with an AI chat that can
-read/write/ingest into that vault — so the existing Obsidian + Claude Code + wiki-skills setup
+Mobile-friendly PWA that combines Obsidian-style Markdown vaults with an AI chat that can
+read/write/ingest into them — so the existing Obsidian + Claude Code + wiki-skills setup
 works from iPad/phone, not just the Mac terminal.
 
 ## Architecture (planned)
 
-- **Frontend:** Vite + TypeScript PWA (UI framework not yet chosen). Panels: file tree, editor,
-  vault search, streaming chat (shows which files the AI reads/changes).
+- **Frontend:** Vite + TypeScript PWA (UI framework not yet chosen). Vault switcher, admin area
+  (configure vaults), panels: file tree, editor, vault search, streaming chat (shows which files the AI reads/changes).
 - **Editor: CodeMirror 6** editing raw Markdown (live preview via decorations). Deliberately
   *not* Milkdown/ProseMirror: WYSIWYG re-serialization causes diff noise and conflicts with the
   AI's raw edits. Preserve lossless round-trips of frontmatter and `[[wikilinks]]`.
-- **Backend:** Node/TS, thin. REST file API (`GET /files`, `GET/PUT /file?path=`,
-  `GET /search?q=` via ripgrep) + `POST /chat` streaming over SSE/WebSocket.
-- **Agentic loop = opencode** (`opencode serve` sidecar, cwd = vault, driven via
+- **Backend:** Node/TS, thin. Vault admin API (`GET/POST /vaults`, `PATCH/DELETE /vaults/:id`),
+  per-vault file API (`GET /vaults/:id/files`, `GET/PUT /vaults/:id/file?path=`,
+  `GET /vaults/:id/search?q=` via ripgrep) + `POST /vaults/:id/chat` streamed via `fetch`/WebSocket.
+- **Agentic loop = opencode** (`opencode serve` container, one session per vault directory, driven via
   `@opencode-ai/sdk`). Provider-agnostic by design — never hard-wire a specific LLM provider.
   Do **not** reimplement the loop, tools, or skills — opencode's built-in file tools, skills
   (`SKILL.md`, incl. `.claude/skills`), `AGENTS.md`/`CLAUDE.md`, and MCP are the point. Keep the
   backend↔harness boundary small and ACP-shaped so the harness stays swappable.
-- **Sync = git.** The vault is a git repo on the backend host; backend pulls before a session,
+- **Data model: vault = GitHub repo.** The app manages several vaults, configured in an in-app
+  admin area (repo, branch, optional root) and stored in a backend-only config volume. The
+  backend clones each one to `/vaults/<id>`. Every file, search or chat operation is scoped to
+  one vault (`/vaults/:id/...`).
+- **Sync = git.** Each vault is a clone on the backend host; backend pulls before a session,
   commits after human/AI edits, optionally pushes to GitHub. Obsidian mobile/desktop share the
   same remote. No second sync system.
-- **Security:** provider API keys server-side only; opencode server bound to localhost, version
-  pinned, file access restricted to the vault; a single-user bearer token guards all endpoints;
+- **Runtime = docker compose, in dev and prod.** Services: reverse proxy (auto-TLS), backend,
+  opencode. They share the vault clones via a compose volume. Only the proxy publishes ports. In dev,
+  bind-mount the sources for hot reload rather than running anything natively. The Docker CLI
+  talks to Rancher Desktop.
+- **Security:** provider API keys server-side only; opencode reachable only on the internal
+  compose network, version pinned, file access restricted to the session's vault; a single-user bearer token guards all endpoints;
   HTTPS mandatory (reverse proxy with auto-TLS).
 
 ## Scope

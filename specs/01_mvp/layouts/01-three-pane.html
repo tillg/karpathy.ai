@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<!--
+  Design 01 · Three-Pane Classic (Obsidian / VS Code lineage)
+  Rationale: the vault is the product, the agent is a colleague sitting next to it.
+  A calm, dark-first, dense workbench: tree left, editor center (tabs, CM6-style live
+  preview with syntax marks revealed on the cursor line), chat right. Everything the
+  agent touches (tool chips, diffs, "open changed page") links back into the editor.
+
+  Navigation model
+  - Desktop ≥1100px (1440 desktop, 1180 iPad landscape): icon rail (Files · Search · Tags · Chat)
+    + collapsible/resizable sidebar + tabbed editor + collapsible/resizable chat panel.
+    Rail click on active view collapses the sidebar (VS Code). ⌘K search, ⌘J chat.
+  - Tablet 700–1099px (820 iPad portrait): rail + full-width editor; sidebar and chat are
+    slide-over panels with scrim. Opening a file/link closes the slide-over.
+  - Phone <700px (390): bottom tab bar Files · Note · Search · Chat, one full-screen panel
+    at a time. Opening a file, search hit, wikilink or "open changed page" jumps to Note.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>01 · Three-Pane Classic — karpathy.ai</title>
+<link rel="icon" type="image/png" sizes="32x32" href="../../../assets/icons/favicon-32x32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Silkscreen&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1220;--panel:#0f1829;--panel2:#141f35;--hover:#1a2742;--sel:#1d2f55;--line:#1f2c47;--line2:#2b3b5e;
+  --tx:#dbe3f1;--tx2:#a4b1c9;--mute:#6c7c9a;--acc:#86adff;--acc2:#3d6fe6;--accbg:rgba(134,173,255,.13);
+  --key:#c4a3ff;--ok:#4ade80;--warn:#fbbf24;--add:#3fb950;--del:#f85149;--addbg:rgba(63,185,80,.13);--delbg:rgba(248,81,73,.13);
+  --mark:rgba(251,191,36,.3);--shadow:0 14px 44px rgba(0,0,0,.5);
+  --sw:264px;--cw:384px;--rail:48px;--metah:24px;--toph:46px;--stath:24px;
+  --ui:"Inter",system-ui,-apple-system,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#f4f6f9;--panel:#fff;--panel2:#f6f8fb;--hover:#edf1f7;--sel:#dfe8fb;--line:#e3e7ef;--line2:#d2d9e5;
+  --tx:#0f1e33;--tx2:#3b4a64;--mute:#7b879d;--acc:#2456d6;--acc2:#2456d6;--accbg:rgba(36,86,214,.08);
+  --key:#7c3aed;--ok:#16a34a;--warn:#d97706;--add:#1a7f37;--del:#cf222e;--addbg:#e6ffec;--delbg:#ffebe9;
+  --mark:rgba(250,204,21,.45);--shadow:0 14px 36px rgba(15,30,51,.16);color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#f4f6f9;--panel:#fff;--panel2:#f6f8fb;--hover:#edf1f7;--sel:#dfe8fb;--line:#e3e7ef;--line2:#d2d9e5;
+  --tx:#0f1e33;--tx2:#3b4a64;--mute:#7b879d;--acc:#2456d6;--acc2:#2456d6;--accbg:rgba(36,86,214,.08);
+  --key:#7c3aed;--ok:#16a34a;--warn:#d97706;--add:#1a7f37;--del:#cf222e;--addbg:#e6ffec;--delbg:#ffebe9;
+  --mark:rgba(250,204,21,.45);--shadow:0 14px 36px rgba(15,30,51,.16);color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--tx);font:13.5px/1.45 var(--ui);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+[hidden]{display:none!important}
+.logo{background:#fff;border-radius:6px;padding:2px;image-rendering:pixelated;display:block}
+
+/* ---------- app grid ---------- */
+.app{height:100dvh;display:grid;
+  grid-template-rows:var(--metah) var(--toph) minmax(0,1fr) var(--stath) auto;
+  grid-template-columns:var(--rail) var(--swx) minmax(0,1fr) var(--cwx);
+  grid-template-areas:"meta meta meta meta" "top top top top" "rail side main chat" "stat stat stat stat" "tabs tabs tabs tabs";
+  --swx:var(--sw);--cwx:var(--cw);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+body.sc .app{--swx:0px} body.sc .side{display:none}
+body.cc .app{--cwx:0px} body.cc .chat{display:none}
+
+.meta{grid-area:meta;display:flex;align-items:center;gap:10px;padding:0 12px;font-size:11.5px;color:var(--mute);background:var(--bg);border-bottom:1px solid var(--line)}
+.meta a{color:var(--acc);text-decoration:none;font-weight:500}
+.meta b{color:var(--tx2);font-weight:600}
+
+/* top bar */
+.top{grid-area:top;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);min-width:0;position:relative}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.brand .logo{width:28px;height:28px}
+.word{font:15px "Silkscreen",var(--mono);letter-spacing:.02em;white-space:nowrap}
+.vault{color:var(--mute);font-size:12px;white-space:nowrap}
+.gsearch{flex:1;max-width:460px;margin:0 auto;display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:var(--panel2);color:var(--mute);cursor:text}
+.gsearch kbd{margin-left:auto;font:11px var(--mono);border:1px solid var(--line2);border-radius:4px;padding:0 5px}
+.ptitle{display:none;font-weight:600;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tact{display:flex;align-items:center;gap:2px}
+.ib{width:32px;height:32px;display:grid;place-items:center;border-radius:7px;color:var(--tx2)}
+.ib:hover{background:var(--hover);color:var(--tx)}
+.ib.on{color:var(--acc)}
+.pill{display:flex;align-items:center;gap:7px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);font-size:12px;color:var(--tx2);white-space:nowrap}
+.pill:hover{border-color:var(--acc)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.dot.warn{background:var(--warn)} .dot.busy{background:var(--acc);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.pop{position:absolute;z-index:60;background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow);padding:6px;min-width:260px}
+#syncPop{top:calc(100% + 6px);right:10px;width:300px}
+.pop h4{margin:6px 8px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.pop .row{border-radius:7px}
+.pbtns{display:flex;gap:6px;padding:8px}
+.btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line2);font-weight:500;font-size:12.5px;white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn.pri{background:var(--acc2);border-color:var(--acc2);color:#fff}
+.btn.pri:hover{filter:brightness(1.1)}
+
+/* rail */
+.rail{grid-area:rail;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;background:var(--bg);border-right:1px solid var(--line)}
+.rail .ib{width:38px;height:38px;position:relative}
+.rail .ib.on::before{content:"";position:absolute;left:-5px;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--acc)}
+.rail .ib .i{width:20px;height:20px}
+.rail .sp{flex:1}
+.badge{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 2px var(--bg)}
+
+/* sidebar */
+.side{grid-area:side;display:flex;flex-direction:column;min-width:0;background:var(--panel);border-right:1px solid var(--line);position:relative}
+.ph{display:flex;align-items:center;gap:6px;height:38px;padding:0 8px 0 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--mute);flex:none}
+.ph .grow{flex:1}
+.ph .ib{width:28px;height:28px}
+.view{display:none;flex-direction:column;min-height:0;flex:1}
+body[data-view="files"] #v-files,body[data-view="search"] #v-search,body[data-view="tags"] #v-tags{display:flex}
+.scroll{overflow:auto;min-height:0;flex:1;overscroll-behavior:contain}
+.row{display:flex;align-items:center;gap:6px;width:100%;min-height:26px;padding:2px 10px 2px calc(12px + var(--d,0) * 14px);text-align:left;color:var(--tx2);white-space:nowrap}
+.row span{overflow:hidden;text-overflow:ellipsis;flex:1}
+.row:hover{background:var(--hover);color:var(--tx)}
+.row.on{background:var(--sel);color:var(--tx)}
+.row .i{width:14px;height:14px;opacity:.75}
+.row.dir{color:var(--tx);font-weight:500}
+.row.dir .i{transition:transform .15s}
+.row.dir.open .i{transform:rotate(90deg)}
+.cnt{font-style:normal;font-size:11px;color:var(--mute)}
+.gm{font-style:normal;font:600 10.5px var(--mono);color:var(--warn)}
+.sfoot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--mute)}
+.rz{position:absolute;top:0;bottom:0;width:7px;cursor:col-resize;z-index:5}
+.rz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:transparent;transition:background .15s}
+.rz:hover::after,.rz.drag::after{background:var(--acc)}
+.side .rz{right:-4px} .chat .rz{left:-4px}
+
+/* search */
+.sbox{margin:0 10px 8px;display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:var(--panel2)}
+.sbox:focus-within{border-color:var(--acc)}
+.sbox input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:13.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.fchips{padding:0 10px 8px}
+.fc{height:24px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);font-size:12px;color:var(--tx2)}
+.fc.on{background:var(--accbg);border-color:var(--acc);color:var(--acc)}
+.smeta{padding:2px 14px 6px;font-size:11.5px;color:var(--mute)}
+.hit{display:block;width:100%;text-align:left;padding:8px 14px;border-bottom:1px solid var(--line)}
+.hit:hover{background:var(--hover)}
+.hit .hf{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px}
+.hit .hf small{margin-left:auto;font-weight:400;color:var(--mute)}
+.hit .hp{font:11px var(--mono);color:var(--mute);margin:1px 0 4px}
+.hit .sn{font-size:12.5px;color:var(--tx2);margin:3px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hit .sn i{font-style:normal;font:11px var(--mono);color:var(--mute);margin-right:6px}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
+.tagrow{justify-content:space-between}
+
+/* main editor */
+.main{grid-area:main;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)}
+.tabs{display:flex;height:36px;flex:none;background:var(--bg);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{display:flex;align-items:center;gap:7px;padding:0 6px 0 12px;border-right:1px solid var(--line);color:var(--mute);white-space:nowrap;font-size:12.5px;position:relative;flex:none}
+.tab:hover{color:var(--tx)}
+.tab.on{background:var(--panel);color:var(--tx)}
+.tab.on::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--acc)}
+.tab .x{width:22px;height:22px;display:grid;place-items:center;border-radius:5px;opacity:.6}
+.tab .x:hover{background:var(--hover);opacity:1}
+.tab .x .i{width:12px;height:12px}
+.tab.dirty .x::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--tx2);grid-area:1/1}
+.tab.dirty .x .i{grid-area:1/1;opacity:0} .tab.dirty .x:hover .i{opacity:1} .tab.dirty .x:hover::before{opacity:0}
+.bar{display:flex;align-items:center;gap:10px;height:38px;flex:none;padding:0 10px 0 16px;border-bottom:1px solid var(--line)}
+.crumbs{flex:1;min-width:0;display:flex;align-items:center;gap:4px;color:var(--mute);font-size:12.5px;overflow:hidden;white-space:nowrap}
+.crumbs b{color:var(--tx);font-weight:500}
+.crumbs .i{width:12px;height:12px}
+.seg{display:flex;padding:2px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
+.seg button{display:flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:6px;font-size:12px;color:var(--mute)}
+.seg button.on{background:var(--hover);color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.seg .i{width:13px;height:13px}
+.ask{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;color:var(--acc);background:var(--accbg);font-size:12.5px;font-weight:500;white-space:nowrap}
+.doc{flex:1;overflow:auto;min-height:0;overscroll-behavior:contain}
+.code{max-width:860px;margin:0 auto;padding:22px 0 20px;outline:none;font-size:15px;line-height:1.7;caret-color:var(--acc)}
+.ln{display:flex;align-items:baseline;padding-right:28px}
+.ln.cur{background:linear-gradient(90deg,transparent,var(--accbg) 8%,var(--accbg) 92%,transparent)}
+.no{width:52px;flex:none;text-align:right;padding-right:16px;font:11.5px var(--mono);color:var(--mute);opacity:.55;user-select:none;-webkit-user-select:none}
+.ln.cur .no{opacity:1;color:var(--tx2)}
+.tx{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.mk{color:var(--mute)}
+.live .mk{display:none} .live .ln.cur .mk,.live .fm .mk{display:inline}
+.live .h .tx{font-weight:700;letter-spacing:-.01em}
+.live .h1 .tx{font-size:1.9em;line-height:1.35;padding:.25em 0 .15em}
+.live .h2 .tx{font-size:1.35em;padding-top:.7em}
+.live .h3 .tx{font-size:1.12em;padding-top:.5em}
+.src .code{font:13.5px/1.75 var(--mono)}
+.src .h .tx{color:var(--acc);font-weight:600}
+.fm .tx{font:12.5px/1.8 var(--mono)}
+.fm{background:var(--panel2)} .fm.cur{background:var(--accbg)}
+.fk{color:var(--key)} .fv{color:var(--tx2)}
+.fmd{border-top:1px solid var(--line)}
+.wl{color:var(--acc);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--acc) 40%,transparent);text-underline-offset:3px;cursor:pointer}
+.wl:hover{text-decoration-color:var(--acc)}
+.wl.unres{opacity:.65;text-decoration-style:dashed}
+.tag{color:var(--acc);background:var(--accbg);border-radius:5px;padding:0 5px;font-size:.9em}
+code{font:.86em var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.src code{background:none;border:0;padding:0;color:#e8a26a}
+.bul,.num{color:var(--acc);font-weight:700}
+.live .bul{position:relative;color:transparent} .live .bul::before{content:"•";position:absolute;left:0;color:var(--acc)}
+.bq .tx{border-left:3px solid var(--acc);padding-left:14px;color:var(--tx2);font-style:italic}
+.reading .mk{display:none}
+.reading{max-width:760px;margin:0 auto;padding:22px 28px 10px;font-size:15px;line-height:1.7}
+.reading h1{font-size:1.9em;margin:.2em 0 .5em;line-height:1.3} .reading h2{font-size:1.35em;margin:1.3em 0 .4em} .reading h3{margin:1em 0 .3em}
+.reading ul,.reading ol{padding-left:1.4em} .reading li{margin:.15em 0}
+.reading blockquote{margin:1em 0;border-left:3px solid var(--acc);padding:2px 14px;color:var(--tx2);font-style:italic}
+.props{border:1px solid var(--line);border-radius:10px;padding:6px 0;margin-bottom:18px;font-size:13px}
+.props div{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:3px 14px}
+.props dt{color:var(--mute);display:flex;align-items:center;gap:6px} .props dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.back{max-width:860px;margin:10px auto 40px;padding:0 28px 0 52px}
+.back h5{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--mute);border-top:1px solid var(--line);padding-top:14px}
+.back button{display:block;text-align:left;width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--line);margin-bottom:6px}
+.back button:hover{border-color:var(--acc)}
+.back b{font-weight:600;font-size:13px}.back small{display:block;color:var(--tx2);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* chat */
+.chat{grid-area:chat;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel);border-left:1px solid var(--line);position:relative}
+.chead{display:flex;align-items:center;gap:10px;height:46px;padding:0 8px 0 12px;border-bottom:1px solid var(--line);flex:none}
+.chead .logo{width:26px;height:26px}
+.chead div{flex:1;min-width:0;line-height:1.2}
+.chead b{font-size:13px} .chead small{display:block;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msgs{flex:1;overflow:auto;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}
+.msg{font-size:13.5px;line-height:1.55}
+.msg.u{align-self:flex-end;max-width:88%;background:var(--sel);padding:8px 12px;border-radius:14px 14px 4px 14px}
+.msg.u code{background:transparent;border:0;color:var(--acc);padding:0}
+.msg.a .who{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mute);margin-bottom:6px}
+.msg.a .who img{width:16px;height:16px;border-radius:3px}
+.msg .mk{display:none}
+.msg p{margin:.35em 0} .msg ul{margin:.3em 0;padding-left:1.2em}
+.msg .chips{margin-bottom:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;height:26px;padding:0 9px;border-radius:7px;border:1px solid var(--line2);background:var(--panel2);font:11.5px var(--mono);color:var(--tx2)}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip:hover{border-color:var(--acc);color:var(--tx)}
+.chip .i{width:13px;height:13px;color:var(--ok)}
+.chip.ed .i{color:var(--warn)}
+.chip.run .i{color:var(--acc);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.add{color:var(--add)} .del{color:var(--del)}
+.diff{border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin:8px 0;background:var(--bg)}
+.diff header{display:flex;align-items:center;gap:8px;padding:6px 10px;font:11.5px var(--mono);border-bottom:1px solid var(--line);background:var(--panel2)}
+.diff header span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.diff pre{margin:0;font:11.5px/1.6 var(--mono);overflow-x:auto;max-height:118px;transition:max-height .2s}
+.diff.full pre{max-height:400px}
+.diff pre div{padding:0 10px;white-space:pre}
+.diff .p{background:var(--addbg);color:var(--add)} .diff .m{background:var(--delbg);color:var(--del)} .diff .h{color:var(--mute)}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.acts .btn{flex:none;height:30px}
+.caret{display:inline-block;width:7px;height:15px;background:var(--acc);vertical-align:-2px;margin-left:2px;animation:pulse .8s infinite}
+.composer{flex:none;padding:8px 10px 10px;border-top:1px solid var(--line);position:relative}
+.skills{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:8px}
+.sk{flex:none;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);font:12px var(--mono);color:var(--tx2)}
+.sk:hover{border-color:var(--acc);color:var(--acc)}
+.cbox{border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:8px 8px 6px 10px}
+.cbox:focus-within{border-color:var(--acc)}
+.cbox textarea{width:100%;border:0;background:none;outline:none;resize:none;font-size:13.5px;line-height:1.45;min-height:40px;max-height:140px}
+.crow{display:flex;align-items:center;gap:6px}
+.mpick{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:7px;font-size:12px;color:var(--tx2);min-width:0;white-space:nowrap}
+.mpick:hover{background:var(--hover)}
+.mpick span{overflow:hidden;text-overflow:ellipsis}
+.ctx{display:flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:6px;background:var(--accbg);color:var(--acc);font:11px var(--mono);min-width:0;overflow:hidden;white-space:nowrap}
+.send{margin-left:auto;width:32px;height:32px;border-radius:9px;background:var(--acc2);color:#fff;display:grid;place-items:center;flex:none}
+.send.busy{background:var(--line2)}
+#modelMenu{bottom:calc(100% - 4px);left:10px;width:290px}
+.mopt{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:8px;text-align:left}
+.mopt:hover{background:var(--hover)}
+.mopt b{font:500 12.5px var(--mono)} .mopt small{color:var(--mute);margin-left:auto;font-size:11.5px}
+.mopt.on{background:var(--accbg)} .mopt.on b{color:var(--acc)}
+
+/* status bar + phone tabs */
+.stat{grid-area:stat;display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--bg);border-top:1px solid var(--line);font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden}
+.stat .i{width:13px;height:13px}
+.stat>*{display:flex;align-items:center;gap:5px}
+.stat .grow{flex:1}
+.stat button:hover{color:var(--tx)}
+.ptabs{grid-area:tabs;display:none}
+.scrim{display:none}
+.toast{position:fixed;left:50%;bottom:calc(40px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--tx);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:12.5px;font-weight:500;transition:.2s;z-index:90;max-width:calc(100vw - 32px);box-shadow:var(--shadow)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:1299px){:root{--sw:236px;--cw:340px}}
+/* ---------- tablet: slide-overs ---------- */
+@media (max-width:1099px){
+  .app{grid-template-columns:var(--rail) minmax(0,1fr);grid-template-areas:"meta meta" "top top" "rail main" "stat stat" "tabs tabs"}
+  body.sc .side,body.cc .chat{display:flex}
+  .rail{--rail:52px}
+  .side,.chat{position:fixed;z-index:40;top:calc(env(safe-area-inset-top) + var(--metah) + var(--toph));bottom:var(--stath);box-shadow:var(--shadow);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+  .side{left:calc(env(safe-area-inset-left) + var(--rail));width:min(320px,80vw);transform:translateX(calc(-100% - 80px))}
+  .chat{right:0;width:min(420px,88vw);transform:translateX(calc(100% + 20px));padding-right:env(safe-area-inset-right)}
+  body.so .side,body.co .chat{transform:none}
+  .rz{display:none}
+  .scrim{display:block;position:fixed;inset:0;z-index:35;background:rgba(5,10,20,.45);opacity:0;pointer-events:none;transition:opacity .2s}
+  body.so .scrim,body.co .scrim{opacity:1;pointer-events:auto}
+  .vault{display:none}
+  .ib,.rail .ib{min-width:44px;min-height:44px}
+  .row{min-height:36px}
+}
+/* ---------- phone: bottom tabs ---------- */
+@media (max-width:699px){
+  :root{--toph:50px;--stath:0px}
+  .app{grid-template-columns:minmax(0,1fr);grid-template-areas:"meta" "top" "main" "stat" "tabs"}
+  .rail,.stat,.gsearch,.word,.vault,#sideBtn,#chatBtn{display:none}
+  .ptitle{display:block}
+  .pill span{display:none} .pill{height:36px;padding:0 12px}
+  .side,.chat,.main{position:static;grid-area:main;transform:none;box-shadow:none;width:auto;display:none!important;border:0;padding:0}
+  body[data-m="files"] .side,body[data-m="search"] .side{display:flex!important}
+  body[data-m="note"] .main{display:flex!important}
+  body[data-m="chat"] .chat{display:flex!important}
+  .scrim{display:none!important}
+  .ptabs{display:flex;background:var(--panel);border-top:1px solid var(--line);padding:0 0 env(safe-area-inset-bottom)}
+  .ptabs button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;font-size:10.5px;font-weight:500;color:var(--mute);position:relative}
+  .ptabs button .i{width:22px;height:22px}
+  .ptabs button.on{color:var(--acc)}
+  .ptabs .badge{top:8px;right:calc(50% - 16px)}
+  .row{min-height:44px;font-size:15px} .row .i{width:16px;height:16px}
+  .sbox{height:44px} .sbox input{font-size:16px}
+  .fc{height:34px;padding:0 14px}
+  .hit{padding:12px 16px}
+  .ph{height:44px}
+  .tabs{height:40px} .tab .x{width:30px;height:30px}
+  .bar{padding:0 8px 0 12px;height:46px}
+  .ask span{display:none} .ask{height:36px;width:40px;justify-content:center}
+  .seg button{height:32px;padding:0 10px} .seg button span{display:none}
+  .code{font-size:16px} .no{width:34px;padding-right:10px}
+  .ln{padding-right:14px} .reading{padding:18px 16px} .back{padding:0 16px}
+  .props div{grid-template-columns:96px 1fr}
+  .cbox textarea{font-size:16px}
+  .sk{height:34px;padding:0 14px}
+  .chip{height:32px} .send{width:40px;height:40px} .mpick{height:36px}
+  .acts .btn{height:40px}
+  #modelMenu{left:8px;right:8px;width:auto}
+  #syncPop{right:8px;left:8px;width:auto}
+  .chead .logo,#chatClose{display:none}
+  .toast{bottom:calc(70px + env(safe-area-inset-bottom))}
+}
+</style>
+</head>
+<body data-view="files" data-m="note">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-files" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-pl" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+  <symbol id="i-pr" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9a6 6 0 0 1-6 6H6"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M4 3v5h5M20 21v-5h-5"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+  <symbol id="i-load" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
+</svg>
+
+<div class="app">
+  <div class="meta"><a href="index.html">← All layouts</a><span>·</span><b>01 · Three-Pane Classic</b><span style="margin-left:auto" class="vault">prototype · sample data</span></div>
+
+  <header class="top">
+    <div class="brand"><img class="logo" src="../../../assets/karpathy_ai_logo.png" alt="karpathy.ai"><span class="word">karpathy.ai</span><span class="vault">/ Frechen</span></div>
+    <div class="ptitle" id="ptitle">llm-wiki</div>
+    <button class="gsearch" id="gsearch"><svg class="i"><use href="#i-search"/></svg>Search vault…<kbd>⌘K</kbd></button>
+    <div class="tact">
+      <button class="pill" id="syncPill" data-pop="syncPop" title="Git sync"><i class="dot warn" id="syncDot"></i><span id="syncLbl">3 uncommitted</span></button>
+      <button class="ib" id="themeBtn" title="Toggle theme"><svg class="i"><use href="#i-sun"/></svg></button>
+      <button class="ib on" id="sideBtn" title="Toggle sidebar"><svg class="i"><use href="#i-pl"/></svg></button>
+      <button class="ib on" id="chatBtn" title="Toggle chat (⌘J)"><svg class="i"><use href="#i-pr"/></svg></button>
+    </div>
+    <div class="pop" id="syncPop" hidden>
+      <h4>Git · main → origin/main</h4>
+      <div id="syncList"></div>
+      <div class="smeta" id="syncMeta">Last pull 2 min ago · Obsidian mobile up to date</div>
+      <div class="pbtns"><button class="btn" id="pullBtn"><svg class="i"><use href="#i-down"/></svg>Pull</button><button class="btn pri" id="pushBtn"><svg class="i"><use href="#i-up"/></svg>Commit &amp; push</button></div>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="Views">
+    <button class="ib on" data-view="files" title="Files"><svg class="i"><use href="#i-files"/></svg></button>
+    <button class="ib" data-view="search" title="Search (⌘K)"><svg class="i"><use href="#i-search"/></svg></button>
+    <button class="ib" data-view="tags" title="Tags"><svg class="i"><use href="#i-tag"/></svg></button>
+    <div class="sp"></div>
+    <button class="ib on" id="railChat" title="Chat (⌘J)"><svg class="i"><use href="#i-chat"/></svg><i class="badge" hidden></i></button>
+  </nav>
+
+  <aside class="side" id="side">
+    <section class="view" id="v-files">
+      <div class="ph">Explorer<span class="grow"></span><button class="ib" title="New note" id="newNote"><svg class="i"><use href="#i-plus"/></svg></button></div>
+      <div class="scroll" id="tree"></div>
+    </section>
+    <section class="view" id="v-search">
+      <div class="ph">Search</div>
+      <label class="sbox"><svg class="i"><use href="#i-search"/></svg><input id="q" value="Karpathy" placeholder="Search vault (ripgrep)" autocomplete="off" spellcheck="false"></label>
+      <div class="chips fchips"><button class="fc on" data-scope="">All</button><button class="fc" data-scope="wiki/">wiki</button><button class="fc" data-scope="raw/">raw</button><button class="fc" data-scope="wiki/concepts/">concepts</button></div>
+      <div class="smeta" id="smeta"></div>
+      <div class="scroll" id="hits"></div>
+    </section>
+    <section class="view" id="v-tags">
+      <div class="ph">Tags</div>
+      <div class="scroll" id="tags"></div>
+    </section>
+    <div class="sfoot"><svg class="i"><use href="#i-branch"/></svg>main<span style="margin-left:auto">14 notes</span></div>
+    <div class="rz" data-rz="sw"></div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="tabs" id="tabs"></div>
+    <div class="bar">
+      <div class="crumbs" id="crumbs"></div>
+      <div class="seg" id="modes">
+        <button data-mode="live" class="on" title="Live preview"><svg class="i"><use href="#i-note"/></svg><span>Live</span></button>
+        <button data-mode="src" title="Source"><svg class="i"><use href="#i-code"/></svg><span>Source</span></button>
+        <button data-mode="read" title="Reading view"><svg class="i"><use href="#i-eye"/></svg><span>Read</span></button>
+      </div>
+      <button class="ask" id="askBtn" title="Ask AI about this page"><svg class="i"><use href="#i-spark"/></svg><span>Ask AI</span></button>
+    </div>
+    <div class="doc live" id="doc"></div>
+  </main>
+
+  <aside class="chat" id="chat">
+    <div class="chead">
+      <img class="logo" src="../../../assets/karpathy_ai_logo.png" alt="">
+      <div><b>Vault agent</b><small>opencode · session “ingest karpathy gist” · cwd ~/Frechen</small></div>
+      <button class="ib" title="New session" id="newSess"><svg class="i"><use href="#i-plus"/></svg></button>
+      <button class="ib" title="Close chat" id="chatClose"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="composer">
+      <div class="skills"><button class="sk" data-skill="/ingest ">/ingest</button><button class="sk" data-skill="/query ">/query</button><button class="sk" data-skill="/lint">/lint</button><button class="sk" data-skill="/timeline ">/timeline</button></div>
+      <div class="cbox">
+        <textarea id="prompt" rows="2" placeholder="Ask about your vault — or / for skills"></textarea>
+        <div class="crow">
+          <button class="mpick" data-pop="modelMenu"><svg class="i"><use href="#i-cpu"/></svg><span id="modelLbl">claude-sonnet-5 · Anthropic</span></button>
+          <span class="ctx" id="ctx" title="Current page is attached as context">@llm-wiki.md</span>
+          <button class="send" id="send" title="Send"><svg class="i"><use href="#i-send"/></svg></button>
+        </div>
+      </div>
+      <div class="pop" id="modelMenu" hidden></div>
+    </div>
+    <div class="rz" data-rz="cw"></div>
+  </aside>
+
+  <footer class="stat">
+    <button id="stSync"><svg class="i"><use href="#i-branch"/></svg>main <span id="stGit">· 3 uncommitted</span></button>
+    <span><svg class="i"><use href="#i-sync"/></svg><span id="stAgo">pulled 2 min ago</span></span>
+    <span class="grow"></span>
+    <span id="stWords"></span>
+    <span id="stMode">Live preview</span>
+    <span><svg class="i"><use href="#i-cpu"/></svg><span id="stModel">claude-sonnet-5</span></span>
+  </footer>
+
+  <nav class="ptabs" aria-label="Sections">
+    <button data-m="files"><svg class="i"><use href="#i-files"/></svg>Files</button>
+    <button data-m="note" class="on"><svg class="i"><use href="#i-note"/></svg>Note</button>
+    <button data-m="search"><svg class="i"><use href="#i-search"/></svg>Search</button>
+    <button data-m="chat"><svg class="i"><use href="#i-chat"/></svg>Chat<i class="badge" hidden></i></button>
+  </nav>
+</div>
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast"></div>
+
+<script type="text/markdown" id="vault">
+=== index.md
+---
+type: topic
+tags: [index]
+updated: 2026-09-24
+---
+# Wiki Index
+
+## Entities
+- [[andrej-karpathy]] — AI researcher, Urheber der LLM-Wiki-Idee (3 sources)
+- [[opencode]] — Agent-Harness, MIT, provider-agnostisch (2 sources)
+- [[obsidian]] — Markdown-Editor am selben Git-Remote (1 source)
+
+## Concepts
+- [[llm-wiki]] — Wissensbasis, die ein LLM selbst pflegt (2 sources)
+- [[rag]] — Retrieval-Augmented Generation (2 sources)
+- [[second-brain]] — PKM-Konzept nach Tiago Forte (1 source)
+
+## Synthesis
+- [[rag-vs-llm-wiki]] — Vergleich: retrieven vs. kompilieren
+
+## Recent Ingests
+- [[karpathy-llm-wiki-gist]] — 2026-09-24 (4 pages updated)
+- [[podcast-dwarkesh-2025]] — 2026-09-12 (3 pages updated)
+=== log.md
+# Wiki Log
+
+## [2026-09-24] ingest | Karpathy – LLM Wiki (gist)
+- Updated: [[llm-wiki]], [[andrej-karpathy]]
+- New: [[karpathy-llm-wiki-gist]]
+
+## [2026-09-20] lint
+- Orphan: [[second-brain]] (0 inbound links)
+- Dead link: [[zettelkasten]] → page missing
+
+## [2026-09-12] ingest | Dwarkesh Podcast – Karpathy
+- Updated: [[andrej-karpathy]], [[rag]]
+- New: [[podcast-dwarkesh-2025]]
+=== wiki/concepts/llm-wiki.md
+---
+type: concept
+tags: [llm, wiki, pkm, karpathy]
+updated: 2026-09-24
+sources: ["[[karpathy-llm-wiki-gist]]", "[[podcast-dwarkesh-2025]]"]
+related: ["[[andrej-karpathy]]", "[[rag]]", "[[second-brain]]"]
+confidence: high
+---
+# LLM Wiki
+
+Ein **LLM Wiki** ist eine Wissensbasis, die ein LLM selbst pflegt: Rohquellen landen in `raw/`, das Modell destilliert sie in verlinkte Seiten unter `wiki/`. Idee nach [[andrej-karpathy]]. #concept
+
+## Kernidee
+
+- Quellen sind **immutable**; das Wiki ist abgeleitet und jederzeit neu generierbar
+- Jede Seite trägt Frontmatter (`type`, `sources`, `confidence`)
+- Wikilinks statt Embeddings — Navigation wie in [[obsidian]]
+- Der Agent arbeitet mit Datei-Tools ([[opencode]]), nicht mit einem Vector Store
+
+## Operations
+
+1. **Ingest** — Quelle lesen, Summary in `wiki/sources/`, Entities & Concepts updaten
+2. **Query** — Index lesen, Seiten folgen, mit Quellen antworten
+3. **Lint** — tote Links, Waisen, Widersprüche finden
+4. **Timeline** — datierte Ereignisse als Gantt rendern
+
+## Abgrenzung
+
+> Kein RAG: das Modell _schreibt_ das Wissen, statt nur Chunks zu retrieven.
+
+Siehe [[rag-vs-llm-wiki]] für den Vergleich und [[rag]] für die Gegenposition.
+
+## Offene Fragen
+
+- Wie gut sind Nicht-Claude-Modelle beim Tool-Calling für `/lint`?
+- Verhältnis zum [[zettelkasten]]?
+- Konflikte, wenn [[obsidian]] mobile parallel editiert → siehe [[log]]
+=== wiki/concepts/rag.md
+---
+type: concept
+tags: [llm, retrieval]
+updated: 2026-09-12
+sources: ["[[podcast-dwarkesh-2025]]"]
+confidence: medium
+---
+# RAG
+
+**Retrieval-Augmented Generation**: Chunks per Embedding-Suche holen und in den Prompt legen.
+
+- Stark bei großen, sich schnell ändernden Korpora
+- Schwach bei Synthese über viele Quellen hinweg
+- Gegenentwurf: [[llm-wiki]], Vergleich in [[rag-vs-llm-wiki]]
+=== wiki/concepts/second-brain.md
+---
+type: concept
+tags: [pkm]
+updated: 2026-08-30
+sources: []
+confidence: low
+---
+# Second Brain
+
+Externes Gedächtnis nach Tiago Forte (CODE: Capture, Organize, Distill, Express).
+
+- Verwandt mit [[zettelkasten]] und [[llm-wiki]]
+- Im LLM Wiki übernimmt das Modell den Schritt _Distill_
+=== wiki/entities/andrej-karpathy.md
+---
+type: entity
+tags: [person, ai, karpathy]
+updated: 2026-09-24
+sources: ["[[karpathy-llm-wiki-gist]]", "[[podcast-dwarkesh-2025]]"]
+confidence: high
+---
+# Andrej Karpathy
+
+AI-Forscher; früher OpenAI und Tesla (Autopilot), heute Eureka Labs.
+
+## Im Wiki relevant
+
+- Prägte die Idee des [[llm-wiki]] (Gist, 2026)
+- Skeptisch gegenüber reinem [[rag]] für persönliches Wissen
+- Begriffe: „Software 2.0“, „vibe coding“
+=== wiki/entities/opencode.md
+---
+type: entity
+tags: [tool, agent]
+updated: 2026-09-18
+sources: []
+confidence: high
+---
+# opencode
+
+Headless Agent-Harness (`opencode serve`), MIT, TypeScript on Bun.
+
+- 75+ Provider — das Modell ist nur ein Config-Wert
+- Liest `AGENTS.md` und `.claude/skills` → Wiki-Skills laufen unverändert
+- Führt die Operations des [[llm-wiki]] aus
+=== wiki/entities/obsidian.md
+---
+type: entity
+tags: [tool, pkm]
+updated: 2026-09-01
+sources: []
+confidence: high
+---
+# Obsidian
+
+Markdown-Editor auf CodeMirror 6. Mobile und Desktop hängen am selben Git-Remote wie dieses Vault.
+
+- Kein Graph View im MVP von karpathy.ai
+- Konfliktfälle werden in [[log]] notiert
+=== wiki/sources/karpathy-llm-wiki-gist.md
+---
+type: source
+tags: [karpathy, gist]
+updated: 2026-09-24
+sources: ["raw/articles/karpathy-llm-wiki-gist.md"]
+confidence: high
+---
+# Karpathy – LLM Wiki (gist)
+
+## Key Takeaways
+
+- Rohquellen bleiben unverändert in `raw/`
+- Das LLM schreibt und verlinkt `wiki/`-Seiten selbst
+- `index.md` + `log.md` machen das Wiki für den Agent navigierbar
+- Ein Lint-Pass hält das Wiki gesund
+
+Updated: [[llm-wiki]], [[andrej-karpathy]]
+=== wiki/sources/podcast-dwarkesh-2025.md
+---
+type: source
+tags: [podcast, karpathy]
+updated: 2026-09-12
+sources: []
+confidence: medium
+---
+# Dwarkesh Podcast – Karpathy
+
+- Agents sind „noch ein Jahrzehnt“ von echter Autonomie entfernt
+- Kritik an RAG als Gedächtnis-Ersatz → [[rag]]
+- Person: [[andrej-karpathy]]
+=== wiki/synthesis/rag-vs-llm-wiki.md
+---
+type: synthesis
+tags: [llm, retrieval, comparison]
+updated: 2026-09-21
+sources: ["[[karpathy-llm-wiki-gist]]", "[[podcast-dwarkesh-2025]]"]
+confidence: medium
+---
+# RAG vs. LLM Wiki
+
+## RAG
+- Retrieval zur Laufzeit, Wissen bleibt in Chunks
+- Keine Pflege, aber auch keine Synthese
+
+## LLM Wiki
+- Wissen wird beim Ingest _kompiliert_
+- Widersprüche werden explizit markiert
+- Kosten beim Schreiben statt beim Lesen
+
+Fazit: Für ein persönliches Vault gewinnt das [[llm-wiki]]; [[rag]] bleibt sinnvoll für `raw/` mit >10k Dokumenten.
+=== raw/articles/karpathy-llm-wiki-gist.md
+# LLM Wiki
+_Clipped 2026-09-24 from gist.github.com/karpathy_
+
+Instead of retrieving chunks at query time, let the LLM incrementally build and maintain a wiki of markdown files. Raw sources stay immutable; the wiki is a compiled artifact.
+
+Karpathy suggests an index.md and a log.md so the agent can find its way around, plus a periodic lint pass.
+=== raw/articles/zettelkasten-heute.md
+# Zettelkasten heute
+_Clipped 2026-08-11_
+
+Luhmanns Zettelkasten als Vorläufer vernetzter Notizen: atomare Zettel, feste IDs, Verweise statt Ordner. Heute leben die Ideen in Obsidian, Logseq — und in LLM-gepflegten Wikis.
+</script>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const ico=n=>`<svg class="i"><use href="#i-${n}"/></svg>`;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const V={};
+$('#vault').textContent.split(/^=== (.+)$/m).slice(1).forEach((x,i,a)=>{if(i%2===0)V[x.trim()]=a[i+1].replace(/^\n/,'').replace(/\n+$/,'')});
+const base=p=>p.split('/').pop().replace(/\.md$/,'');
+const resolve=t=>Object.keys(V).find(p=>base(p)===t.trim());
+const S={tabs:['wiki/concepts/llm-wiki.md','index.md','wiki/synthesis/rag-vs-llm-wiki.md'],active:'wiki/concepts/llm-wiki.md',mode:'live',
+  open:new Set(['wiki','wiki/concepts','wiki/entities','wiki/sources']),dirty:new Set(),scope:'',model:'claude-sonnet-5 · Anthropic',streaming:false};
+const git=new Set(['wiki/concepts/llm-wiki.md','wiki/sources/karpathy-llm-wiki-gist.md','log.md']);
+let lastSync='2 min ago';
+const W=()=>innerWidth>=1100?'d':innerWidth>=700?'t':'p';
+
+/* ---------- markdown ---------- */
+function inline(s){
+  return esc(s)
+    .replace(/`([^`]+)`/g,'<span class="mk">`</span><code>$1</code><span class="mk">`</span>')
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,(m,t,a)=>`<span class="mk">[[${a?t+'|':''}</span><a class="wl${resolve(t)?'':' unres'}" data-link="${t}" contenteditable="false">${a||t}</a><span class="mk">]]</span>`)
+    .replace(/\*\*([^*]+)\*\*/g,'<span class="mk">**</span><b>$1</b><span class="mk">**</span>')
+    .replace(/(^|[\s(])_([^_]+)_(?=[\s.,;:)]|$)/g,'$1<span class="mk">_</span><em>$2</em><span class="mk">_</span>')
+    .replace(/(^|\s)#([A-Za-zÄÖÜäöüß][\w\-/]*)/g,'$1<span class="tag" data-tag="$2">#$2</span>');
+}
+function srcHTML(text){
+  let fm=text.startsWith('---\n');
+  return text.split('\n').map((l,i)=>{
+    let c='',b;
+    if(fm&&(i===0||l==='---')){c='fm fmd';b='<span class="mk">---</span>';if(i>0)fm=false}
+    else if(fm){const m=l.match(/^(\s*)([\w-]+):(.*)$/);c='fm';b=m?`${m[1]}<span class="fk">${m[2]}</span><span class="mk">:</span><span class="fv">${inline(m[3])}</span>`:inline(l)}
+    else if(/^#{1,3} /.test(l)){const n=l.indexOf(' ');c='h h'+n;b=`<span class="mk">${l.slice(0,n+1)}</span>${inline(l.slice(n+1))}`}
+    else if(/^\s*[-*] /.test(l)){const m=l.match(/^(\s*)([-*]) (.*)$/);c='li';b=`${m[1]}<span class="bul">${m[2]}</span> ${inline(m[3])}`}
+    else if(/^\s*\d+\. /.test(l)){const m=l.match(/^(\s*)(\d+\.) (.*)$/);c='li';b=`${m[1]}<span class="num">${m[2]}</span> ${inline(m[3])}`}
+    else if(l.startsWith('> ')){c='bq';b=`<span class="mk">&gt; </span>${inline(l.slice(2))}`}
+    else b=inline(l)||'<br>';
+    return `<div class="ln ${c}"><span class="no" contenteditable="false">${i+1}</span><span class="tx">${b}</span></div>`;
+  }).join('');
+}
+function splitFM(t){const m=t.match(/^---\n([\s\S]*?)\n---\n?/);return m?{fm:m[1].split('\n').map(l=>l.match(/^([\w-]+):\s*(.*)$/)).filter(Boolean),body:t.slice(m[0].length)}:{fm:[],body:t}}
+function mdBlocks(body){
+  let out='',list=null;
+  const close=()=>{if(list){out+=`</${list}>`;list=null}};
+  body.split('\n').forEach(l=>{
+    let m;
+    if(m=l.match(/^(#{1,3}) (.*)/)){close();out+=`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`}
+    else if(m=l.match(/^\s*(?:[-*]|(\d+)\.) (.*)/)){const t=m[1]?'ol':'ul';if(list!==t){close();out+=`<${t}>`;list=t}out+=`<li>${inline(m[2])}</li>`}
+    else if(l.startsWith('> ')){close();out+=`<blockquote>${inline(l.slice(2))}</blockquote>`}
+    else if(l.trim()){close();out+=`<p>${inline(l)}</p>`}
+    else close();
+  });
+  close();return out;
+}
+function readHTML(t){
+  const {fm,body}=splitFM(t);
+  const icons={type:'file',tags:'tag',updated:'sync',sources:'link',related:'link',confidence:'check'};
+  const props=fm.length?`<dl class="props">${fm.map(([,k,v])=>`<div><dt>${ico(icons[k]||'file')}${k}</dt><dd>${k==='tags'?v.replace(/[\[\]]/g,'').split(',').map(x=>`<span class="tag" data-tag="${x.trim()}">#${x.trim()}</span>`).join(' '):inline(v.replace(/"/g,'').replace(/^\[(.*)\]$/,'$1'))}</dd></div>`).join('')}</dl>`:'';
+  return `<article class="reading">${props}${mdBlocks(body)}</article>`;
+}
+
+/* ---------- tree ---------- */
+function renderTree(){
+  const root={};
+  Object.keys(V).forEach(p=>{let n=root;p.split('/').forEach((part,i,a)=>{if(i===a.length-1)n[part]=p;else n=n[part]=n[part]||{}})});
+  const count=n=>Object.values(n).reduce((s,v)=>s+(typeof v==='string'?1:count(v)),0);
+  const out=[];
+  (function walk(node,pre,d){
+    Object.entries(node).sort(([a,x],[b,y])=>(typeof x==='string')-(typeof y==='string')||a.localeCompare(b)).forEach(([name,v])=>{
+      if(typeof v==='string')out.push(`<button class="row file${v===S.active?' on':''}" data-open="${v}" style="--d:${d}">${ico('file')}<span>${name.replace(/\.md$/,'')}</span>${git.has(v)?'<i class="gm">M</i>':''}</button>`);
+      else{const p=pre+name,o=S.open.has(p);out.push(`<button class="row dir${o?' open':''}" data-dir="${p}" style="--d:${d}">${ico('chev')}<span>${name}</span><i class="cnt">${count(v)}</i></button>`);if(o)walk(v,p+'/',d+1)}
+    });
+  })(root,'',0);
+  $('#tree').innerHTML=out.join('');
+}
+
+/* ---------- editor ---------- */
+function renderTabs(){
+  $('#tabs').innerHTML=S.tabs.map(p=>`<div class="tab${p===S.active?' on':''}${S.dirty.has(p)?' dirty':''}" data-tab="${p}" role="button">${ico('file')}${base(p)}<button class="x" data-close="${p}" title="Close">${ico('x')}</button></div>`).join('');
+  $('#tabs .on')?.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+function renderDoc(){
+  const p=S.active,t=V[p]||'',doc=$('#doc');
+  doc.className='doc '+S.mode;
+  $('#crumbs').innerHTML=p.split('/').map((x,i,a)=>i===a.length-1?`<b>${x}</b>`:`<span>${x}</span>${ico('chev')}`).join('');
+  const b=base(p),back=Object.keys(V).filter(k=>k!==p&&V[k].includes('[['+b+']]'));
+  const backHTML=`<div class="back"><h5>Linked mentions · ${back.length}</h5>${back.map(k=>{const line=V[k].split('\n').find(l=>l.includes('[['+b+']]'));return `<button data-open="${k}"><b>${base(k)}</b><small>${esc(line.replace(/^[#>\-\s\d.]+/,'').trim())}</small></button>`}).join('')||'<small style="color:var(--mute)">No backlinks yet — orphan page.</small>'}</div>`;
+  doc.innerHTML=(S.mode==='read'?readHTML(t):`<div class="code" id="code" contenteditable="true" spellcheck="false">${srcHTML(t)}</div>`)+backHTML;
+  doc.scrollTop=0;
+  $('#ptitle').textContent=W()==='p'&&document.body.dataset.m==='note'?b:$('#ptitle').textContent;
+  $('#ctx').textContent='@'+p.split('/').pop();
+  $('#stWords').textContent=splitFM(t).body.split(/\s+/).filter(Boolean).length+' words';
+  $('#stMode').textContent={live:'Live preview',src:'Source',read:'Reading'}[S.mode];
+  $$('#modes button').forEach(x=>x.classList.toggle('on',x.dataset.mode===S.mode));
+}
+function saveDoc(){const c=$('#code');if(c&&S.dirty.has(S.active))V[S.active]=$$('#code .tx').map(e=>e.textContent).join('\n')}
+function openFile(p){
+  if(!V[p])return;
+  saveDoc();
+  if(!S.tabs.includes(p))S.tabs.push(p);
+  S.active=p;
+  p.split('/').slice(0,-1).forEach((_,i,a)=>S.open.add(a.slice(0,i+1).join('/')));
+  renderTabs();renderDoc();renderTree();
+  if(W()==='p')setM('note');else if(W()==='t')closeOver();
+}
+function openLink(t){const p=resolve(t);if(p)openFile(p);else toast(`“${t}” doesn’t exist yet — ask the agent to create it?`)}
+function closeTab(p){
+  saveDoc();const i=S.tabs.indexOf(p);S.tabs.splice(i,1);
+  if(!S.tabs.length)S.tabs.push('index.md');
+  if(S.active===p)S.active=S.tabs[Math.max(0,i-1)];
+  renderTabs();renderDoc();renderTree();
+}
+document.addEventListener('selectionchange',()=>{
+  const n=getSelection().anchorNode,ln=n&&(n.nodeType===1?n:n.parentElement)?.closest?.('#code .ln');
+  $$('#code .ln.cur').forEach(x=>x!==ln&&x.classList.remove('cur'));
+  if(ln)ln.classList.add('cur');
+});
+$('#doc').addEventListener('input',()=>{if(!S.dirty.has(S.active)){S.dirty.add(S.active);git.add(S.active);renderTabs();renderTree();renderSync()}});
+
+/* ---------- search & tags ---------- */
+function doSearch(){
+  const q=$('#q').value.trim(),hits=$('#hits');
+  if(!q){hits.innerHTML='';$('#smeta').textContent='Type to search 14 notes';return}
+  const tagQ=q.startsWith('#'),re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+  let total=0;
+  const res=Object.keys(V).filter(p=>p.startsWith(S.scope)).map(p=>{
+    const lines=V[p].split('\n').map((l,i)=>({l,i})).filter(({l})=>tagQ?l.match(new RegExp(`(^|\\s|\\[|, )${q.slice(1)}\\b`,'i'))&&(l.startsWith('tags:')||l.includes(q)):re.test(l)&&(re.lastIndex=0,true));
+    total+=lines.length;return {p,lines};
+  }).filter(r=>r.lines.length||(!tagQ&&re.test(r.p)));
+  $('#smeta').textContent=`${total} matches in ${res.length} files · ripgrep · 12 ms`;
+  const hl=s=>tagQ?esc(s):esc(s).replace(new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`);
+  hits.innerHTML=res.map(({p,lines})=>`<button class="hit" data-open="${p}"><div class="hf">${ico('file')}${hl(base(p))}<small>${lines.length}</small></div><div class="hp">${p}</div>${lines.slice(0,2).map(({l,i})=>`<div class="sn"><i>${i+1}</i>${hl(l.replace(/^[#>\-\s]+/,''))}</div>`).join('')}</button>`).join('')||'<div class="smeta">No results.</div>';
+}
+function renderTags(){
+  const c={};Object.values(V).forEach(t=>{const m=t.match(/^tags: \[(.*)\]$/m);m&&m[1].split(',').forEach(x=>{x=x.trim();if(x)c[x]=(c[x]||0)+1})});
+  $('#tags').innerHTML=Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`<button class="row tagrow" data-tag="${t}"><span>#${t}</span><i class="cnt">${n}</i></button>`).join('');
+}
+function searchFor(q){$('#q').value=q;doSearch();showView('search');setTimeout(()=>$('#q').focus({preventScroll:true}),50)}
+
+/* ---------- panels / navigation ---------- */
+function setM(m){
+  document.body.dataset.m=m;
+  if(m==='files'||m==='search')document.body.dataset.view=m;
+  $$('.ptabs button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('#ptitle').textContent={files:'Files',search:'Search',chat:'Chat',note:base(S.active)}[m];
+  if(m==='chat')badge(false);
+  if(m==='chat')scrollChat();
+}
+function showView(v){
+  document.body.dataset.view=v;
+  $$('.rail [data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  const w=W();
+  if(w==='d'){document.body.classList.remove('sc');syncBtns()}
+  else if(w==='t'){document.body.classList.remove('co');document.body.classList.add('so')}
+  else setM(v==='tags'?'files':v);
+}
+function railClick(v){
+  const w=W(),b=document.body;
+  if(w==='d'&&b.dataset.view===v&&!b.classList.contains('sc')){b.classList.add('sc');syncBtns();return}
+  if(w==='t'&&b.dataset.view===v&&b.classList.contains('so')){closeOver();return}
+  showView(v);
+}
+function toggleChat(){
+  const w=W(),b=document.body;
+  if(w==='d')b.classList.toggle('cc');
+  else if(w==='t'){b.classList.remove('so');b.classList.toggle('co')}
+  else setM(b.dataset.m==='chat'?'note':'chat');
+  if(!b.classList.contains('cc')||w!=='d'){badge(false);scrollChat()}
+  syncBtns();
+}
+function closeOver(){document.body.classList.remove('so','co');syncBtns()}
+function syncBtns(){
+  const b=document.body,w=W();
+  $('#sideBtn').classList.toggle('on',w==='d'?!b.classList.contains('sc'):b.classList.contains('so'));
+  const chatOn=w==='d'?!b.classList.contains('cc'):b.classList.contains('co');
+  $('#chatBtn').classList.toggle('on',chatOn);$('#railChat').classList.toggle('on',chatOn);
+}
+function badge(on){$$('.badge').forEach(x=>x.hidden=!on)}
+let lastW=W();
+addEventListener('resize',()=>{const w=W();if(w!==lastW){closeOver();lastW=w;if(w==='p')setM(document.body.dataset.m)}});
+
+/* ---------- git sync ---------- */
+function renderSync(busy){
+  const n=git.size;
+  $('#syncDot').className='dot'+(busy?' busy':n?' warn':'');
+  $('#syncLbl').textContent=busy||(n?`${n} uncommitted`:`synced · ${lastSync}`);
+  $('#stGit').textContent=n?`· ${n} uncommitted`:'· clean';
+  $('#stAgo').textContent='pulled '+lastSync;
+  $('#syncList').innerHTML=n?[...git].map(p=>`<button class="row" data-open="${p}">${ico('file')}<span>${p}</span><i class="gm">M</i></button>`).join(''):'<div class="smeta">Working tree clean.</div>';
+  $('#syncMeta').textContent=`Last pull ${lastSync} · auto-commit after AI edits · auto-push off`;
+}
+async function gitOp(kind){
+  $('#syncPop').hidden=true;
+  renderSync(kind==='push'?'pushing…':'pulling…');await sleep(1200);
+  if(kind==='push'){const n=git.size;git.clear();S.dirty.clear();lastSync='just now';toast(n?`Committed ${n} files · pushed to origin/main`:'Nothing to push');renderTabs();renderTree()}
+  else{lastSync='just now';toast('Pulled · already up to date with Obsidian')}
+  renderSync();
+}
+
+/* ---------- chat ---------- */
+const MODELS=[['claude-sonnet-5','Anthropic'],['claude-opus-5','Anthropic'],['gpt-5.1','OpenAI'],['gemini-3-pro','Google'],['qwen3-coder:30b','Ollama · local'],['kimi-k2','OpenRouter']];
+function renderModels(){$('#modelMenu').innerHTML='<h4>Model · provider</h4>'+MODELS.map(([m,p])=>`<button class="mopt${S.model.startsWith(m+' ')?' on':''}" data-model="${m} · ${p}">${ico('cpu')}<b>${m}</b><small>${p}</small></button>`).join('')+'<div class="smeta">Keys live server-side in opencode config.</div>'}
+const chipHTML=c=>`<button class="chip${c.ed?' ed':''}${c.run?' run':''}" ${c.path?`data-open="${c.path}"`:''} ${c.q?`data-q="${c.q}"`:''}>${ico(c.run?'load':c.ed?'note':c.i||'check')}<span>${c.label}</span></button>`;
+const DIFF=`<div class="diff"><header>${ico('note')}<span>wiki/concepts/llm-wiki.md</span><b class="add">+12</b><b class="del">−3</b></header><pre><div class="h">@@ -21,5 +21,14 @@ ## Operations</div><div class="m">-1. Ingest — Quelle lesen</div><div class="m">-2. Query — Fragen beantworten</div><div class="p">+1. **Ingest** — Quelle lesen, Summary in \`wiki/sources/\`, …</div><div class="p">+2. **Query** — Index lesen, Seiten folgen, mit Quellen antworten</div><div class="p">+3. **Lint** — tote Links, Waisen, Widersprüche finden</div><div class="p">+4. **Timeline** — datierte Ereignisse als Gantt rendern</div><div class="h">@@ -30,2 +39,5 @@ ## Abgrenzung</div><div class="m">-Kein RAG.</div><div class="p">+> Kein RAG: das Modell _schreibt_ das Wissen, statt nur Chunks …</div><div class="p">+Siehe [[rag-vs-llm-wiki]] für den Vergleich …</div></pre></div>`;
+function msgA(inner){const d=document.createElement('div');d.className='msg a';d.innerHTML=`<div class="who"><img src="../../../assets/karpathy_ai_logo.png" alt="">agent · ${S.model.split(' · ')[0]}</div>${inner}`;$('#msgs').append(d);return d}
+function msgU(t){const d=document.createElement('div');d.className='msg u';d.innerHTML=inline(t).replace(/^(\/\w+)/,'<code>$1</code>');$('#msgs').append(d);scrollChat()}
+function scrollChat(){const m=$('#msgs');m.scrollTop=m.scrollHeight}
+function seedChat(){
+  msgU('/ingest raw/articles/karpathy-llm-wiki-gist.md');
+  msgA(`<div class="chips">${[{i:'eye',label:'read wiki/index.md',path:'index.md'},{i:'eye',label:'read raw/articles/karpathy-llm-wiki-gist.md',path:'raw/articles/karpathy-llm-wiki-gist.md'},{i:'search',label:"grep 'Karpathy' · 7 files",q:'Karpathy'},{ed:1,label:'edited wiki/concepts/llm-wiki.md +12 −3',path:'wiki/concepts/llm-wiki.md'},{ed:1,label:'created wiki/sources/karpathy-llm-wiki-gist.md +24',path:'wiki/sources/karpathy-llm-wiki-gist.md'},{ed:1,label:'edited log.md +4',path:'log.md'}].map(chipHTML).join('')}</div>
+    <p>${inline('Ingest done. Neue Source-Seite [[karpathy-llm-wiki-gist]] angelegt, [[llm-wiki]] um die vier Operations und die Abgrenzung zu RAG ergänzt, Log-Eintrag geschrieben.')}</p>${DIFF}
+    <div class="acts"><button class="btn pri" data-open="wiki/concepts/llm-wiki.md">${ico('ext')}Open changed page</button><button class="btn" id="fullDiff">Full diff</button><button class="btn" data-pop="syncPop">${ico('up')}Commit…</button></div>`);
+  msgU('Was ist laut Wiki der Unterschied zu RAG?');
+  const d=msgA('<div class="chips"></div><div class="txt"></div>');
+  setTimeout(()=>stream(d,[{i:'eye',label:'read wiki/index.md',path:'index.md'},{i:'search',label:"grep 'RAG'",done:"grep 'RAG' · 5 matches",q:'RAG'},{i:'eye',label:'read wiki/synthesis/rag-vs-llm-wiki.md',path:'wiki/synthesis/rag-vs-llm-wiki.md'}],
+    'Laut [[rag-vs-llm-wiki]] liegt der Kern im Zeitpunkt der Arbeit:\n\n- **RAG** holt Chunks erst zur Laufzeit — keine Pflege, aber auch keine Synthese.\n- Das **LLM Wiki** _kompiliert_ Wissen beim Ingest und markiert Widersprüche explizit.\n\nFazit der Seite: fürs persönliche Vault gewinnt das [[llm-wiki]]; [[rag]] lohnt sich erst für sehr große `raw/`-Bestände. Quelle: [[karpathy-llm-wiki-gist]].'),700);
+}
+async function stream(el,chips,text){
+  S.streaming=true;$('#send').classList.add('busy');
+  const vis=W()==='d'?!document.body.classList.contains('cc'):W()==='t'?document.body.classList.contains('co'):document.body.dataset.m==='chat';
+  if(!vis)badge(true);
+  const box=el.querySelector('.chips'),tx=el.querySelector('.txt');
+  for(const c of chips){box.insertAdjacentHTML('beforeend',chipHTML({...c,run:1}));scrollChat();await sleep(600);box.lastElementChild.outerHTML=chipHTML({...c,label:c.done||c.label})}
+  let s='';for(const w of text.split(/(\s+)/)){s+=w;tx.innerHTML=esc(s).replace(/\n/g,'<br>')+'<span class="caret"></span>';scrollChat();await sleep(32)}
+  tx.innerHTML=mdBlocks(text);scrollChat();
+  S.streaming=false;$('#send').classList.remove('busy');
+}
+function send(){
+  const t=$('#prompt').value.trim();if(!t||S.streaming)return;
+  $('#prompt').value='';msgU(t);
+  const p=S.active,d=msgA('<div class="chips"></div><div class="txt"></div>');
+  const skill=(t.match(/^\/(\w+)/)||[])[1];
+  const chips=[{i:'eye',label:'read '+p,path:p}];
+  if(skill==='lint')chips.push({i:'search',label:"grep '\\[\\[' wiki/",done:"grep '[[' · 41 links",q:'[['});
+  else chips.push({i:'search',label:"grep '"+base(p)+"'",done:`grep '${base(p)}' · ${Object.values(V).filter(v=>v.includes(base(p))).length} files`,q:base(p)});
+  const ans=skill==='lint'?'Lint fertig: **1 toter Link** ([[zettelkasten]] in [[llm-wiki]] und [[second-brain]]), **1 Waise** ([[second-brain]]). Soll ich eine Seite für Zettelkasten aus `raw/articles/zettelkasten-heute.md` anlegen?'
+    :`Ich habe [[${base(p)}]] gelesen und im Vault gesucht. (Prototype: Antwort simuliert — im MVP streamt opencode hier via SSE.)`;
+  stream(d,chips,ans);
+}
+
+/* ---------- misc ---------- */
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600)}
+function theme(){
+  const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':!matchMedia('(prefers-color-scheme: light)').matches;
+  r.dataset.theme=dark?'light':'dark';themeIco();
+}
+function themeIco(){const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':!matchMedia('(prefers-color-scheme: light)').matches;$('#themeBtn use').setAttribute('href',dark?'#i-sun':'#i-moon')}
+
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-close],[data-tab],[data-open],[data-link],[data-dir],[data-tag],[data-q],.rail [data-view],.ptabs [data-m],[data-mode],[data-pop],[data-model],[data-skill],[data-scope]');
+  if(!e.target.closest('.pop,[data-pop]'))$$('.pop').forEach(p=>p.hidden=true);
+  if(!el)return;
+  const d=el.dataset;
+  if(d.close){e.stopPropagation();closeTab(d.close)}
+  else if(d.tab)openFile(d.tab);
+  else if(d.open!==undefined){$$('.pop').forEach(p=>p.hidden=true);openFile(d.open)}
+  else if(d.link)openLink(d.link);
+  else if(d.dir){S.open.has(d.dir)?S.open.delete(d.dir):S.open.add(d.dir);renderTree()}
+  else if(d.tag)searchFor('#'+d.tag);
+  else if(d.q)searchFor(d.q);
+  else if(d.view&&el.closest('.rail'))railClick(d.view);
+  else if(d.m)setM(d.m);
+  else if(d.mode){saveDoc();S.mode=d.mode;renderDoc()}
+  else if(d.pop){const p=$('#'+d.pop),h=p.hidden;$$('.pop').forEach(x=>x.hidden=true);p.hidden=!h}
+  else if(d.model){S.model=d.model;$('#modelLbl').textContent=d.model;$('#stModel').textContent=d.model.split(' · ')[0];renderModels();$('#modelMenu').hidden=true;toast('Model switched → '+d.model)}
+  else if(d.skill){const p=$('#prompt');p.value=d.skill+(d.skill==='/ingest '?'raw/articles/zettelkasten-heute.md':d.skill==='/query '?'Welche Quellen stützen [[llm-wiki]]?':d.skill==='/timeline '?'wiki/ ingest-events 2026':'');p.focus()}
+  else if(d.scope!==undefined){S.scope=d.scope;$$('.fc').forEach(x=>x.classList.toggle('on',x===el));doSearch()}
+});
+$('#q').addEventListener('input',doSearch);
+$('#gsearch').onclick=()=>searchFor($('#q').value);
+$('#sideBtn').onclick=()=>{const w=W(),b=document.body;if(w==='d')b.classList.toggle('sc');else{b.classList.remove('co');b.classList.toggle('so')}syncBtns()};
+$('#chatBtn').onclick=$('#railChat').onclick=toggleChat;
+$('#chatClose').onclick=()=>{W()==='p'?setM('note'):toggleChat()};
+$('#scrim').onclick=closeOver;
+$('#themeBtn').onclick=theme;
+$('#pushBtn').onclick=()=>gitOp('push');$('#pullBtn').onclick=()=>gitOp('pull');$('#stSync').onclick=e=>{e.stopPropagation();$('#syncPop').hidden=!$('#syncPop').hidden};
+$('#send').onclick=send;
+$('#prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+$('#askBtn').onclick=()=>{const p=$('#prompt');p.value='/query Fasse [['+base(S.active)+']] zusammen und nenne Lücken.';const w=W(),b=document.body;if(w==='d')b.classList.remove('cc');else if(w==='t'){b.classList.remove('so');b.classList.add('co')}else setM('chat');syncBtns();p.focus()};
+$('#newNote').onclick=()=>toast('New note → wiki/concepts/untitled.md');
+$('#newSess').onclick=()=>{$('#msgs').innerHTML='';msgA('<p>New session. Vault pulled — ask me anything or pick a skill below.</p>')};
+document.addEventListener('click',e=>{if(e.target.id==='fullDiff'){e.target.closest('.msg').querySelector('.diff').classList.toggle('full')}});
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();searchFor($('#q').value)}
+  if((e.metaKey||e.ctrlKey)&&e.key==='j'){e.preventDefault();toggleChat()}
+  if(e.key==='Escape'){closeOver();$$('.pop').forEach(p=>p.hidden=true)}
+});
+$$('.rz').forEach(r=>r.addEventListener('pointerdown',e=>{
+  e.preventDefault();r.classList.add('drag');r.setPointerCapture(e.pointerId);
+  const k=r.dataset.rz,app=$('.app');
+  const mv=ev=>{const v=k==='sw'?ev.clientX-48:innerWidth-ev.clientX;app.style.setProperty('--'+k,Math.max(200,Math.min(k==='sw'?440:640,v))+'px')};
+  r.onpointermove=mv;r.onpointerup=()=>{r.onpointermove=null;r.classList.remove('drag')};
+}));
+
+renderTree();renderTabs();renderDoc();doSearch();renderTags();renderModels();renderSync();themeIco();syncBtns();seedChat();
+if(W()==='p')setM('note');
+</script>
+</body>
+</html>

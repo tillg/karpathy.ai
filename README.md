@@ -31,12 +31,15 @@ backend (file API + opencode client + git sync) get built.
 
 ## Sync
 
-The vault stays a **git repo**. The backend commits/pushes to GitHub; Obsidian
-mobile and desktop are attached to the same remote. No second sync system.
+Every vault is a **GitHub repo**. In the app's admin area you configure which repos
+are your vaults; the backend clones them, commits/pushes edits back to GitHub, and
+Obsidian mobile and desktop are attached to the same remotes. No second sync system.
 
 ## Status
 
-Specification. See [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md).
+Specification. See [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md); UI layout prototypes in
+[`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
+**[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
 
 ## Name
 

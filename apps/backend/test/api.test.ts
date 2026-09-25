@@ -51,8 +51,17 @@ describe('vault admin', () => {
     await t.vaults.whenCloned(bad.body.id);
     const got = (await t.api.get(`/vaults/${bad.body.id}`)).body;
     expect(got.state).toBe('clone-failed');
-    expect(got.error).toMatch(/does not exist|not found|Could not read/i);
+    // #48: a human message, no git stderr or container paths.
+    expect(got.error).toBe("Couldn't clone o/does-not-exist: the repository doesn't exist, or the server's GitHub token has no access to it.");
     expect((await t.api.post('/vaults', { repo: 'not a repo' })).status).toBe(400);
+  });
+
+  it('missing branch → a readable clone error (#48)', async () => {
+    const remote = await makeRemote({ 'a.md': 'a' });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const id = await t.addVault(remote.repo, { branch: 'nope' });
+    expect((await t.api.get(`/vaults/${id}`)).body.error).toBe(`Couldn't clone ${remote.repo}: branch "nope" doesn't exist there.`);
   });
 
   it('subfolder root: files are scoped to it; missing root folder → clone-failed', async () => {

@@ -10,7 +10,7 @@ export function formatRoute(vault: string | null, path?: string | null): string 
 }
 
 export function parseRoute(hash: string): Route {
-  const m = /^#\/([^/]+)(?:\/(.+))?$/.exec(hash);
+  const m = /^#\/([^/]+)(?:\/(.*))?$/.exec(hash);
   if (!m) return { vault: null, path: null };
   try {
     return { vault: decodeURIComponent(m[1]!), path: m[2] ? m[2].split('/').map(decodeURIComponent).join('/') : null };

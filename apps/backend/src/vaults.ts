@@ -16,7 +16,7 @@ import type {
 } from '@karpathy/shared';
 import type { ConfigStore, StoredVault } from './config-store.js';
 import { listTree, search, versionOf, versionOfFile } from './files.js';
-import type { GitIdentity } from './git.js';
+import { GitError, type GitIdentity } from './git.js';
 import { VaultLock } from './lock.js';
 import { normalizeRel, resolveInVault } from './paths.js';
 import { Repo } from './repo.js';
@@ -590,7 +590,8 @@ export class Vaults {
         this.startWatcher(v);
         this.onReady?.(v.id);
       } catch (e) {
-        const msg = redact((e as Error).message, this.env.githubToken);
+        console.warn(`clone of ${v.repo} failed:`, redact((e as Error).message, this.env.githubToken));
+        const msg = cloneErrorText(e as Error, v);
         await this.store.update((c) => {
           const x = c.vaults.find((y) => y.id === v.id);
           if (x) x.cloneError = msg;
@@ -645,6 +646,17 @@ function isText(buf: Buffer): boolean {
   } catch {
     return false;
   }
+}
+
+/** git's clone stderr → a message for the admin UI, without container paths (#48). */
+function cloneErrorText(e: Error, v: StoredVault): string {
+  const m = e.message;
+  if (!(e instanceof GitError)) return m; // e.g. our own "folder … does not exist in the repo"
+  if (/Remote branch .* not found/i.test(m)) return `Couldn't clone ${v.repo}: branch "${v.branch}" doesn't exist there.`;
+  if (/not found|does not appear to be a git repository|could not read from remote|authentication failed|403/i.test(m))
+    return `Couldn't clone ${v.repo}: the repository doesn't exist, or the server's GitHub token has no access to it.`;
+  if (/could not resolve host|unable to access|timed out|connection/i.test(m)) return `Couldn't clone ${v.repo}: GitHub is not reachable from the server right now.`;
+  return `Couldn't clone ${v.repo}: ${m.split('\n').find((l) => l.startsWith('fatal:'))?.replace(/^fatal:\s*/, '').replace(/'\/[^']*'/g, '…') ?? 'git failed'}`;
 }
 
 function redact(msg: string, token?: string) {

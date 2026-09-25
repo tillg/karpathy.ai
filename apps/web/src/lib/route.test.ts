@@ -15,4 +15,6 @@ it('vault only and empty routes', () => {
   expect(parseRoute('#/v')).toEqual({ vault: 'v', path: null });
   expect(formatRoute(null)).toBe('');
   for (const h of ['', '#', '#/', '#foo', '#/%E0%A4%A']) expect(parseRoute(h)).toEqual({ vault: null, path: null });
+  // #49: a trailing slash still names the vault.
+  expect(parseRoute('#/v/')).toEqual({ vault: 'v', path: null });
 });

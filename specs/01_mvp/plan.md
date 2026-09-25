@@ -19,7 +19,19 @@ Stated here so they aren't re-decided per phase:
   `packages/shared` (API types), `deploy/` (compose files, Caddyfile, opencode config).
 - **Tests:** Vitest (unit + backend integration against real git repos in temp dirs and a
   real opencode container, no mocks); Playwright for e2e against the running compose
-  stack.
+  stack. Three tiers, tagged:
+  - **default** (`npm test`, every PR in CI): unit tests + git integration tests against a
+    **local bare repo as the remote** (real git, real fetch/push; a second clone plays
+    "Obsidian") + opencode container start/health, **no prompts**. No secrets needed.
+  - **`@github`** (nightly CI + locally): clone/push with the token against the throwaway
+    GitHub test vault. CI secret: `TEST_VAULT_TOKEN` (fine-grained, test repo only).
+  - **`@llm`** (nightly CI + locally, cheap model): anything that needs a model to make a
+    tool call. CI secret: one provider key with a spending cap. Rules for these tests:
+    - Prompts name the tool explicitly ("Use the edit tool to …").
+    - Assertions check **tool/permission events and the file system, never answer text**.
+    - If the model made no tool call at all, the test fails as *inconclusive* (a separate
+      message), not as passed.
+    - At most one retry.
 - **Backend HTTP:** Express 5 (native async errors, `res.write` streaming; tests via
   `supertest`, input validation via zod). Config store: one JSON file on the config
   volume (atomic write via temp file + rename).
@@ -38,12 +50,16 @@ Results go into `specs/01_mvp/spike-opencode.md`.
 | Run pinned `opencode serve` in a container with two vault dirs mounted | `GET /session?directory=A` and `…=B` return separate session lists |
 | Create session in vault A, prompt "list files", stream `GET /event` | Event stream shows tool parts; only vault-A files are listed |
 | Config `external_directory: deny`, vault root = **subfolder** of a repo; prompt the AI to read a file above the subfolder and in vault B | Both reads are denied (answers the open question in mvp §6) |
-| `snapshot: false`, `edit: allow`, `bash` restricted, `git commit*`/`git push*` deny | AI edit works; AI `git commit` attempt is denied |
+| `snapshot: false`, `bash: deny`, `webfetch: deny`, no `ask` rules | AI bash attempts (write a file, `cat /vaults/B/x.md`, `env`, `git commit`) all come back as permission-denied events; files unchanged; the turn never blocks waiting for an approval |
+| Agents `vault` (`edit: allow`) + `vault-readonly` (`edit: deny`); pick per prompt via the SDK `agent` field, two vaults at once | Same server, same moment: edit in vault A with `vault` succeeds, edit in vault B with `vault-readonly` is denied |
+| Grep/glob/list tools with a path outside the vault root | Denied by `external_directory` (not only read/edit) |
 | Disable global Claude lookups, empty `$HOME` | Session only picks up the vault's `AGENTS.md`/`CLAUDE.md` + `.claude/skills` |
 | Restart the container with the data volume mounted | Previous session is listed and resumable |
 
-**Exit:** all rows pass, or the spec is amended (e.g. fallback: one opencode container per
-vault if confinement to a subfolder fails).
+**Exit:** all rows pass, or the spec is amended. If confinement to a subfolder fails, apply
+the fallback in mvp §6 (vault root = repo root only) and drop the subfolder variants from
+P2/P3 tests. If the per-prompt `agent` field doesn't exist or
+doesn't apply permissions, stop and re-decide how permissions differ per vault before P1.
 
 ---
 
@@ -70,10 +86,12 @@ Goal: attach a GitHub repo in the admin area and browse/read its notes on the ph
 | Step | Verify |
 |---|---|
 | Config store: vaults list + settings (threshold default 4, model) | Unit tests: CRUD, atomic write survives kill mid-write |
-| `POST/GET/PATCH/DELETE /vaults`; clone with backend-only GitHub token; optional vault root | Integration: clone test vault (root + subfolder variant); DELETE removes clone, never touches remote |
+| `POST/GET/PATCH/DELETE /vaults`; async clone (`cloning` → `ready`/`clone-failed`) with backend-only GitHub token; optional vault root | `@github` integration: clone test vault (root + subfolder variant); bad repo → `clone-failed` with error; DELETE removes clone, never touches remote |
+| PATCH rules (mvp §2.3): name always; repo/branch/root only on a clean tree | Integration: dirty tree → 409; branch change checks out the branch; repo change re-clones; root change to a missing folder → 400 |
 | Path guard: resolve inside vault root, reject `..` and symlinks | Tests with traversal and symlink fixtures → 400 |
 | `GET /files`, `GET /file` (content + hash) | Integration against test vault; hash changes when file changes |
-| Pull on vault open (`pull --rebase --autostash`) | Push a change to the remote from a second clone → appears after reopening |
+| Pull procedure (mvp §2.4 steps 1–5; no rebase, no `--autostash`) via `POST /vaults/:id/open` | Push a change to the remote from a second clone → appears after reopening; with local uncommitted changes they survive; with an unpushed commit + moved remote → commit folded into uncommitted changes, nothing lost |
+| Per-vault lock (shared: PUT, turn; exclusive: pull/commit/discard/resolve/clone/remove) | Unit tests on the lock; integration: commit issued during a long PUT waits for it; vault-open pull while a shared holder runs is skipped |
 | Admin UI (list, add/edit/remove, clone/pull status) + vault switcher | Playwright: add test vault → appears in switcher |
 | File tree + CM6 in Read mode and Write mode (read-only for now); wikilink decoration + click navigation | Playwright: open note, toggle Read/Write, click `[[link]]` → target opens; screenshot checked |
 | Offline read-only cache of recently opened notes (service worker) | Playwright offline mode: previously opened note renders; edit disabled, banner shown |
@@ -89,11 +107,12 @@ Goal: edit on the phone, see uncommitted changes, commit & push, survive Obsidia
 | `PUT /file` with required version; 409 on stale version | Tests: matching hash → 200; changed on disk → 409 |
 | Editor autosave (debounced ~1.5 s), stale-save dialog (reload / overwrite) | Playwright: type → saved; change file on disk meanwhile → dialog appears |
 | Changes API: list changed files + per-file diff; Discard file | Integration: edit 2 files → both listed; discard one → restored to HEAD |
-| Changed-files counter + Show changes view | Playwright: counter matches `git status` |
-| Commit endpoint: flush → pull → commit all → push; author = user | Integration: remote has 1 new commit with all changes; working tree clean |
+| `GET /vaults/:id/status` + event stream `GET /vaults/:id/events` (file watcher, `.git/` excluded, snapshot on connect) | Integration: write a file behind the backend's back (as opencode would) → `files-changed` + `status` events within 1 s; reconnect → snapshot first |
+| Changed-files counter + Show changes view, driven by the event stream | Playwright: counter matches `git status`; a file changed on disk updates the counter without reload; tab hidden → visible reconnects the stream |
+| Commit: frontend flushes the pending autosave, then backend takes exclusive lock → pull → commit all → push; author = user | Integration: remote has 1 new commit with all changes; working tree clean. Playwright: type, commit within the 1.5 s debounce → typed text is in the commit |
 | Push failure → unpushed state; retry on next commit/pull | Integration with remote made unreachable: commit local, status "1 unpushed"; restore remote → next pull pushes it |
-| Conflict detection on pull/autostash failure; writes blocked | Integration: conflicting edits local + remote → vault state `conflict`, `PUT /file` → 423 |
-| Conflict resolution per file: keep mine / theirs / both (default both → `Foo.conflict-<date>.md`) | Integration per option; vault returns to normal; nothing lost with "both" |
+| Conflict = stash pop failed; state derived from the `karpathy-ai-pull` stash entry; writes blocked | Integration: conflicting edits local + remote → vault state `conflict`, `PUT /file` → 423; restart backend → still `conflict` |
+| Conflict resolution per file: keep mine / theirs / both (default both → `Foo.conflict-<date>.md`); then `git reset -q` + `stash drop` | Integration per option, plus cases: both sides added the same new file (untracked mine from `stash^3`), modify vs delete; vault returns to normal, no stash left, no unmerged entries; nothing lost with "both" |
 | Commit reminder: above threshold, dismiss → again at 2× threshold | Unit test on reminder logic; Playwright: 5th changed file → dialog with Commit button |
 | Remove vault blocked while uncommitted changes exist | `DELETE /vaults/:id` → 409 with dirty tree |
 | Search (`ripgrep`) scoped to vault root | Integration: hit in root, no hit from outside a subfolder vault |
@@ -107,11 +126,13 @@ Goal: chat with the AI about the active vault; it reads but cannot write yet.
 | Step | Verify |
 |---|---|
 | opencode client in backend; every call passes vault root as `directory` | Integration: sessions of vault A never appear under vault B |
-| opencode config from Phase 0, plus `edit: deny` for this phase | Prompt "change file X" → denied, file unchanged |
-| `POST /vaults/:id/chat` streams mapped events over `fetch` stream (token in header) | Integration: stream contains text parts + tool parts in order |
+| opencode config from Phase 0; every prompt in this phase uses agent `vault-readonly` | Integration: request sent to opencode carries `agent: vault-readonly` (deterministic). `@llm`: "use the edit tool to change X" → permission-denied event, file unchanged |
+| Chat API (mvp §3.2): list/create chats, `prompt` → 202, `stream` (NDJSON over `fetch`, token in header); child sessions filtered from list | Integration: stream contains text parts + tool parts in order; a subagent's child session never shows up in the list |
+| One opencode event subscription per vault, independent of clients | Integration: prompt, disconnect the client mid-turn → turn finishes, lock released on idle; reconnect → messages reloaded, stream re-attached while still running |
+| Abort: queued prompt removed / running turn aborted via `session.abort` | `@llm` integration: abort mid-turn → session idle, lock released, next queued prompt starts; Playwright: Stop button |
 | Keep the backend↔harness mapping in one ACP-shaped module (session/prompt/update/tool_call/permission) | Module has its own tests; frontend only consumes the mapped types from `packages/shared` |
-| Pull before chat start | Remote change present in the AI's answer |
-| One running turn per vault; further prompts queue | Integration: two parallel prompts → second starts after first ends; UI shows "waiting for other chat" |
+| Pull (exclusive lock) before every turn | Integration: remote change pushed → local HEAD equals remote before the prompt is dispatched to opencode (no model needed) |
+| One running turn per vault (shared lock); further prompts queue | `@llm` integration: two parallel prompts → second is dispatched only after first's idle event; UI shows "waiting for other chat" |
 | Chat list per vault (via opencode session API), resume a chat | Playwright: start chat on "iPad" viewport, resume on "iPhone" viewport |
 | Chat UI: streaming text, consulted-files chips | Playwright + screenshot: chips list the files the AI read |
 | Model = server-wide setting (default Claude Sonnet 5) | Changing it in settings changes the model reported for new turns |
@@ -124,11 +145,12 @@ Goal: the AI edits notes; changes land as uncommitted changes the user reviews a
 
 | Step | Verify |
 |---|---|
-| Switch opencode `edit` to `allow` for vaults not in Conflict; `deny` during Conflict (banner in chat) | Integration: AI edit works normally; in conflict state it is denied and chat still answers |
-| AI edits show up in counter + Show changes | Prompt edit → counter increments, diff visible |
+| Agent choice per prompt: `vault` normally, `vault-readonly` while in Conflict (banner in chat) | Integration: agent field matches vault state (deterministic). `@llm`: edit works normally; in conflict → permission-denied event, file unchanged |
+| AI edits show up in counter + Show changes | `@llm`: prompt edit → edit tool event, counter increments, diff visible |
 | Open note reloads on AI change if it has no unsaved changes, with notice; stale-save flow otherwise | Playwright both cases |
 | "Open changed page" action in chat | Playwright: click → note opens at the changed file |
-| Commit message proposal by the AI from the diff; editable; `Co-authored-by:` agent trailer when AI changes are included | Integration: commit contains trailer only when AI touched files |
+| Commit message proposal via a throwaway `commit-message` session (deleted afterwards; 15 s timeout → "Update N files") | Integration: after the proposal the chat list is unchanged; with opencode stopped → fallback text. `@llm`: a proposal comes back for a real diff |
+| AI-touched set from opencode `edit`/`write` events, persisted on the config volume; trailer iff a touched path is committed | Integration (drive the set via real tool events in `@llm`, set logic unit-tested): human-only commit → no trailer; AI edit → trailer; AI edit then Discard → no trailer; set survives backend restart and is empty after commit |
 | End-to-end mobile run on the real device via VPN (iPhone + iPad, installed PWA) | Manual checklist: open vault, edit, ask AI to edit, review, commit & push, see change in Obsidian mobile |
 | Deploy to the home Ubuntu server (prod compose, DNS-01 cert) | `https://<domain>/api/health` ok from a VPN client; not reachable without VPN |
 
@@ -142,6 +164,7 @@ devices.
 | Step | Verify |
 |---|---|
 | Python + skill deps in the opencode image | `film-import.py --help` etc. runs in the container |
+| Replace `bash: deny` with an explicit command allowlist for the skills; decide on webfetch for `ingest` | `@llm` repeat of the P0 bash rows: allowed commands run; writes outside the vault, cross-vault reads and `env` still denied |
 | Check each wiki skill under opencode (tool names, frontmatter, commit steps removed) | Per-skill checklist in `specs/01_mvp/skills-portability.md` |
 | `query` and `lint` usable on mobile | Playwright run of both on the test vault; real run on the life wiki |
 | Secrets for `ingest-email` / instascraper as compose secrets (opencode only) | `ingest` fetches from the Gmail label on the server |
@@ -153,7 +176,9 @@ devices.
 
 - Tests first: every verify above is written as a test before the implementation, where
   it can be automated.
-- No mocks: integration tests use real git, a real (throwaway) GitHub repo, and the real
-  opencode container.
+- No mocks: integration tests use real git (local bare remote in the default tier, the
+  throwaway GitHub repo in `@github`) and the real opencode container with a real model
+  (`@llm`). A scripted fake LLM provider would make `@llm` deterministic, but it counts as a
+  mock and needs explicit approval first.
 - Keep `README.md`, `mvp.md` and `CONTEXT.md` in sync with any decision that changes
   during implementation. Record hard-to-reverse surprises as ADRs.

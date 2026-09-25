@@ -39,7 +39,7 @@ The user-triggered act of recording all uncommitted changes of a vault and pushi
 _Avoid_: Sync, save, publish
 
 **Unpushed commit**:
-A commit whose push failed; it stays local and is pushed again on the next commit or pull.
+A commit whose push failed; it stays local and is pushed again on the next commit or pull. If GitHub has moved on in the meantime, the next pull turns it back into uncommitted changes.
 
 **Commit reminder**:
 A prompt that appears once the number of uncommitted changes passes a configurable threshold, offering to commit right away.
@@ -49,7 +49,7 @@ A save rejected because the file changed (by the AI or a pull) since the editor 
 _Avoid_: Conflict (reserved for git)
 
 **Conflict**:
-A git-level clash between local commits and changes pulled from GitHub (e.g. from Obsidian) that blocks writes to the vault until resolved.
+A git-level clash between the vault's uncommitted changes and changes pulled from GitHub (e.g. from Obsidian). It blocks writes to the vault until the user resolves each clashing file (keep mine / theirs / both).
 
 ### Editor
 

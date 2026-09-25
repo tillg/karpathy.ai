@@ -28,7 +28,8 @@ works from iPad/phone, not just the Mac terminal.
   AI's raw edits. Preserve lossless round-trips of frontmatter and `[[wikilinks]]`.
 - **Backend:** Node/TS, thin. Vault admin API (`GET/POST /vaults`, `PATCH/DELETE /vaults/:id`),
   per-vault file API (`GET /vaults/:id/files`, `GET/PUT /vaults/:id/file?path=`,
-  `GET /vaults/:id/search?q=` via ripgrep) + `POST /vaults/:id/chat` streamed via `fetch`/WebSocket.
+  `GET /vaults/:id/search?q=` via ripgrep) + per-vault git API, event stream (`GET /vaults/:id/events`) and chat API
+  (`/vaults/:id/chats/...`), streamed as NDJSON over `fetch`. Full route list: `specs/01_mvp/mvp.md` §3.2.
 - **Agentic loop = opencode** (`opencode serve` container, one session per vault directory, driven via
   `@opencode-ai/sdk`). Provider-agnostic by design — never hard-wire a specific LLM provider.
   Do **not** reimplement the loop, tools, or skills — opencode's built-in file tools, skills

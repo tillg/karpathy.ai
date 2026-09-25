@@ -46,7 +46,9 @@ Specification. See [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md), phased plan in
 
 Project skills live in `.claude/skills/`, vendored from
 [mattpocock/skills](https://github.com/mattpocock/skills) (`c55ee46`, without the
-`agents/` Codex configs):
+`agents/` Codex configs). Upstream `code-review` is renamed to `spec-review` here, so it
+doesn't clash with Claude Code's built-in `/code-review` (bug hunt); `implement` and `tdd`
+are adjusted to call it:
 
 | Skill | Use |
 |---|---|
@@ -55,8 +57,8 @@ Project skills live in `.claude/skills/`, vendored from
 | `/wayfinder` | Chart a large effort as a map of decision tickets and resolve them one by one |
 | `/triage` | Move issues through triage states and write agent briefs |
 | `/implement` | Implement a spec/tickets test-first, then review |
-| `tdd`, `code-review`, `codebase-design` | Red-green loop, two-axis review (standards + spec), deep-module vocabulary |
-| `/setup-matt-pocock-skills` | One-time repo setup (issue tracker, triage labels, domain docs) that `to-spec`, `to-tickets`, `triage`, `wayfinder` and `code-review` expect |
+| `tdd`, `spec-review`, `codebase-design` | Red-green loop, two-axis review (standards + spec), deep-module vocabulary |
+| `/setup-matt-pocock-skills` | One-time repo setup (issue tracker, triage labels, domain docs) that `to-spec`, `to-tickets`, `triage`, `wayfinder` and `spec-review` expect |
 
 Supporting skills called by the ones above: `grilling`, `domain-modeling`, `research`,
 `prototype`.

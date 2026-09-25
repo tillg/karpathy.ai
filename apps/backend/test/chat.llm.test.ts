@@ -31,7 +31,7 @@ async function setup() {
   await t.store.update((c) => { c.settings.model = LLM_MODEL; });
   const harness = new OpencodeHarness(oc.url);
   const chat = new ChatService(t.vaults, t.store, harness, '/vaults');
-  const commitMessages = new OpencodeCommitMessages(t.vaults, t.store, harness, (id) => chat.dir(id), 120_000);
+  const commitMessages = new OpencodeCommitMessages(t.vaults, t.store, harness, (id) => chat.dir(id), 600_000);
   const app = createApp({ token: TOKEN, vaults: t.vaults, store: t.store, chat, commitMessages });
   const id = await t.addVault(remote.repo, { name: remote.repo.split('/')[1] });
   return { ...t, app, chat, harness, commitMessages, remote, id };
@@ -43,16 +43,13 @@ type T = Awaited<ReturnType<typeof setup>>;
 async function turn(t: T, text: string, chatId?: string): Promise<{ chatId: string; tools: ToolCall[] }> {
   const id = chatId ?? (await t.chat.create(t.id)).chatId;
   const tools = new Map<string, ToolCall>();
-  const done = new Promise<void>((resolve) => {
-    const tryAttach = () => {
-      t.chat.stream(t.id, id, (e) => {
-        if (e.type === 'part' && e.part.type === 'tool') tools.set(e.part.id, e.part.call);
-      }, resolve);
-    };
-    setTimeout(tryAttach, 0);
-  });
   await t.chat.prompt(t.id, id, text);
-  await done;
+  // Attach after queuing, otherwise the stream sees an idle chat and ends right away.
+  await new Promise<void>((resolve) => {
+    t.chat.stream(t.id, id, (e) => {
+      if (e.type === 'part' && e.part.type === 'tool') tools.set(e.part.id, e.part.call);
+    }, resolve);
+  });
   return { chatId: id, tools: [...tools.values()] };
 }
 

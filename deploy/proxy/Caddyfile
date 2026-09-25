@@ -4,13 +4,18 @@
 		dns {$DNS_PROVIDER:cloudflare} {file.{$DNS_API_TOKEN_FILE}}
 	}
 	encode zstd gzip
-	# Streams (NDJSON chat/events) must not be buffered.
-	reverse_proxy /api/* backend:8787 {
-		flush_interval -1
+	# handle blocks are mutually exclusive, so the SPA fallback never swallows /api.
+	handle /api/* {
+		# Streams (NDJSON chat/events) must not be buffered.
+		reverse_proxy backend:8787 {
+			flush_interval -1
+		}
 	}
-	root * /srv
-	@sw path /sw.js /registerSW.js /manifest.webmanifest
-	header @sw Cache-Control "no-cache"
-	try_files {path} /index.html
-	file_server
+	handle {
+		root * /srv
+		@sw path /sw.js /registerSW.js /manifest.webmanifest
+		header @sw Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
 }

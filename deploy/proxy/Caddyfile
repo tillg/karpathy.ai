@@ -4,6 +4,14 @@
 		dns {$DNS_PROVIDER:cloudflare} {file.{$DNS_API_TOKEN_FILE}}
 	}
 	encode zstd gzip
+	# Notes are rendered HTML from git: the CSP is the second line of defence after DOMPurify
+	# (#31). CodeMirror injects <style> elements, hence style 'unsafe-inline'.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+	}
 	# handle blocks are mutually exclusive, so the SPA fallback never swallows /api.
 	handle /api/* {
 		# Streams (NDJSON chat/events) must not be buffered.

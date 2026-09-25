@@ -19,16 +19,26 @@ export interface AppDeps {
   availableModels?: () => Promise<string[]>;
 }
 
+// Branch names reach git as arguments: only plain ref names (git check-ref-format rules),
+// never anything that looks like an option (#30).
+const branchName = z
+  .string()
+  .trim()
+  .max(200)
+  .refine((b) => /^[A-Za-z0-9._/-]+$/.test(b) && !/^[-/.]|\/$|\.\.|\/\.|\.lock$|\/\/|@\{/.test(b), {
+    error: 'Branch: use a plain branch name (letters, digits, . _ - /), e.g. main or feature/x',
+  });
+
 const addVault = z.object({
   name: z.string().trim().max(100).default(''),
   repo: z.string().trim(),
-  branch: z.string().trim().min(1).max(200).optional(),
+  branch: branchName.optional(),
   root: z.string().trim().max(500).optional(),
 });
 const patchVault = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   repo: z.string().trim().optional(),
-  branch: z.string().trim().min(1).max(200).optional(),
+  branch: branchName.optional(),
   root: z.string().trim().max(500).optional(),
 });
 const THRESHOLD_MSG = 'Commit reminder: enter a whole number between 1 and 1000';

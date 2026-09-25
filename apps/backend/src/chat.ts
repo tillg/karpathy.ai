@@ -77,13 +77,19 @@ export class ChatService {
    * so no exclusive op runs next to a turn left over from before a restart (mvp §2.4).
    */
   private async attach(vaultId: string, guard = false): Promise<VaultChats> {
+    this.refuseUnsafe(vaultId);
     const dir = this.dir(vaultId);
     let c = this.v.get(vaultId);
     if (c && (c.dir === dir || c.running || c.queue.length)) return c;
     if (c) this.vaultRemoved(vaultId);
     c = { queue: [], running: null, adopted: null, listeners: new Map(), unsubscribe: () => undefined, dir };
     this.v.set(vaultId, c);
-    c.unsubscribe = this.harness.subscribe(dir, (e) => this.onEvent(vaultId, e));
+    c.unsubscribe = this.harness.subscribe(
+      dir,
+      (e) => this.onEvent(vaultId, e),
+      // A pull may bring harness config in later; never (re)connect then.
+      () => this.vaults.harnessConfigIn(vaultId) === null,
+    );
     const lock = this.vaults.lock(vaultId);
     let release = guard ? await lock.acquireShared('turn') : null;
     const busy = await this.busyWithRetry(dir);
@@ -93,6 +99,12 @@ export class ChatService {
       this.startPoll(vaultId);
     } else release?.();
     return c;
+  }
+
+  private refuseUnsafe(vaultId: string) {
+    const found = this.vaults.harnessConfigIn(vaultId);
+    if (found)
+      throw new HttpError(409, `Chat is disabled for this vault: it contains "${found}", opencode project config that would run code on the server. Remove it from the repo to use chat.`, 'unsafe-config');
   }
 
   /** Opens the vault's event subscription (startup, vault added or re-cloned). */
@@ -118,6 +130,7 @@ export class ChatService {
   private async chats(vaultId: string): Promise<VaultChats> {
     const vault = this.vaults.getVault(vaultId);
     if (vault.state !== 'ready' && vault.state !== 'conflict') throw new HttpError(409, `vault is ${vault.state}`, 'not-ready');
+    this.refuseUnsafe(vaultId);
     return this.attach(vaultId);
   }
 

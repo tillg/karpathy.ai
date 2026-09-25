@@ -28,7 +28,7 @@ export class OpencodeCommitMessages implements CommitMessages {
   async propose(vaultId: string) {
     const { files, stat, diff } = await this.vaults.fullDiff(vaultId);
     const fallback = { message: fallbackMessage(files.length), fallback: true };
-    if (files.length === 0) return fallback;
+    if (files.length === 0 || this.vaults.harnessConfigIn(vaultId)) return fallback;
     const dir = this.dirOf(vaultId);
     const text = [
       'Write the commit message for these changes.',

@@ -27,8 +27,8 @@ export interface Harness {
   busySessions(dir: string): Promise<string[]>;
   /** `provider/model` ids the harness can run (providers with credentials). */
   models(): Promise<string[]>;
-  /** One event subscription per directory; reconnects until stopped. */
-  subscribe(dir: string, onEvent: (e: HarnessEvent) => void): () => void;
+  /** One event subscription per directory; reconnects until stopped, only while `mayConnect()`. */
+  subscribe(dir: string, onEvent: (e: HarnessEvent) => void, mayConnect?: () => boolean): () => void;
 }
 
 function splitModel(model: string) {
@@ -123,10 +123,14 @@ export class OpencodeHarness implements Harness {
     return data.providers.flatMap((p) => Object.keys(p.models).map((m) => `${p.id}/${m}`));
   }
 
-  subscribe(dir: string, onEvent: (e: HarnessEvent) => void): () => void {
+  subscribe(dir: string, onEvent: (e: HarnessEvent) => void, mayConnect: () => boolean = () => true): () => void {
     const ctrl = new AbortController();
     const loop = async () => {
       while (!ctrl.signal.aborted) {
+        if (!mayConnect()) {
+          await new Promise((r) => setTimeout(r, 5000));
+          continue;
+        }
         try {
           const sub = await this.c.event.subscribe({ directory: dir }, { signal: ctrl.signal, sseMaxRetryAttempts: 1 } as never);
           for await (const raw of sub.stream) {

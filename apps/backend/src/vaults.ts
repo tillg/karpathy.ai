@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type {
@@ -145,7 +146,7 @@ export class Vaults {
         if (!repoChange && r.state === 'ready') {
           const repo = this.repo(v);
           // Check the new root against the target branch before switching anything.
-          if (branchChange) await repo.git.run(['fetch', 'origin', next.branch]);
+          if (branchChange) await repo.git.run(['fetch', '--end-of-options', 'origin', next.branch]);
           const ref = branchChange ? `origin/${next.branch}` : 'HEAD';
           if (newRoot && (await repo.git.run(['cat-file', '-t', `${ref}:${newRoot}`], { allowFail: true })).stdout.trim() !== 'tree')
             throw new HttpError(400, `folder ${newRoot} does not exist in the repo`);
@@ -461,6 +462,24 @@ export class Vaults {
     return { mine: s.mine?.toString('utf8') ?? null, theirs: s.theirs?.toString('utf8') ?? null };
   }
 
+  /**
+   * opencode project config found in the vault (vault root up to the clone root), or null.
+   * While there is any, no request for this vault may reach opencode: loading it would run
+   * the repo's plugins/tools/MCP servers in the harness (#27).
+   */
+  harnessConfigIn(id: string): string | null {
+    const v = this.config(id);
+    const clone = this.cloneDir(id);
+    const segs = v.root ? v.root.split('/') : [];
+    for (let i = segs.length; i >= 0; i--) {
+      const dir = join(clone, ...segs.slice(0, i));
+      for (const name of HARNESS_CONFIG) {
+        if (existsSync(join(dir, name))) return [...segs.slice(0, i), name].join('/');
+      }
+    }
+    return null;
+  }
+
   /** Records vault-relative paths the AI changed (mvp §2.4 AI-touched set). */
   async markAiTouched(id: string, paths: string[]): Promise<void> {
     if (!this.store.get().vaults.some((v) => v.id === id)) return;
@@ -586,10 +605,14 @@ export class Vaults {
 
 const RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
 
+/** opencode loads these from a vault as project config: plugins, tools, MCP servers = code (#27). */
+export const HARNESS_CONFIG = ['.opencode', 'opencode.json', 'opencode.jsonc'];
+
 /** New file names must work in every clone (Obsidian on macOS, Windows, iOS). */
 function checkNewName(path: string) {
   if (path.endsWith('/')) throw new HttpError(400, 'A file name must not end with "/"', 'bad-name');
   for (const seg of normalizeRel(path).split('/')) {
+    if (HARNESS_CONFIG.includes(seg)) throw new HttpError(400, `"${seg}" is reserved: it would configure the AI harness`, 'bad-name');
     if (/[\x00-\x1f<>:"|?*\\]/.test(seg)) throw new HttpError(400, `"${seg}" contains a character that isn't allowed in file names (<>:"|?* or control characters)`, 'bad-name');
     if (RESERVED.test(seg)) throw new HttpError(400, `"${seg}" is a reserved name on Windows`, 'bad-name');
     if (/[. ]$/.test(seg)) throw new HttpError(400, `"${seg}" must not end with a dot or space`, 'bad-name');

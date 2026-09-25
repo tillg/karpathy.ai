@@ -44,5 +44,12 @@ export function toHtml(md: string, exists: (target: string) => boolean): string 
   return marked.parse(md, { async: false });
 }
 
+// Notes come from git (other devices, collaborators, AI-ingested sources): no forms (phishing
+// on our origin) and no inline styles (full-screen overlays / clickjacking) (#31).
+const PURIFY = {
+  FORBID_TAGS: ['form', 'input', 'button', 'textarea', 'select', 'option', 'style', 'link', 'meta', 'base', 'dialog'],
+  FORBID_ATTR: ['style', 'formaction', 'form', 'autofocus'],
+};
+
 export const renderMarkdown = (md: string, exists: (target: string) => boolean) =>
-  DOMPurify.sanitize(toHtml(md, exists));
+  DOMPurify.sanitize(toHtml(md, exists), PURIFY);

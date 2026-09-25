@@ -37,7 +37,7 @@ export class Repo {
   static async clone(url: string, dir: string, branch: string, opts: GitOptions): Promise<void> {
     await rm(dir, { recursive: true, force: true });
     await mkdir(dirname(dir), { recursive: true });
-    await new Git(dirname(dir), opts).run(['clone', '--branch', branch, '--', url, dir]);
+    await new Git(dirname(dir), opts).run(['clone', '--branch', branch, '--end-of-options', url, dir]);
   }
 
   get rootDir(): string {
@@ -127,7 +127,7 @@ export class Repo {
 
   /** Pull procedure, mvp §2.4 steps 1–5 (no rebase, no --autostash). */
   async pull(): Promise<PullResult> {
-    const fetch = await this.git.run(['fetch', 'origin', this.branch], { allowFail: true });
+    const fetch = await this.git.run(['fetch', '--end-of-options', 'origin', this.branch], { allowFail: true });
     if (fetch.code !== 0) return { kind: 'offline', error: fetch.stderr.trim() };
     // 1. Upstream has not moved beyond HEAD: only push what's unpushed.
     const notMoved = (await this.git.run(['merge-base', '--is-ancestor', this.upstream, 'HEAD'], { allowFail: true })).code === 0;
@@ -231,15 +231,15 @@ export class Repo {
   }
 
   async push(): Promise<PushResult> {
-    const r = await this.git.run(['push', '-q', 'origin', `HEAD:refs/heads/${this.branch}`], { allowFail: true });
+    const r = await this.git.run(['push', '-q', '--end-of-options', 'origin', `HEAD:refs/heads/${this.branch}`], { allowFail: true });
     if (r.code !== 0) return { pushed: false, error: r.stderr.trim() };
-    await this.git.run(['fetch', '-q', 'origin', this.branch], { allowFail: true });
+    await this.git.run(['fetch', '-q', '--end-of-options', 'origin', this.branch], { allowFail: true });
     return { pushed: true };
   }
 
   async checkoutBranch(branch: string): Promise<void> {
-    await this.git.run(['fetch', 'origin', branch]);
-    await this.git.run(['checkout', '-q', '-B', branch, `origin/${branch}`]);
+    await this.git.run(['fetch', '--end-of-options', 'origin', branch]);
+    await this.git.run(['checkout', '-q', '-B', branch, `origin/${branch}`, '--']);
     await this.git.run(['branch', '-q', `--set-upstream-to=origin/${branch}`]);
   }
 }

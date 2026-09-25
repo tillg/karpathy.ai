@@ -212,6 +212,28 @@ describe('files', () => {
     expect(r.body.code).toBe('bad-name');
   });
 
+  it.each(['.opencode/plugin/x.js', 'opencode.json', 'sub/opencode.jsonc', '.opencode'])('file API refuses to create harness config %j (#27)', async (p) => {
+    const t = await vaultApp();
+    const r = await t.api.put(`/vaults/${t.id}/file?path=${encodeURIComponent(p)}`, { content: '{}', version: null });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('bad-name');
+  });
+
+  it.each(['--upload-pack=touch /tmp/x', '-c', 'a..b', 'feature/x y', 'x~1', 'x^', 'x:y', '@{u}', 'a.lock', '/x', 'x/'])('branch %j is rejected (#30)', async (branch) => {
+    const t = await vaultApp();
+    const r1 = await t.api.patch(`/vaults/${t.id}`, { branch });
+    expect(r1.status).toBe(400);
+    const r2 = await t.api.post('/vaults', { name: 'b', repo: t.remote.repo, branch });
+    expect(r2.status).toBe(400);
+  });
+
+  it('valid branch names still work', async () => {
+    const t = await vaultApp();
+    sh(t.remote.obsidian, 'checkout', '-q', '-b', 'feature/wiki-2026.09');
+    sh(t.remote.obsidian, 'push', '-q', '-u', 'origin', 'feature/wiki-2026.09');
+    expect((await t.api.patch(`/vaults/${t.id}`, { branch: 'feature/wiki-2026.09' })).status).toBe(200);
+  });
+
   it('search query with a newline → 400, not a 500 with the rg command', async () => {
     const t = await vaultApp();
     const r = await t.api.get(`/vaults/${t.id}/search?q=${encodeURIComponent('a\nb')}`);

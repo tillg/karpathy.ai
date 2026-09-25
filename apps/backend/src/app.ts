@@ -15,6 +15,8 @@ export interface AppDeps {
   chat?: ChatService;
   commitMessages?: CommitMessages;
   opencodeHealthy?: () => Promise<boolean>;
+  /** `provider/model` ids the harness can run right now (configured + credentials). */
+  availableModels?: () => Promise<string[]>;
 }
 
 const addVault = z.object({
@@ -29,9 +31,10 @@ const patchVault = z.object({
   branch: z.string().trim().min(1).max(200).optional(),
   root: z.string().trim().max(500).optional(),
 });
+const THRESHOLD_MSG = 'Commit reminder: enter a whole number between 1 and 1000';
 const patchSettings = z.object({
-  commitReminderThreshold: z.number().int().min(1).max(1000).optional(),
-  model: z.string().trim().regex(/^[^/\s]+\/\S+$/, 'model must be provider/model').optional(),
+  commitReminderThreshold: z.number({ error: THRESHOLD_MSG }).int({ error: THRESHOLD_MSG }).min(1, { error: THRESHOLD_MSG }).max(1000, { error: THRESHOLD_MSG }).optional(),
+  model: z.string().trim().regex(/^[^/\s]+\/\S+$/, { error: 'Model: use the form provider/model, e.g. anthropic/claude-sonnet-5' }).optional(),
 });
 const putFile = z.object({ content: z.string(), version: z.string().nullable(), force: z.boolean().optional() });
 const commitBody = z.object({ message: z.string().min(1).max(10_000) });
@@ -81,6 +84,11 @@ export function createApp(d: AppDeps) {
   });
   api.patch('/settings', async (req, res) => {
     const body = patchSettings.parse(req.body);
+    if (body.model && body.model !== d.store.get().settings.model && d.availableModels) {
+      const models = await d.availableModels().catch(() => null);
+      if (models && !models.includes(body.model))
+        throw new HttpError(400, `Model ${body.model} is not available. Available: ${models.join(', ') || 'none (no provider configured)'}`, 'unknown-model');
+    }
     await d.store.update((c) => {
       c.settings = { ...c.settings, ...body } as Settings;
     });
@@ -219,7 +227,7 @@ export function createApp(d: AppDeps) {
   api.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError) return void res.status(err.status).json({ error: err.message, code: err.code, ...err.extra });
     if (err instanceof PathError) return void res.status(400).json({ error: err.message, code: 'bad-path' });
-    if (err instanceof z.ZodError) return void res.status(400).json({ error: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), code: 'invalid' });
+    if (err instanceof z.ZodError) return void res.status(400).json({ error: err.issues.map((i) => i.message).join('; '), code: 'invalid' });
     if ((err as { type?: string }).type === 'entity.parse.failed') return void res.status(400).json({ error: 'invalid JSON' });
     console.error(err);
     res.status(500).json({ error: (err as Error).message ?? 'internal error' });

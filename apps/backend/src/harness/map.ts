@@ -1,4 +1,4 @@
-import { isAbsolute, relative } from 'node:path';
+import { posix } from 'node:path';
 import type { ChatMessage, ChatPart, ToolCall, ToolStatus } from '@karpathy/shared';
 
 /**
@@ -21,11 +21,14 @@ type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
-/** Absolute path as opencode sees it → vault-relative (kept absolute if outside the root). */
+/**
+ * A tool path as opencode sees it (absolute, or relative to the session dir, e.g. `./x.md`)
+ * → vault-relative; kept absolute if it lies outside the root.
+ */
 export function toVaultPath(p: string, root: string): string {
-  if (!isAbsolute(p)) return p;
-  const rel = relative(root, p);
-  return rel.startsWith('..') || isAbsolute(rel) ? p : rel.split('\\').join('/');
+  const abs = posix.resolve(root, p);
+  const rel = posix.relative(root, abs);
+  return rel === '' || rel.startsWith('..') ? abs : rel;
 }
 
 export function mapToolPart(part: Json, root: string): ToolCall {

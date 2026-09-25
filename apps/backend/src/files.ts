@@ -37,19 +37,18 @@ export async function listTree(root: string): Promise<FileEntry[]> {
   return out;
 }
 
-const MAX_HITS = 200;
+export const MAX_HITS = 200;
 
-/** ripgrep over the vault root (fixed string, case-insensitive), plus file-name matches. */
-export async function search(root: string, q: string): Promise<SearchHit[]> {
-  const hits: SearchHit[] = [];
+/**
+ * ripgrep over the vault root (fixed string, case-insensitive), sorted by path so results are
+ * stable. Files whose name matches but whose content doesn't get one name hit (line 0).
+ */
+export async function search(root: string, q: string): Promise<{ hits: SearchHit[]; truncated: boolean }> {
   const needle = q.toLowerCase();
-  for (const f of await listTree(root)) {
-    if (f.type === 'file' && f.path.toLowerCase().includes(needle)) hits.push({ path: f.path, line: 0, text: f.path });
-  }
   const stdout = await new Promise<string>((resolve, reject) => {
     execFile(
       'rg',
-      ['--json', '--fixed-strings', '--ignore-case', '--max-count', '20', '--max-columns', '300', '--', q, '.'],
+      ['--json', '--sort', 'path', '--fixed-strings', '--ignore-case', '--max-count', '20', '--max-columns', '300', '--', q, '.'],
       { cwd: root, maxBuffer: 32 * 1024 * 1024 },
       (err, out) => {
         // Exit code 1 = no matches.
@@ -58,12 +57,17 @@ export async function search(root: string, q: string): Promise<SearchHit[]> {
       },
     );
   });
+  const content: SearchHit[] = [];
   for (const line of stdout.split('\n')) {
-    if (hits.length >= MAX_HITS) break;
     if (!line.startsWith('{"type":"match"')) continue;
     const m = JSON.parse(line) as { data: { path: { text?: string }; line_number: number; lines: { text?: string } } };
     const path = (m.data.path.text ?? '').replace(/^\.\//, '');
-    hits.push({ path, line: m.data.line_number, text: (m.data.lines.text ?? '').trimEnd() });
+    content.push({ path, line: m.data.line_number, text: (m.data.lines.text ?? '').trimEnd() });
   }
-  return hits.slice(0, MAX_HITS);
+  const withContent = new Set(content.map((h) => h.path));
+  const byName = (await listTree(root))
+    .filter((f) => f.type === 'file' && f.path.toLowerCase().includes(needle) && !withContent.has(f.path))
+    .map((f) => ({ path: f.path, line: 0, text: f.path }));
+  const hits = [...byName, ...content];
+  return { hits: hits.slice(0, MAX_HITS), truncated: hits.length > MAX_HITS };
 }

@@ -37,6 +37,12 @@ describe('opencode → harness mapping (real captures)', () => {
 });
 
 describe('mapping edge cases', () => {
+  it('relative tool paths are resolved against the vault root (#12)', () => {
+    expect(toVaultPath('./Home.md', '/vaults/a')).toBe('Home.md');
+    expect(toVaultPath('notes/../Home.md', '/vaults/a')).toBe('Home.md');
+    expect(toVaultPath('../b/x.md', '/vaults/a')).toBe('/vaults/b/x.md');
+  });
+
   it('paths outside the root stay absolute', () => {
     expect(toVaultPath('/vaults/b/x.md', '/vaults/a')).toBe('/vaults/b/x.md');
     expect(toVaultPath('/vaults/a/n/x.md', '/vaults/a')).toBe('n/x.md');

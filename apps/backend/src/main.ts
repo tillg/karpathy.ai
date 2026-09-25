@@ -38,7 +38,7 @@ vaults.onReady = (id) => void chat.watch(id);
 await chat.init().catch((e) => console.warn('chat init:', (e as Error).message));
 const commitMessages = new OpencodeCommitMessages(vaults, store, harness, (id) => chat.dir(id));
 
-const app = createApp({ token: env.token, vaults, store, chat, commitMessages, opencodeHealthy: () => harness.health() });
+const app = createApp({ token: env.token, vaults, store, chat, commitMessages, opencodeHealthy: () => harness.health(), availableModels: () => harness.models() });
 const server = app.listen(env.port, () => console.log(`backend listening on :${env.port}`));
 
 const shutdown = () => {

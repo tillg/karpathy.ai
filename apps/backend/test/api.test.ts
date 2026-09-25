@@ -61,7 +61,7 @@ describe('vault admin', () => {
     cleanups.push(() => t.vaults.close());
     const id = await t.addVault(remote.repo, { root: 'wiki' });
     expect((await t.api.get(`/vaults/${id}/files`)).body).toEqual([{ path: 'a.md', type: 'file' }]);
-    expect((await t.api.get(`/vaults/${id}/search?q=needle`)).body).toEqual([{ path: 'a.md', line: 1, text: 'inside needle' }]);
+    expect((await t.api.get(`/vaults/${id}/search?q=needle`)).body.hits).toEqual([{ path: 'a.md', line: 1, text: 'inside needle' }]);
     expect((await t.api.get(`/vaults/${id}/file?path=../top.md`)).status).toBe(400);
     const bad = await t.addVault(remote.repo, { name: 'x', root: 'nope' });
     expect((await t.api.get(`/vaults/${bad}`)).body.state).toBe('clone-failed');
@@ -94,6 +94,41 @@ describe('vault admin', () => {
     expect((await t.api.patch(`/vaults/${t.id}`, { branch: 'other', root: 'nope' })).status).toBe(400);
     expect((await t.api.get(`/vaults/${t.id}`)).body).toMatchObject({ branch: 'main', root: '' });
     expect(sh(t.vaults.vaultRootDir(t.id), 'branch', '--show-current').trim()).toBe('main');
+  });
+
+  it('duplicate vault (same repo, branch, root) → 409 duplicate (#15)', async () => {
+    const t = await vaultApp();
+    const r = await t.api.post('/vaults', { name: 'again', repo: t.remote.repo });
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('duplicate');
+    expect((await t.api.post('/vaults', { name: 'sub', repo: t.remote.repo, root: 'notes' })).status).toBe(202);
+  });
+
+  it('fixing the root of a clone-failed vault re-clones it (#9)', async () => {
+    const remote = await makeRemote({ 'a.md': 'a' });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const id = await t.addVault(remote.repo, { root: 'nope' });
+    expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('clone-failed');
+    const p = await t.api.patch(`/vaults/${id}`, { root: '' });
+    expect(p.status).toBe(200);
+    await t.vaults.whenCloned(id);
+    expect((await t.api.get(`/vaults/${id}`)).body).toMatchObject({ state: 'ready', root: '' });
+    expect((await t.api.get(`/vaults/${id}`)).body.error).toBeUndefined();
+  });
+
+  it('settings: unknown model → 400 with a readable message; bad threshold → readable message (#16)', async () => {
+    const { api } = await makeApp('file:///nowhere/', { availableModels: async () => ['ollama/qwen2.5:3b'] });
+    const bad = await api.patch('/settings', { model: 'nope/model-x' });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toMatch(/not available/i);
+    expect(bad.body.error).toContain('ollama/qwen2.5:3b');
+    expect((await api.patch('/settings', { model: 'ollama/qwen2.5:3b' })).status).toBe(200);
+    for (const v of [2.5, 0, 100000]) {
+      const r = await api.patch('/settings', { commitReminderThreshold: v });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toBe('Commit reminder: enter a whole number between 1 and 1000');
+    }
   });
 
   it('PATCH repo re-clones', async () => {
@@ -165,8 +200,35 @@ describe('files', () => {
   it('search finds content and file names', async () => {
     const t = await vaultApp();
     const hits = (await t.api.get(`/vaults/${t.id}/search?q=ALPHA`)).body;
-    expect(hits).toEqual([{ path: 'notes/n1.md', line: 1, text: 'alpha beta' }]);
-    expect((await t.api.get(`/vaults/${t.id}/search?q=other`)).body[0]).toEqual({ path: 'Other.md', line: 0, text: 'Other.md' });
+    expect(hits).toEqual({ hits: [{ path: 'notes/n1.md', line: 1, text: 'alpha beta' }], truncated: false });
+    // "other" is in the name Other.md and in Home.md's content: content hits win, name-only hits only for files without one.
+    expect((await t.api.get(`/vaults/${t.id}/search?q=other`)).body.hits).toEqual([
+      { path: 'Home.md', line: 2, text: 'See [[Other]]' },
+      { path: 'Other.md', line: 1, text: 'other' },
+    ]);
+  });
+
+  it('search is deterministic, never shows a file only by name when its content matches, and reports truncation (#7)', async () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 120; i++) files[`n/Needle ${String(i).padStart(3, '0')}.md`] = 'x\nneedle one\nneedle two\nneedle three\n';
+    files['only-name-needle.md'] = 'nothing here';
+    const t = await vaultApp(files);
+    const a = (await t.api.get(`/vaults/${t.id}/search?q=needle`)).body;
+    const b = (await t.api.get(`/vaults/${t.id}/search?q=needle`)).body;
+    expect(a).toEqual(b);
+    expect(a.truncated).toBe(true);
+    expect(a.hits).toHaveLength(200);
+    expect(a.hits.filter((h: { line: number }) => h.line === 0).map((h: { path: string }) => h.path)).toEqual(['only-name-needle.md']);
+    expect((await t.api.get(`/vaults/${t.id}/search?q=needle%20two`)).body.truncated).toBe(false);
+  });
+
+  it('new file whose path differs only in case from an existing one → 409 exists-case (#6)', async () => {
+    const t = await vaultApp();
+    const r = await t.api.put(`/vaults/${t.id}/file?path=OTHER.md`, { content: 'x', version: null });
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('exists-case');
+    expect((await t.api.put(`/vaults/${t.id}/file?path=NOTES/x.md`, { content: 'x', version: null })).body.code).toBe('exists-case');
+    expect((await t.api.put(`/vaults/${t.id}/file?path=notes/x.md`, { content: 'x', version: null })).status).toBe(200);
   });
 });
 

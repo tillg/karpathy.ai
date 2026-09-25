@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type {
   Change,
@@ -94,8 +94,10 @@ export class Vaults {
   async add(input: { name: string; repo: string; branch?: string; root?: string }): Promise<Vault> {
     if (!REPO_RE.test(input.repo)) throw new HttpError(400, 'repo must be owner/name');
     const root = input.root ? normalizeRel(input.root) : '';
+    const branch = input.branch || 'main';
+    this.refuseDuplicate(input.repo, branch, root);
     const id = this.freeId(input.name || input.repo.split('/')[1]!);
-    const v: StoredVault = { id, name: input.name || input.repo, repo: input.repo, branch: input.branch || 'main', root, cloned: false };
+    const v: StoredVault = { id, name: input.name || input.repo, repo: input.repo, branch, root, cloned: false };
     await this.store.update((c) => c.vaults.push(v));
     this.startClone(v);
     return this.toVault(v);
@@ -111,6 +113,20 @@ export class Vaults {
     const newRoot = input.root !== undefined ? (input.root ? normalizeRel(input.root) : '') : v.root;
     const rootChange = newRoot !== v.root;
     if (repoChange && !REPO_RE.test(input.repo!)) throw new HttpError(400, 'repo must be owner/name');
+    if (repoChange || branchChange || rootChange) this.refuseDuplicate(input.repo ?? v.repo, input.branch ?? v.branch, newRoot, id);
+    // A failed clone is retried with the new settings (#9): nothing local to lose.
+    if (r.state === 'clone-failed' && (repoChange || branchChange || rootChange)) {
+      next.repo = input.repo ?? v.repo;
+      next.branch = input.branch ?? v.branch;
+      next.root = newRoot;
+      next.cloned = false;
+      delete next.cloneError;
+      await this.store.update((c) => {
+        c.vaults = c.vaults.map((x) => (x.id === id ? next : x));
+      });
+      this.startClone(next);
+      return this.toVault(next);
+    }
     if (repoChange || branchChange || rootChange) {
       if (r.state === 'cloning') throw new HttpError(409, 'vault is still cloning');
       await r.lock.withExclusive(async () => {
@@ -260,6 +276,8 @@ export class Vaults {
     return r.lock.withShared('save', async () => {
       if (r.conflict) throw new HttpError(423, 'vault is in conflict; resolve it first', 'conflict');
       const abs = await resolveInVault(this.vaultRootDir(id), path);
+      // Before the version check: on a case-insensitive disk the twin would look like "the same file".
+      if (version === null) await this.refuseCaseTwin(id, path);
       const current = await versionOfFile(abs);
       if (!force && current !== version)
         throw new HttpError(409, 'file changed since it was loaded', 'stale', { currentVersion: current });
@@ -268,6 +286,24 @@ export class Vaults {
       this.emitStatusSoon(id);
       return { version: versionOf(content) };
     });
+  }
+
+  /**
+   * A new path must not differ only in case from an existing file or folder: the vault's
+   * clones on macOS/Windows (Obsidian) can't hold both.
+   */
+  private async refuseCaseTwin(id: string, path: string) {
+    let dir = this.vaultRootDir(id);
+    for (const seg of normalizeRel(path).split('/')) {
+      const names = await readdir(dir).catch(() => [] as string[]);
+      if (names.includes(seg)) {
+        dir = join(dir, seg);
+        continue;
+      }
+      const twin = names.find((n) => n.toLowerCase() === seg.toLowerCase());
+      if (twin) throw new HttpError(409, `"${twin}" already exists (names differ only in upper/lower case)`, 'exists-case', { existing: twin });
+      return;
+    }
   }
 
   async deleteFile(id: string, path: string, version: string): Promise<void> {
@@ -284,9 +320,9 @@ export class Vaults {
     });
   }
 
-  async search(id: string, q: string): Promise<SearchHit[]> {
+  async search(id: string, q: string): Promise<{ hits: SearchHit[]; truncated: boolean }> {
     this.requireReady(id);
-    if (!q.trim()) return [];
+    if (!q.trim()) return { hits: [], truncated: false };
     return search(this.vaultRootDir(id), q);
   }
 
@@ -475,6 +511,11 @@ export class Vaults {
 
   private repo(v: StoredVault): Repo {
     return new Repo(this.cloneDir(v.id), v.branch, v.root, { identity: this.env.identity, token: this.env.githubToken });
+  }
+
+  private refuseDuplicate(repo: string, branch: string, root: string, exceptId?: string) {
+    const dup = this.store.get().vaults.find((x) => x.id !== exceptId && x.repo === repo && x.branch === branch && x.root === root);
+    if (dup) throw new HttpError(409, `"${dup.name}" already uses ${repo} (${branch}${root ? `, ${root}` : ''})`, 'duplicate');
   }
 
   private freeId(name: string): string {

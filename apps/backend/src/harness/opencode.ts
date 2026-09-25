@@ -24,6 +24,8 @@ export interface Harness {
   promptSync(dir: string, id: string, input: PromptInput, signal?: AbortSignal): Promise<string>;
   abort(dir: string, id: string): Promise<void>;
   busySessions(dir: string): Promise<string[]>;
+  /** `provider/model` ids the harness can run (providers with credentials). */
+  models(): Promise<string[]>;
   /** One event subscription per directory; reconnects until stopped. */
   subscribe(dir: string, onEvent: (e: HarnessEvent) => void): () => void;
 }
@@ -109,6 +111,11 @@ export class OpencodeHarness implements Harness {
     return Object.entries(st)
       .filter(([, s]) => s.type !== 'idle')
       .map(([id]) => id);
+  }
+
+  async models() {
+    const data = unwrap(await this.c.config.providers(), 'config.providers') as { providers: { id: string; models: Record<string, unknown> }[] };
+    return data.providers.flatMap((p) => Object.keys(p.models).map((m) => `${p.id}/${m}`));
   }
 
   subscribe(dir: string, onEvent: (e: HarnessEvent) => void): () => void {

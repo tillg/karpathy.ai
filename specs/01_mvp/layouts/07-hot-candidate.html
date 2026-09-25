@@ -414,7 +414,7 @@ body.resizing #app *{pointer-events:none}
     <div class="bar">
       <button class="ib no-phone show-deskchat" data-act="sidebar" title="Toggle sidebar"><i data-i="sidebar"></i></button>
       <button class="ib" data-act="newchat" title="New chat"><i data-i="compose"></i></button>
-      <div class="ctitle"><b>Ingest Karpathy gist</b><button class="model" data-act="model"><span id="modelLbl">claude-sonnet-5 · Anthropic</span><i data-i="chevD"></i></button></div>
+      <div class="ctitle"><b>Ingest Karpathy gist</b><span class="model"><span id="modelLbl">claude-sonnet-5 · Anthropic</span></span></div>
       <span class="sp"></span>
       <button class="ib no-phone show-deskchat" data-act="notepanel" id="noteBtn" title="Show note"><i data-i="doc"></i></button>
       <button class="ib hide-deskchat" data-act="closechat" id="chatClose" title="Close"><i data-i="x"></i></button>
@@ -437,7 +437,7 @@ body.resizing #app *{pointer-events:none}
         <div class="row"><span class="nm">Main desk</span><div class="seg"><button data-desk="notes">Notes</button><button data-desk="chat">Chat</button></div></div></div>
       <div class="gh">AI</div>
       <div class="grp">
-        <button class="row" data-act="model"><span class="ic"><i data-i="cpu"></i></span><span class="nm">Default model</span><span class="val" id="modelVal">claude-sonnet-5</span><span class="chv"><i data-i="chevR"></i></span></button>
+        <button class="row" data-act="model"><span class="ic"><i data-i="cpu"></i></span><span class="nm">Model (server-wide)</span><span class="val" id="modelVal">claude-sonnet-5</span><span class="chv"><i data-i="chevR"></i></span></button>
         <div class="row"><span class="ic"><i data-i="bolt"></i></span><span class="nm">Harness</span><span class="val">opencode 1.4 · serve</span></div>
         <div class="row"><span class="ic"><i data-i="check"></i></span><span class="nm">Allow AI edits</span><button class="tog on" data-act="tog"></button></div>
       </div>
@@ -450,8 +450,8 @@ body.resizing #app *{pointer-events:none}
       <div class="gh">Vault &amp; Git</div>
       <div class="grp">
         <div class="row"><span class="ic"><i data-i="sync"></i></span><span class="nm">Remote</span><span class="val">github.com/tgartner/frechen</span></div>
-        <div class="row"><span class="ic"><i data-i="up"></i></span><span class="nm">Auto-push after commit</span><button class="tog on" data-act="tog"></button></div>
-        <div class="row"><span class="ic"><i data-i="down"></i></span><span class="nm">Pull before chat session</span><button class="tog on" data-act="tog"></button></div>
+        <div class="row"><span class="ic"><i data-i="up"></i></span><span class="nm">Commit reminder after</span><span class="val">4 changed files</span></div>
+        <div class="row"><span class="ic"><i data-i="down"></i></span><span class="nm">Pull</span><span class="val">on open, chat start, commit</span></div>
         <button class="row" data-act="git"><span class="ic"><i data-i="clock"></i></span><span class="nm">Status</span><span class="val gtxt"></span><span class="chv"><i data-i="chevR"></i></span></button>
       </div>
       <div class="gh">About</div>
@@ -710,7 +710,7 @@ function renderDetail(){
   const p=S.file;$('#dTtl').textContent=titleOf(p);$('#crumb').textContent=p.replace(/\//g,' › ');
   $('#dBack').textContent=S.tab==='search'?'Search':FOLDERS[folderOf(p)];
   $('#dBody').innerHTML=(S.mode==='edit'?`<div class="cm" contenteditable="true" spellcheck="false" id="cm">${liveHTML(FILES[p],p)}</div>`:readHTML(FILES[p]))+
-    `<div class="dfoot"><span>${S.dirty.has(p)?'● unsaved changes':'Saved'}</span><span>·</span><span>last commit a3f9c1e by agent (${S.model.split(' ·')[0]}) · ${upd(p)}</span></div>`;
+    `<div class="dfoot"><span>${S.dirty.has(p)?'● unsaved changes':'Saved'}</span><span>·</span><span>last commit a3f9c1e by you · ${upd(p)}</span></div>`;
   $$('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
   $('#modeBtn').innerHTML=svg(S.mode==='edit'?'book':'pencil');
   $('#ctxLbl').textContent='Context: '+p.split('/').pop();
@@ -822,7 +822,7 @@ function seed(){
     <div class="dl ad">+ - Raw sources land immutable in \`raw/\`</div><div class="dl ad">+ - The agent compiles them into linked pages under \`wiki/\`</div><div class="dl ad">+ - Every ingest touches 5–15 pages: entities, concepts, [[index]]</div>
     <div class="dl">  - Wissen wächst kumulativ statt jedes Mal neu gesucht …</div></div>
    <div class="acts"><button class="btn" data-open="wiki/concepts/llm-wiki.md">${svg('open')}Open changed page</button><button class="btn g" data-act="fulldiff">View full diff</button></div>
-   <div class="commit">● uncommitted · 3 files · auto-commit after review</div></div>
+   <div class="commit">● uncommitted · 3 files · commit &amp; push when ready</div></div>
   <div class="u">What does the wiki say about RAG vs. a compiled wiki?</div>`;
   const a=aiShell();(async()=>{const b=a.querySelector('.tcs');await wait(500);await runChip(b,'read wiki/index.md',600);await runChip(b,'read wiki/synthesis/wiki-vs-rag.md',900);
     await stream(a.querySelector('.txt'),'Short version from [[synthesis/wiki-vs-rag]]: a compiled wiki pays the synthesis cost **once** at ingest, so answers cite stable pages and contradictions get resolved over time. [[concepts/rag]] is cheaper to set up but stateless: every query starts from scratch. The note concludes that RAG stays useful as a fallback over raw/. Sources: [[concepts/llm-wiki]], [[sources/karpathy-llm-wiki-gist]].')})();

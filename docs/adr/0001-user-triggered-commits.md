@@ -1,0 +1,3 @@
+# The user commits; the AI never does
+
+Human autosaves and AI edits both land uncommitted in the vault's working tree on the server. Only the user commits, and every commit is one step that records all uncommitted changes of the vault and pushes them (a reminder appears once more than N files have changed, default 4). We rejected auto-committing each save or each AI turn. That would have given free per-turn undo via `git revert` and immediate Obsidian sync, but it floods the vault history with micro-commits that the user never reviewed. With this model the user reviews a batch before it reaches GitHub. The price: until the user commits, Obsidian doesn't see the changes, and undo is per-file Discard only (opencode snapshots are disabled so nothing else rewrites files).

@@ -21,7 +21,7 @@ works from iPad/phone, not just the Mac terminal.
 
 ## Architecture (planned)
 
-- **Frontend:** Vite + TypeScript PWA (UI framework not yet chosen). Vault switcher, admin area
+- **Frontend:** Vite + TypeScript + React PWA. Vault switcher, admin area
   (configure vaults), panels: file tree, editor, vault search, streaming chat (shows which files the AI reads/changes).
 - **Editor: CodeMirror 6** editing raw Markdown (live preview via decorations). Deliberately
   *not* Milkdown/ProseMirror: WYSIWYG re-serialization causes diff noise and conflicts with the
@@ -38,8 +38,8 @@ works from iPad/phone, not just the Mac terminal.
   admin area (repo, branch, optional root) and stored in a backend-only config volume. The
   backend clones each one to `/vaults/<id>`. Every file, search or chat operation is scoped to
   one vault (`/vaults/:id/...`).
-- **Sync = git.** Each vault is a clone on the backend host; backend pulls before a session,
-  commits after human/AI edits, optionally pushes to GitHub. Obsidian mobile/desktop share the
+- **Sync = git.** Each vault is a clone on the backend host. Human and AI edits stay
+  uncommitted until the user commits (= commit + push); the AI never commits (ADR 0001). Obsidian mobile/desktop share the
   same remote. No second sync system.
 - **Runtime = docker compose, in dev and prod.** Services: reverse proxy (auto-TLS), backend,
   opencode. They share the vault clones via a compose volume. Only the proxy publishes ports. In dev,

@@ -187,3 +187,19 @@ describe('Repo conflict', () => {
     expect(await s.repo.inConflict()).toBe(false);
   });
 });
+
+describe('Repo concurrency', () => {
+  it('status polling never makes a concurrent discard fail on index.lock', async () => {
+    const { repo, write } = await setup();
+    let stop = false;
+    const poll = (async () => {
+      while (!stop) await repo.changes();
+    })();
+    for (let i = 0; i < 25; i++) {
+      await write('a.md', `edit ${i}\n`);
+      await repo.discard('a.md');
+    }
+    stop = true;
+    await poll;
+  });
+});

@@ -1,0 +1,84 @@
+import type {
+  ChatDetail, ChatSummary, Change, CommitResult, ConflictChoice, Diff, FileContent, FileEntry,
+  SearchHit, Settings, Vault, VaultConfig, VaultStatus,
+} from '@karpathy/shared';
+
+const TOKEN_KEY = 'karpathy.token';
+
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
+
+let onUnauthorized = () => {};
+/** Called on any 401: the stored token is dropped and the app shows the token screen. */
+export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };
+
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string, readonly code?: string, readonly body: Record<string, unknown> = {}) {
+    super(message);
+  }
+}
+
+/** Raw authed fetch against /api; throws ApiError for non-2xx. */
+export async function request(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${getToken() ?? ''}` };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal });
+  if (res.ok) return res;
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    onUnauthorized();
+  }
+  throw new ApiError(res.status, typeof data.error === 'string' ? data.error : `${res.status} ${res.statusText}`, data.code as string | undefined, data);
+}
+
+async function json<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await request(method, path, body, signal);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+const v = (id: string) => `/vaults/${encodeURIComponent(id)}`;
+const q = (path: string) => `path=${encodeURIComponent(path)}`;
+
+export const api = {
+  health: () => json<{ backend: string; opencode: string }>('GET', '/health'),
+  settings: () => json<Settings>('GET', '/settings'),
+  patchSettings: (s: Partial<Settings>) => json<Settings>('PATCH', '/settings', s),
+
+  vaults: () => json<Vault[]>('GET', '/vaults'),
+  addVault: (c: Omit<VaultConfig, 'id'>) => json<Vault>('POST', '/vaults', c),
+  patchVault: (id: string, c: Partial<Omit<VaultConfig, 'id'>>) => json<Vault>('PATCH', v(id), c),
+  removeVault: (id: string) => json<void>('DELETE', v(id)),
+
+  open: (id: string) => json<VaultStatus>('POST', `${v(id)}/open`),
+  status: (id: string) => json<VaultStatus>('GET', `${v(id)}/status`),
+  events: (id: string, signal: AbortSignal) => request('GET', `${v(id)}/events`, undefined, signal),
+
+  files: (id: string) => json<FileEntry[]>('GET', `${v(id)}/files`),
+  file: (id: string, path: string) => json<FileContent>('GET', `${v(id)}/file?${q(path)}`),
+  putFile: (id: string, path: string, content: string, version: string | null, force = false) =>
+    json<{ version: string }>('PUT', `${v(id)}/file?${q(path)}`, { content, version, ...(force ? { force } : {}) }),
+  deleteFile: (id: string, path: string, version: string) =>
+    json<void>('DELETE', `${v(id)}/file?${q(path)}&version=${encodeURIComponent(version)}`),
+  search: (id: string, text: string, signal?: AbortSignal) =>
+    json<SearchHit[]>('GET', `${v(id)}/search?q=${encodeURIComponent(text)}`, undefined, signal),
+
+  changes: (id: string) => json<Change[]>('GET', `${v(id)}/changes`),
+  diff: (id: string, path: string) => json<Diff>('GET', `${v(id)}/changes/diff?${q(path)}`),
+  discard: (id: string, path: string) => json<void>('POST', `${v(id)}/discard?${q(path)}`),
+  commitMessage: (id: string, signal: AbortSignal) => json<{ message: string }>('POST', `${v(id)}/commit-message`, undefined, signal),
+  commit: (id: string, message: string) => json<CommitResult>('POST', `${v(id)}/commit`, { message }),
+  push: (id: string) => json<CommitResult>('POST', `${v(id)}/push`),
+  conflictSides: (id: string, path: string) => json<{ mine: string | null; theirs: string | null }>('GET', `${v(id)}/conflicts/sides?${q(path)}`),
+  resolve: (id: string, path: string, choice: ConflictChoice) => json<VaultStatus>('POST', `${v(id)}/conflicts/resolve`, { path, choice }),
+
+  chats: (id: string) => json<ChatSummary[]>('GET', `${v(id)}/chats`),
+  newChat: (id: string) => json<{ chatId: string }>('POST', `${v(id)}/chats`),
+  chat: (id: string, chatId: string) => json<ChatDetail>('GET', `${v(id)}/chats/${encodeURIComponent(chatId)}`),
+  deleteChat: (id: string, chatId: string) => json<void>('DELETE', `${v(id)}/chats/${encodeURIComponent(chatId)}`),
+  prompt: (id: string, chatId: string, text: string) => json<{ queued: boolean }>('POST', `${v(id)}/chats/${encodeURIComponent(chatId)}/prompt`, { text }),
+  chatStream: (id: string, chatId: string, signal: AbortSignal) => request('GET', `${v(id)}/chats/${encodeURIComponent(chatId)}/stream`, undefined, signal),
+  abort: (id: string, chatId: string) => json<void>('POST', `${v(id)}/chats/${encodeURIComponent(chatId)}/abort`),
+};
+
+export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));

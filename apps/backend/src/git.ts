@@ -57,6 +57,8 @@ export function runGit(
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     GIT_TERMINAL_PROMPT: '0',
+    // Status polling must not take index.lock, or it races with discard/commit.
+    GIT_OPTIONAL_LOCKS: '0',
     GIT_AUTHOR_NAME: opts.identity.name,
     GIT_AUTHOR_EMAIL: opts.identity.email,
     GIT_COMMITTER_NAME: opts.identity.name,

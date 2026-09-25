@@ -177,6 +177,16 @@ describe('Repo conflict', () => {
     expect(await new Repo(repo.dir, 'main', '', { identity }).inConflict()).toBe(true);
   });
 
+  it('while in Conflict the working files show mine, never git conflict markers (#56)', async () => {
+    const { repo, r, read } = await conflicted();
+    expect(r.kind).toBe('conflict');
+    expect(await read('a.md')).toBe('mine\n');
+    for (const p of ['a.md', 'both-new.md', 'ok-new.md']) expect(await read(p).catch(() => '')).not.toMatch(/^(<{7}|={7}|>{7})/m);
+    // Still derived from git: unmerged entries + the stash remain until resolution.
+    expect(await repo.inConflict()).toBe(true);
+    expect((await repo.computeConflictPaths()).sort()).toEqual(['a.md', 'both-new.md', 'k.md']);
+  });
+
   it('keep mine / theirs / both; then finish → normal, no stash, no unmerged, nothing lost', async () => {
     const { repo, read, dir } = await conflicted();
     const now = new Date('2026-09-25T12:00:00Z');

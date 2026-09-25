@@ -160,7 +160,9 @@ export class Repo {
     if (!dirty) return { kind: 'ok', pushed: false };
     const pop = await this.git.run(['stash', 'pop', '-q'], { allowFail: true });
     if (pop.code === 0) return { kind: 'ok', pushed: false };
-    return { kind: 'conflict', paths: await this.computeConflictPaths() };
+    const paths = await this.computeConflictPaths();
+    await this.showMineWhileConflicted();
+    return { kind: 'conflict', paths };
   }
 
   /** Paths the failed stash pop could not apply: unmerged ones + untracked ones not restored. */
@@ -178,6 +180,20 @@ export class Repo {
       }
     }
     return [...new Set([...unmerged, ...untracked])];
+  }
+
+  /**
+   * git leaves `<<<<<<<` markers in text files it couldn't merge. The editor, search and the AI
+   * would see those (#56): put the user's own version there instead (theirs if mine was deleted).
+   * Unmerged index entries and the stash stay, so the Conflict state and paths don't change.
+   */
+  private async showMineWhileConflicted() {
+    const unmerged = (await this.git.out(['diff', '--name-only', '-z', '--diff-filter=U'])).split('\0').filter(Boolean);
+    for (const p of unmerged) {
+      const { mine, theirs } = await this.conflictSides(p);
+      const buf = mine ?? theirs;
+      if (buf) await writeFile(join(this.dir, p), buf);
+    }
   }
 
   /** mine = the stash's version, theirs = HEAD's; null = deleted on that side. */

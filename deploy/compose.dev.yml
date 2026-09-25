@@ -39,6 +39,10 @@ services:
   ollama:
     image: ollama/ollama
     restart: unless-stopped
+    # Ollama's default context (a few k tokens) silently cuts opencode's system prompt,
+    # which drops the vault's AGENTS.md (#57).
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "16384"
     volumes: [ollama:/root/.ollama]
     networks: [internal]
 

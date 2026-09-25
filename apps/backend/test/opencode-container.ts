@@ -37,7 +37,8 @@ export function ensureOllama() {
   } catch {
     // not there
   }
-  docker('run', '-d', '--name', OLLAMA, '--network', NET, '-v', `${OLLAMA_VOLUME}:/root/.ollama`, 'ollama/ollama');
+  // A context large enough for opencode's system prompt + the vault's AGENTS.md (#57).
+  docker('run', '-d', '--name', OLLAMA, '--network', NET, '-e', 'OLLAMA_CONTEXT_LENGTH=16384', '-v', `${OLLAMA_VOLUME}:/root/.ollama`, 'ollama/ollama');
 }
 
 /**
@@ -56,7 +57,7 @@ export async function startOpencode(vaultsDir: string) {
     });
   });
   const models = Object.fromEntries(
-    [LLM_MODEL, DEAD_MODEL, DEAD_MODEL_2].map((m) => m.split('/').slice(1).join('/')).map((id) => [id, { name: id, tool_call: true }]),
+    [LLM_MODEL, DEAD_MODEL, DEAD_MODEL_2].map((m) => m.split('/').slice(1).join('/')).map((id) => [id, { name: id, tool_call: true, limit: { context: 16384, output: 4096 } }]),
   );
   const providerCfg = { provider: { ollama: { npm: '@ai-sdk/openai-compatible', name: 'Ollama', options: { baseURL: `http://${OLLAMA}:11434/v1` }, models } } };
   docker(

@@ -137,7 +137,7 @@ export class ChatService {
 
   async list(vaultId: string): Promise<ChatSummary[]> {
     await this.chats(vaultId);
-    return this.harness.listSessions(this.dir(vaultId));
+    return (await this.harness.listSessions(this.dir(vaultId))).map((s) => ({ ...s, turn: this.turnState(vaultId, s.id) }));
   }
 
   async create(vaultId: string): Promise<{ chatId: string }> {
@@ -149,7 +149,14 @@ export class ChatService {
     await this.requireChat(vaultId, chatId);
     const dir = this.dir(vaultId);
     const [messages, sessions] = await Promise.all([this.harness.messages(dir, chatId), this.harness.listSessions(dir)]);
-    return { id: chatId, title: sessions.find((s) => s.id === chatId)?.title ?? '', messages, turn: this.turnState(vaultId, chatId) };
+    const queuedText = this.v.get(vaultId)?.queue.find((t) => t.chatId === chatId)?.text;
+    return {
+      id: chatId,
+      title: sessions.find((s) => s.id === chatId)?.title ?? '',
+      messages,
+      turn: this.turnState(vaultId, chatId),
+      ...(queuedText !== undefined ? { queuedText } : {}),
+    };
   }
 
   async remove(vaultId: string, chatId: string): Promise<void> {
@@ -164,7 +171,17 @@ export class ChatService {
     if (this.turnState(vaultId, chatId) !== 'idle') throw new HttpError(409, 'this chat already has a turn running or queued', 'busy');
     c.queue.push({ chatId, text });
     this.emit(vaultId, chatId, this.queuedEvent(vaultId));
+    await this.titleFromFirstPrompt(vaultId, chatId, text);
     void this.kick(vaultId);
+  }
+
+  /** opencode names new sessions "New session - <date>"; name the chat after its first prompt. */
+  private async titleFromFirstPrompt(vaultId: string, chatId: string, text: string) {
+    const dir = this.dir(vaultId);
+    const s = (await this.harness.listSessions(dir).catch(() => [])).find((x) => x.id === chatId);
+    if (!s || !/^New session/.test(s.title)) return;
+    const title = text.replace(/\s+/g, ' ').trim();
+    await this.harness.setTitle(dir, chatId, title.length > 60 ? `${title.slice(0, 57)}…` : title).catch(() => undefined);
   }
 
   /** What a queued turn waits for: another chat's turn, or a sync (pull/commit/…). */

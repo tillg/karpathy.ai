@@ -114,8 +114,8 @@ export class Vaults {
     const rootChange = newRoot !== v.root;
     if (repoChange && !REPO_RE.test(input.repo!)) throw new HttpError(400, 'repo must be owner/name');
     if (repoChange || branchChange || rootChange) this.refuseDuplicate(input.repo ?? v.repo, input.branch ?? v.branch, newRoot, id);
-    // A failed clone is retried with the new settings (#9): nothing local to lose.
-    if (r.state === 'clone-failed' && (repoChange || branchChange || rootChange)) {
+    // A failed clone is retried, with the new settings if any (#9, #23): nothing local to lose.
+    if (r.state === 'clone-failed' && (input.name === undefined || repoChange || branchChange || rootChange)) {
       next.repo = input.repo ?? v.repo;
       next.branch = input.branch ?? v.branch;
       next.root = newRoot;
@@ -266,7 +266,8 @@ export class Vaults {
       if ((e as NodeJS.ErrnoException).code === 'EISDIR') throw new HttpError(400, `is a directory: ${path}`);
       throw e;
     }
-    return { path: normalizeRel(path), content: buf.toString('utf8'), version: versionOf(buf) };
+    const binary = !isText(buf);
+    return { path: normalizeRel(path), content: binary ? '' : buf.toString('utf8'), version: versionOf(buf), binary };
   }
 
   /** Writes a file if `version` still matches (null = must not exist yet). 409 stale, 423 in Conflict. */
@@ -277,7 +278,10 @@ export class Vaults {
       if (r.conflict) throw new HttpError(423, 'vault is in conflict; resolve it first', 'conflict');
       const abs = await resolveInVault(this.vaultRootDir(id), path);
       // Before the version check: on a case-insensitive disk the twin would look like "the same file".
-      if (version === null) await this.refuseCaseTwin(id, path);
+      if (version === null) {
+        checkNewName(path);
+        await this.refuseCaseTwin(id, path);
+      }
       const current = await versionOfFile(abs);
       if (!force && current !== version)
         throw new HttpError(409, 'file changed since it was loaded', 'stale', { currentVersion: current });
@@ -323,6 +327,7 @@ export class Vaults {
   async search(id: string, q: string): Promise<{ hits: SearchHit[]; truncated: boolean }> {
     this.requireReady(id);
     if (!q.trim()) return { hits: [], truncated: false };
+    if (/[\r\n]/.test(q)) throw new HttpError(400, 'search text must be a single line', 'bad-query');
     return search(this.vaultRootDir(id), q);
   }
 
@@ -514,7 +519,8 @@ export class Vaults {
   }
 
   private refuseDuplicate(repo: string, branch: string, root: string, exceptId?: string) {
-    const dup = this.store.get().vaults.find((x) => x.id !== exceptId && x.repo === repo && x.branch === branch && x.root === root);
+    // GitHub owner/repo names are case-insensitive.
+    const dup = this.store.get().vaults.find((x) => x.id !== exceptId && x.repo.toLowerCase() === repo.toLowerCase() && x.branch === branch && x.root === root);
     if (dup) throw new HttpError(409, `"${dup.name}" already uses ${repo} (${branch}${root ? `, ${root}` : ''})`, 'duplicate');
   }
 
@@ -575,6 +581,29 @@ export class Vaults {
       this.emit(v.id, { type: 'files-changed', files });
       this.emitStatusSoon(v.id);
     });
+  }
+}
+
+const RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
+
+/** New file names must work in every clone (Obsidian on macOS, Windows, iOS). */
+function checkNewName(path: string) {
+  if (path.endsWith('/')) throw new HttpError(400, 'A file name must not end with "/"', 'bad-name');
+  for (const seg of normalizeRel(path).split('/')) {
+    if (/[\x00-\x1f<>:"|?*\\]/.test(seg)) throw new HttpError(400, `"${seg}" contains a character that isn't allowed in file names (<>:"|?* or control characters)`, 'bad-name');
+    if (RESERVED.test(seg)) throw new HttpError(400, `"${seg}" is a reserved name on Windows`, 'bad-name');
+    if (/[. ]$/.test(seg)) throw new HttpError(400, `"${seg}" must not end with a dot or space`, 'bad-name');
+  }
+}
+
+/** Valid UTF-8 without NUL bytes. */
+function isText(buf: Buffer): boolean {
+  if (buf.includes(0)) return false;
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(buf);
+    return true;
+  } catch {
+    return false;
   }
 }
 

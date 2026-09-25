@@ -45,7 +45,10 @@ export interface FileEntry {
 
 export interface FileContent {
   path: string;
+  /** '' for binary files. */
   content: string;
+  /** Not valid UTF-8 text (or contains NUL): show, never edit. */
+  binary: boolean;
   /** Content hash; send back as `version` on PUT. */
   version: string;
 }
@@ -94,6 +97,7 @@ export interface ChatSummary {
   id: string;
   title: string;
   updatedAt: number;
+  turn: TurnState;
 }
 
 export type ToolStatus = 'pending' | 'running' | 'completed' | 'error' | 'denied';
@@ -130,6 +134,8 @@ export interface ChatDetail {
   title: string;
   messages: ChatMessage[];
   turn: TurnState;
+  /** The prompt text while its turn is still queued (not yet sent to the harness). */
+  queuedText?: string;
 }
 
 export type TurnState = 'idle' | 'queued' | 'running';

@@ -28,7 +28,8 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : und
 export function toVaultPath(p: string, root: string): string {
   const abs = posix.resolve(root, p);
   const rel = posix.relative(root, abs);
-  return rel === '' || rel.startsWith('..') ? abs : rel;
+  if (rel === '') return ''; // the vault root itself
+  return rel.startsWith('..') ? abs : rel;
 }
 
 export function mapToolPart(part: Json, root: string): ToolCall {
@@ -41,12 +42,13 @@ export function mapToolPart(part: Json, root: string): ToolCall {
   if (status === 'error' && error?.startsWith(DENIED_PREFIX)) status = 'denied';
   const patchFile = Array.isArray(meta.files) ? str(obj(meta.files[0]).filePath) : undefined;
   const rawPath = str(input.filePath) ?? patchFile ?? str(input.path);
+  const path = rawPath ? toVaultPath(rawPath, root) : '';
   return {
     id: str(part.id) ?? str(part.callID) ?? '',
     tool,
     status,
     writes: WRITE_TOOLS.has(tool),
-    ...(rawPath ? { path: toVaultPath(rawPath, root) } : {}),
+    ...(path ? { path } : {}),
     ...(str(state.title) ? { title: str(state.title) } : {}),
     ...(error && status === 'error' ? { error } : {}),
   };

@@ -19,6 +19,7 @@ export interface Harness {
   sessionExists(dir: string, id: string): Promise<boolean>;
   messages(dir: string, id: string): Promise<ChatMessage[]>;
   deleteSession(dir: string, id: string): Promise<void>;
+  setTitle(dir: string, id: string, title: string): Promise<void>;
   prompt(dir: string, id: string, input: PromptInput): Promise<void>;
   /** Runs a turn to completion and returns the assistant's text. */
   promptSync(dir: string, id: string, input: PromptInput, signal?: AbortSignal): Promise<string>;
@@ -59,7 +60,7 @@ export class OpencodeHarness implements Harness {
     const list = unwrap(await this.c.session.list({ directory: dir, roots: true, limit: 200 }), 'session.list');
     return list
       .filter((s) => !s.parentID && s.directory === dir)
-      .map((s) => ({ id: s.id, title: s.title, updatedAt: s.time.updated }));
+      .map((s) => ({ id: s.id, title: s.title, updatedAt: s.time.updated, turn: 'idle' as const }));
   }
 
   async createSession(dir: string, title?: string) {
@@ -77,6 +78,10 @@ export class OpencodeHarness implements Harness {
 
   async deleteSession(dir: string, id: string) {
     unwrap(await this.c.session.delete({ directory: dir, sessionID: id }), 'session.delete');
+  }
+
+  async setTitle(dir: string, id: string, title: string) {
+    unwrap(await this.c.session.update({ directory: dir, sessionID: id, title }), 'session.update');
   }
 
   async prompt(dir: string, id: string, input: PromptInput) {

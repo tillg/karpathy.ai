@@ -96,12 +96,27 @@ describe('vault admin', () => {
     expect(sh(t.vaults.vaultRootDir(t.id), 'branch', '--show-current').trim()).toBe('main');
   });
 
-  it('duplicate vault (same repo, branch, root) → 409 duplicate (#15)', async () => {
+  it('duplicate vault (same repo, branch, root) → 409 duplicate (#15, #25 case-insensitive)', async () => {
     const t = await vaultApp();
     const r = await t.api.post('/vaults', { name: 'again', repo: t.remote.repo });
     expect(r.status).toBe(409);
     expect(r.body.code).toBe('duplicate');
+    expect((await t.api.post('/vaults', { name: 'again', repo: t.remote.repo.toUpperCase() })).body.code).toBe('duplicate');
     expect((await t.api.post('/vaults', { name: 'sub', repo: t.remote.repo, root: 'notes' })).status).toBe(202);
+  });
+
+  it('PATCH {} on a clone-failed vault retries the clone (#23)', async () => {
+    const remote = await makeRemote({ 'a.md': 'a' });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const { rename } = await import('node:fs/promises');
+    await rename(remote.bare, `${remote.bare}.away`);
+    const id = await t.addVault(remote.repo);
+    expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('clone-failed');
+    await rename(`${remote.bare}.away`, remote.bare);
+    expect((await t.api.patch(`/vaults/${id}`, {})).status).toBe(200);
+    await t.vaults.whenCloned(id);
+    expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('ready');
   });
 
   it('fixing the root of a clone-failed vault re-clones it (#9)', async () => {
@@ -179,6 +194,29 @@ describe('files', () => {
     expect((await t.api.put(`/vaults/${t.id}/file?path=new/Note.md`, { content: 'n', version: null })).status).toBe(200);
     expect((await t.api.put(`/vaults/${t.id}/file?path=new/Note.md`, { content: 'n', version: null })).status).toBe(409);
     expect((await t.api.get(`/vaults/${t.id}/file?path=missing.md`)).status).toBe(404);
+  });
+
+  it('binary files are flagged, not decoded (#20)', async () => {
+    const t = await vaultApp();
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'pic.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe]));
+    const f = (await t.api.get(`/vaults/${t.id}/file?path=pic.png`)).body;
+    expect(f).toMatchObject({ binary: true, content: '' });
+    expect(f.version).toBeTruthy();
+    expect((await t.api.get(`/vaults/${t.id}/file?path=Home.md`)).body.binary).toBe(false);
+  });
+
+  it.each(['CON.md', 'nul', 'a\tb.md', 'Neue Notiz?.md', 'x/', 'a<b>.md', 'com1.txt'])('new file name %j → 400 bad-name', async (p) => {
+    const t = await vaultApp();
+    const r = await t.api.put(`/vaults/${t.id}/file?path=${encodeURIComponent(p)}`, { content: 'x', version: null });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('bad-name');
+  });
+
+  it('search query with a newline → 400, not a 500 with the rg command', async () => {
+    const t = await vaultApp();
+    const r = await t.api.get(`/vaults/${t.id}/search?q=${encodeURIComponent('a\nb')}`);
+    expect(r.status).toBe(400);
+    expect(r.body.error).not.toContain('rg');
   });
 
   it('rejects traversal and symlinks', async () => {

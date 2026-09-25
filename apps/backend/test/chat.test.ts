@@ -154,6 +154,20 @@ describe('chat API against a real opencode container', () => {
     expect(detail.messages[0].model).toBe(DEAD_MODEL);
   });
 
+  it('queued text, turn state in the list, and a title from the first prompt (#13)', async () => {
+    const t = await setup();
+    const release = await t.vaults.lock(t.id).acquireExclusive();
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    await t.api.post(`/vaults/${t.id}/chats/${chatId}/prompt`, { text: 'Summarize the notes about gardening please' });
+    expect((await t.api.get(`/vaults/${t.id}/chats/${chatId}`)).body).toMatchObject({ turn: 'queued', queuedText: 'Summarize the notes about gardening please' });
+    expect((await t.api.get(`/vaults/${t.id}/chats`)).body.find((c: { id: string }) => c.id === chatId)).toMatchObject({ turn: 'queued' });
+    release();
+    await waitIdle(t.chat, t.id, chatId);
+    const d = (await t.api.get(`/vaults/${t.id}/chats/${chatId}`)).body;
+    expect(d.queuedText).toBeUndefined();
+    expect(d.title).toBe('Summarize the notes about gardening please');
+  });
+
   it('opens the event subscription when a vault is added (onReady hook)', async () => {
     const t = await setup();
     const opened: string[] = [];

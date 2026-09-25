@@ -41,6 +41,9 @@ describe('mapping edge cases', () => {
     expect(toVaultPath('./Home.md', '/vaults/a')).toBe('Home.md');
     expect(toVaultPath('notes/../Home.md', '/vaults/a')).toBe('Home.md');
     expect(toVaultPath('../b/x.md', '/vaults/a')).toBe('/vaults/b/x.md');
+    // The vault root itself: no container path in the chip.
+    expect(toVaultPath('/vaults/a', '/vaults/a')).toBe('');
+    expect(mapToolPart({ id: 'p', tool: 'glob', state: { status: 'completed', input: { path: '/vaults/a' } } }, '/vaults/a').path).toBeUndefined();
   });
 
   it('paths outside the root stay absolute', () => {

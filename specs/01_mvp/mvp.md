@@ -169,7 +169,10 @@ See [ADR 0001](../../docs/adr/0001-user-triggered-commits.md).
   1. `git fetch`. If upstream has not moved: push any unpushed commits, done.
   2. If there are unpushed commits: `git reset --mixed $(git merge-base HEAD @{u})`. Their
      changes become uncommitted changes again; their messages are dropped (the next commit
-     re-records them). No rebase, so no mid-rebase state ever exists.
+     re-records them). No rebase, so no mid-rebase state ever exists. If there is **no**
+     merge base (the remote history was replaced, e.g. an orphan force-push):
+     `git reset --mixed @{u}` and check out the files that only exist upstream; the whole
+     local state becomes uncommitted changes on top of the new upstream, and the pull ends here.
   3. If there are uncommitted changes: `git stash push --include-untracked -m
      karpathy-ai-pull`.
   4. `git merge --ff-only @{u}` (always a fast-forward after steps 2–3).
@@ -209,8 +212,8 @@ See [ADR 0001](../../docs/adr/0001-user-triggered-commits.md).
     lock and runs pull → commit all → push.
   - Because pulls never run during a turn, a vault cannot enter Conflict while a turn is
     running.
-  - If the backend restarts, the lock and its queue are lost; queued requests fail and the
-    client retries. A turn that was running keeps running in opencode. On startup the
+  - If the backend restarts, the lock is lost; queued chat prompts are persisted on the
+    config volume and run after the restart. A turn that was running keeps running in opencode. On startup the
     backend waits until opencode reports no busy session for a vault before running an
     exclusive operation on it.
 

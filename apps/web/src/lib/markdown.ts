@@ -51,5 +51,8 @@ const PURIFY = {
   FORBID_ATTR: ['style', 'formaction', 'form', 'autofocus'],
 };
 
+// Code blocks scroll sideways: focusable, so the keyboard can scroll them (#45).
+const focusablePre = (html: string) => html.replace(/<pre>/g, '<pre tabindex="0">');
+
 export const renderMarkdown = (md: string, exists: (target: string) => boolean) =>
-  DOMPurify.sanitize(toHtml(md, exists), PURIFY);
+  focusablePre(DOMPurify.sanitize(toHtml(md, exists), PURIFY));

@@ -97,3 +97,19 @@ export function adoptQueued(p: PendingPrompt | null, c: ChatView): PendingPrompt
   if (p || c.turn !== 'queued' || !c.queuedText) return p;
   return { text: c.queuedText, userCount: userCount(c), sent: true, ran: false };
 }
+
+/**
+ * What the chat's live region says when the turn state changes (issue #45, pure): the start, the
+ * finished reply (its text, capped) or its error, a queue wait — never the streamed deltas.
+ */
+export function turnAnnouncement(prev: ChatView['turn'] | undefined, c: ChatView): string | null {
+  if (!prev || prev === c.turn) return null;
+  if (c.turn === 'running') return 'AI is replying…';
+  if (c.turn === 'queued') return c.waiting === 'sync' ? 'Waiting for sync…' : 'Waiting for other chat…';
+  // Only this turn's reply: the last message, if the assistant wrote it.
+  const last = c.messages.at(-1)?.role === 'assistant' ? c.messages.at(-1) : undefined;
+  const error = c.error ?? last?.error;
+  if (error) return `Reply failed: ${error}`;
+  const text = (last?.parts ?? []).map((p) => (p.type === 'text' ? p.text : '')).join(' ').trim();
+  return text ? `Reply finished: ${text.length > 300 ? `${text.slice(0, 300)}…` : text}` : 'Reply finished';
+}

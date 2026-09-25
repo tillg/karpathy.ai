@@ -28,6 +28,7 @@ export function FileTree() {
         className={`trow${n.dir ? ' dir' : ''}${note?.path === n.path ? ' sel' : ''}`}
         style={{ paddingLeft: 10 + depth * 16 }}
         data-testid="tree-item" data-path={n.path} data-type={n.dir ? 'dir' : 'file'}
+        aria-expanded={n.dir ? !collapsed.has(n.path) : undefined} aria-current={note?.path === n.path ? 'page' : undefined}
         onClick={() => (n.dir ? toggle(n.path) : void openNote(n.path))}
       >
         {n.dir

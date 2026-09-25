@@ -91,6 +91,10 @@ To run the e2e suite against the **prod images** (https://localhost:9443, next t
 stack), see the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL` and `E2E_TOKEN_FILE`
 point Playwright at it.
 
+Accessibility: `e2e/a11y.spec.ts` runs axe-core (WCAG 2.1 AA + best practice) over the main
+screens in light and dark mode and fails on serious/critical findings; `e2e/a11y-keyboard.spec.ts`
+covers dialog focus trapping, menu/radio-group keys and phone touch-target sizes.
+
 Layout: `apps/backend` (Express 5, Node/TS), `apps/web` (Vite + React PWA),
 `packages/shared` (API types), `deploy/` (compose, Dockerfiles, Caddy, opencode config),
 `e2e/` (Playwright).

@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useApp } from '../store';
 import { Admin } from './Admin';
 import { ChatPane } from './ChatPane';
@@ -39,14 +41,31 @@ export function Shell() {
     if (id === 'chat') return !s.chatOpen;
     return s.sidebarOpen || s.chatOpen;
   };
+  // Tablet: Escape closes the overlay sidebar / chat and returns focus to its toggle (issue #43).
+  const overlay = tablet && (s.sidebarOpen || s.chatOpen);
+  const { setSidebarOpen, setChatOpen, sidebarOpen } = s;
+  useEffect(() => {
+    if (!overlay) return;
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[aria-modal="true"]')) return;
+      const toggle = sidebarOpen ? 'sidebar-toggle' : 'chat-toggle';
+      flushSync(() => { setSidebarOpen(false); setChatOpen(false); });
+      document.querySelector<HTMLElement>(`[data-testid="${toggle}"]`)?.focus();
+    };
+    addEventListener('keydown', k);
+    return () => removeEventListener('keydown', k);
+  }, [overlay, sidebarOpen, setSidebarOpen, setChatOpen]);
+
   return (
     <>
+      {/* Page heading + banner landmark for screen readers (issue #47); the panes are main/aside. */}
+      <header className="sr-only"><h1>karpathy.ai{s.active ? ` — ${s.active.name}` : ''}</h1></header>
       <div id="app" className={cls} data-sb={pos('sidebar')} data-dt={pos('detail')} data-ch={pos('chat')}>
         <Sidebar inert={inert('sidebar')} />
         <NotePane inert={inert('detail')} />
         <ChatPane inert={inert('chat')} />
         {phone && (
-          <nav id="tabbar">
+          <nav id="tabbar" aria-label="Tabs">
             {TABS.map((t) => (
               <button key={t.id} className={phoneTab === t.id ? 'on' : ''} data-testid={`tab-${t.id}`}
                 onClick={() => { if (phoneTab === t.id) s.setPhoneNote(false); s.setPhoneTab(t.id); }}>

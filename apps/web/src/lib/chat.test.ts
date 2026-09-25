@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adoptQueued, applyChatEvent, changedPaths, settlePending, type ChatView, type PendingPrompt } from './chat';
+import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, type ChatView, type PendingPrompt } from './chat';
 
 const empty: ChatView = { id: 'c1', title: 'T', messages: [], turn: 'idle' };
 
@@ -75,5 +75,34 @@ describe('adoptQueued (#13: queued prompt after reload / from another device)', 
     expect(adoptQueued(local, { ...empty, turn: 'queued', queuedText: 'x' })).toBe(local);
     expect(adoptQueued(null, { ...empty, turn: 'queued' })).toBeNull();
     expect(adoptQueued(null, { ...empty, turn: 'running', queuedText: 'x' })).toBeNull();
+  });
+});
+
+describe('turnAnnouncement (issue #45)', () => {
+  const reply = (text: string, error?: string): ChatView => ({
+    ...empty,
+    messages: [
+      { id: 'u', role: 'user', createdAt: 1, parts: [{ type: 'text', id: 'p0', text: 'q' }] },
+      { id: 'a', role: 'assistant', createdAt: 2, error, parts: [{ type: 'reasoning', id: 'r', text: 'hmm' }, { type: 'text', id: 'p1', text }] },
+    ],
+  });
+
+  it('says nothing on the first load or without a state change (no deltas)', () => {
+    expect(turnAnnouncement(undefined, { ...empty, turn: 'running' })).toBeNull();
+    expect(turnAnnouncement('running', { ...reply('partial'), turn: 'running' })).toBeNull();
+    expect(turnAnnouncement('idle', reply('old'))).toBeNull();
+  });
+
+  it('announces the start and the finished reply text (not the reasoning)', () => {
+    expect(turnAnnouncement('queued', { ...empty, turn: 'running' })).toBe('AI is replying…');
+    expect(turnAnnouncement('running', reply('It says hello.'))).toBe('Reply finished: It says hello.');
+    expect(turnAnnouncement('running', reply('x'.repeat(500)))).toBe(`Reply finished: ${'x'.repeat(300)}…`);
+    expect(turnAnnouncement('running', reply(''))).toBe('Reply finished');
+  });
+
+  it('announces waiting and failures', () => {
+    expect(turnAnnouncement('idle', { ...empty, turn: 'queued', waiting: 'sync' })).toBe('Waiting for sync…');
+    expect(turnAnnouncement('running', reply('', 'model down'))).toBe('Reply failed: model down');
+    expect(turnAnnouncement('running', { ...reply('ok'), error: 'stream broke' })).toBe('Reply failed: stream broke');
   });
 });

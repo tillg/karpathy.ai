@@ -1,6 +1,5 @@
 import type { Change, ConflictChoice } from '@karpathy/shared';
 import { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { api, errorText } from '../lib/api';
 import { collapse, lineDiff } from '../lib/linediff';
 import { useApp } from '../store';
@@ -58,6 +57,7 @@ function ChangeRow({ c }: { c: Change }) {
 }
 
 type Sides = { mine: string | null; theirs: string | null };
+const CHOICES = ['mine', 'theirs', 'both'] as const satisfies readonly ConflictChoice[];
 
 /** Line diff of the two sides of a conflict; unchanged runs beyond `context` lines are collapsed. */
 function ConflictDiff({ sides, context }: { sides: Sides; context: number }) {
@@ -90,11 +90,22 @@ function ConflictFile({ path }: { path: string }) {
     setBusy(true);
     try { setStatus(await api.resolve(activeId, path, choice)); toast(`Resolved ${path}`); } catch (e) { toast(errorText(e)); } finally { setBusy(false); }
   };
+  /** Radio group keys (issue #44): arrows move and select, Home/End jump. */
+  const radioKeys = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const i = CHOICES.indexOf(choice);
+    const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: CHOICES.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const n = (next + CHOICES.length) % CHOICES.length;
+    setChoice(CHOICES[n]!);
+    e.currentTarget.querySelectorAll<HTMLElement>('[role=radio]')[n]?.focus();
+  };
   const controls = (
     <>
-      <div className="seg full" role="radiogroup">
-        {(['mine', 'theirs', 'both'] as const).map((c) => (
-          <button key={c} className={choice === c ? 'on' : ''} data-testid={`keep-${c}`} onClick={() => setChoice(c)}>Keep {c}</button>
+      <div className="seg full" role="radiogroup" aria-label={`Resolution for ${path}`} onKeyDown={radioKeys}>
+        {CHOICES.map((c) => (
+          <button key={c} className={choice === c ? 'on' : ''} role="radio" aria-checked={choice === c} tabIndex={choice === c ? 0 : -1}
+            data-autofocus={choice === c || undefined} data-testid={`keep-${c}`} onClick={() => setChoice(c)}>Keep {c}</button>
         ))}
       </div>
       <button className="btn wide" disabled={busy} data-testid="resolve" onClick={() => void resolve()}>{busy ? 'Resolving…' : 'Resolve'}</button>
@@ -110,13 +121,12 @@ function ConflictFile({ path }: { path: string }) {
         <Icon n="arrow_up_left_arrow_down_right" size={15} />Compare larger
       </button>
       {controls}
-      {big && sides && createPortal(
+      {big && sides && (
         <Modal title={path} onClose={() => setBig(false)} className="compare" testid="conflict-compare-dialog">
           {legend}
           <ConflictDiff sides={sides} context={3} />
           <div className="cf-controls">{controls}</div>
-        </Modal>,
-        document.body,
+        </Modal>
       )}
     </div>
   );

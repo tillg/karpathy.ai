@@ -13,8 +13,8 @@ export function Sidebar({ inert }: { inert?: boolean }) {
   const { section, setSection, phone, phoneTab, setAdminOpen, setSidebarOpen, wide, status } = useApp();
   const current: Section = phone ? (phoneTab === 'chat' ? 'files' : phoneTab) : section;
   return (
-    <section className="pane" id="sidebar" inert={inert}>
-      <div className="bar">
+    <aside className="pane" id="sidebar" inert={inert} aria-label="Sidebar">
+      <header className="bar">
         {phone ? <span className="bar-title">{TITLES[current]}</span> : (
           <div className="seg" data-testid="sidebar-sections">
             {(['files', 'search', 'changes'] as const).map((s) => (
@@ -27,7 +27,7 @@ export function Sidebar({ inert }: { inert?: boolean }) {
         <span className="sp" />
         <button className="ib" title="Vaults & settings" data-testid="open-admin" onClick={() => setAdminOpen(true)}><Icon n="gear_alt" /></button>
         {!wide && !phone && <button className="ib" title="Close sidebar" onClick={() => setSidebarOpen(false)}><Icon n="sidebar_left" /></button>}
-      </div>
+      </header>
       <div className="scroll">
         <VaultSwitcher />
         {current === 'files' && <FileTree />}
@@ -35,6 +35,6 @@ export function Sidebar({ inert }: { inert?: boolean }) {
         {current === 'changes' && <ChangesPanel />}
       </div>
       {!phone && <div className="sbfoot"><GitPill /></div>}
-    </section>
+    </aside>
   );
 }

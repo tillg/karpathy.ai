@@ -47,8 +47,8 @@ export function NotePane({ inert }: { inert?: boolean }) {
   const del = () => { if (note && confirm(`Delete ${note.path}? It stays recoverable until you commit.`)) void s.deleteNote(); };
 
   return (
-    <section className="pane always" id="detail" inert={inert}>
-      <div className="bar">
+    <main className="pane always" id="detail" inert={inert} aria-label="Note">
+      <header className="bar">
         {!phone && <button className="ib" title="Toggle sidebar" data-testid="sidebar-toggle" onClick={() => s.setSidebarOpen(!s.sidebarOpen)}><Icon n="sidebar_left" /></button>}
         {phone && <button className="ib back" data-testid="back" onClick={() => s.setPhoneNote(false)}><Icon n="chevron_left" size={24} /><span>{s.phoneTab === 'search' ? 'Search' : s.phoneTab === 'changes' ? 'Changes' : 'Files'}</span></button>}
         {note && !phone && <span className="crumb">{note.path.split('/').join(' › ')}</span>}
@@ -68,7 +68,7 @@ export function NotePane({ inert }: { inert?: boolean }) {
         )}
         <button className={`ib${s.chatOpen && !phone ? ' on' : ''}`} title="AI chat" data-testid="chat-toggle"
           onClick={() => (phone ? s.setPhoneTab('chat') : s.setChatOpen(!s.chatOpen))}><Icon n="sparkles" /></button>
-      </div>
+      </header>
       <div className="scroll">
         {!online && <div className="banner warn" data-testid="offline-banner">Offline — showing cached notes, read-only.</div>}
         {note?.deleted && (
@@ -88,7 +88,7 @@ export function NotePane({ inert }: { inert?: boolean }) {
           </div>
         ) : note ? (
           <div className="doc">
-            <h1 className="note-title">{title}</h1>
+            <h2 className="note-title">{title}</h2>
             {mode === 'write'
               ? <Editor key={note.path} ref={editor} doc={note.loaded} readOnly={readOnly || !!note.deleted}
                   onChange={(t) => { draft.current = t; s.editDraft(t); }} exists={s.exists} onWikilink={s.followLink} />
@@ -111,6 +111,6 @@ export function NotePane({ inert }: { inert?: boolean }) {
           </div>
         )}
       </div>
-    </section>
+    </main>
   );
 }

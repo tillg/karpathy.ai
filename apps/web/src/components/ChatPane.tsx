@@ -1,7 +1,7 @@
 import type { ChatEvent, ChatMessage, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
-import { adoptQueued, applyChatEvent, changedPaths, settlePending, userCount, type ChatView, type PendingPrompt } from '../lib/chat';
+import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, userCount, type ChatView, type PendingPrompt } from '../lib/chat';
 import { readNdjson } from '../lib/ndjson';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -119,6 +119,15 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
   const scroller = useRef<HTMLDivElement>(null);
   const model = (settings?.model ?? '').split('/').pop() ?? '';
   const busy = chat?.turn === 'queued' || chat?.turn === 'running';
+  // Screen readers hear turn changes and the finished reply, not every streamed delta (issue #45).
+  const [said, setSaid] = useState('');
+  const prevTurn = useRef<ChatView['turn'] | undefined>(undefined);
+  useEffect(() => {
+    if (!chat) return;
+    const a = turnAnnouncement(prevTurn.current, chat);
+    prevTurn.current = chat.turn;
+    if (a) setSaid(a);
+  }, [chat]);
 
   useEffect(() => {
     const el = scroller.current;
@@ -158,7 +167,8 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
 
   return (
     <>
-      <div className="scroll" ref={scroller}>
+      <div className="sr-only" aria-live="polite" data-testid="chat-live">{said}</div>
+      <div className="scroll" ref={scroller} tabIndex={0} role="region" aria-label="Messages">
         {(chat?.readonly || conflict) && <div className="banner warn" data-testid="chat-readonly">The vault is in conflict — the AI can only read, not change notes, until it is resolved.</div>}
         <div className="msgs" data-testid="chat-messages">
           {!chat && !error && <div className="day">Loading…</div>}
@@ -247,8 +257,8 @@ export function ChatPane({ inert }: { inert?: boolean }) {
     try { await leave((await api.newChat(activeId)).chatId); } catch (e) { toast(errorText(e)); }
   };
   return (
-    <section className="pane always" id="chat" inert={inert}>
-      <div className="bar">
+    <aside className="pane always" id="chat" inert={inert} aria-label="AI chat">
+      <header className="bar">
         {chatId
           ? <button className="ib back" data-testid="chat-back" onClick={() => void leave(null)}><Icon n="chevron_left" size={24} /><span>Chats</span></button>
           : <span className="bar-title">Chats</span>}
@@ -256,9 +266,9 @@ export function ChatPane({ inert }: { inert?: boolean }) {
         <span className="sp" />
         <button className="ib" title="New chat" data-testid="new-chat" disabled={!usable} onClick={() => void newChat()}><Icon n="square_pencil" /></button>
         {!phone && <button className="ib" title="Close chat" onClick={() => setChatOpen(false)}><Icon n="xmark" /></button>}
-      </div>
+      </header>
       {!usable || !activeId ? <div className="scroll"><div className="empty">Open a vault to chat about it.</div></div>
         : chatId ? <Conversation key={chatId} vaultId={activeId} chatId={chatId} /> : <ChatList vaultId={activeId} />}
-    </section>
+    </aside>
   );
 }

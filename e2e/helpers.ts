@@ -134,6 +134,16 @@ export class Api {
 
 export interface TestVault { id: string; name: string; bare: string }
 
+/** Puts Ideas.md into Conflict: a local edit plus a clashing push from "Obsidian", then a commit (pull). */
+export async function makeConflict(api: Api, vault: TestVault) {
+  await api.write(vault.id, 'Ideas.md', '# Ideas mine\n\nBack to [[Home]].\n');
+  pushFromObsidian(vault.bare, 'Ideas.md', '# Ideas theirs\n\nBack to [[Home]].\n');
+  const res = await api.ctx.post(`/api/vaults/${vault.id}/commit`, { data: { message: 'e2e: clash' } });
+  expect(res.status()).toBe(409);
+  await expect.poll(async () => (await api.status(vault.id)).state).toBe('conflict');
+}
+
+
 /** Opens the app with the token stored and `vaultId` as the active vault. */
 export async function openApp(page: Page, vaultId?: string) {
   await page.addInitScript(([token, id]) => {

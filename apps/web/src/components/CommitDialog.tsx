@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
 import { useApp } from '../store';
 import { Modal } from './Dialogs';
@@ -12,6 +12,7 @@ export function CommitDialog() {
   const [error, setError] = useState<string | null>(null);
   /** The changed files the proposal (and the user's review) is about (#33). */
   const [paths, setPaths] = useState<string[] | undefined>(undefined);
+  const field = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!activeId) return;
@@ -33,6 +34,13 @@ export function CommitDialog() {
     return () => { clearTimeout(t); c.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+
+  // The field is disabled while the message is proposed; once it is ready, focus moves into it
+  // unless the user has already moved on (issue #39).
+  useEffect(() => {
+    const f = field.current;
+    if (phase === 'ready' && f && document.activeElement === f.closest('[role=dialog]')?.querySelector('h2')) f.focus();
+  }, [phase]);
 
   const close = () => setCommitOpen(false);
   const commit = async () => {
@@ -66,7 +74,7 @@ export function CommitDialog() {
     <Modal title="Commit & Push" onClose={close} testid="commit-dialog">
       <p className="muted">Records all uncommitted changes of this vault and pushes them to GitHub.</p>
       <div className="ta-wrap">
-        <textarea data-testid="commit-message" rows={5} value={message} onChange={(e) => setMessage(e.target.value)}
+        <textarea ref={field} data-testid="commit-message" aria-label="Commit message" rows={5} value={message} onChange={(e) => setMessage(e.target.value)}
           disabled={phase !== 'ready'} placeholder={phase === 'saving' ? 'Saving open note…' : 'Proposing a message…'} />
         {(phase === 'saving' || phase === 'proposing') && <span className="spin ta-spin" />}
       </div>

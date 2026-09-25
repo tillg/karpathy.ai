@@ -135,7 +135,8 @@ export function Admin() {
     } catch (err) { setError(errorText(err)); } finally { setBusy(false); }
   };
   return (
-    <Modal title="Vaults & settings" onClose={() => setAdminOpen(false)} wide testid="admin">
+    // A long form: focus starts on the title, not on the "Add vault" fields far below (issue #39).
+    <Modal title="Vaults & settings" onClose={() => setAdminOpen(false)} wide testid="admin" focusTitle>
       <div className="gh">Vaults</div>
       {vaults?.length === 0 && <p className="muted">No vaults yet. Each vault is an existing GitHub repo.</p>}
       {vaults?.map((v) => <VaultRow key={v.id} v={v} />)}

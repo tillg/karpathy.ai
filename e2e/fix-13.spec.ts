@@ -39,6 +39,8 @@ test('queued prompt: visible bubble, stop restores it, no orphan chat', async ({
 
   // Clean up: stop A.
   await page.getByTestId('chat-item').click();
+  // Wait until the chat has loaded (Stop or Send shows) before deciding whether to stop it.
+  await expect(page.getByTestId('chat-stop').or(page.getByTestId('chat-send'))).toBeVisible({ timeout: 20_000 });
   if (await page.getByTestId('chat-stop').isVisible()) await page.getByTestId('chat-stop').click();
   await expect(page.getByTestId('chat-send')).toBeVisible({ timeout: 60_000 });
 });
@@ -82,6 +84,8 @@ test('queued prompt survives a reload; list shows markers; stop restores it', as
   // Clean up: stop A.
   await page.getByTestId('chat-back').click();
   await items.filter({ hasText: 'Read every note' }).click();
+  // Wait until the chat has loaded (Stop or Send shows) before deciding whether to stop it.
+  await expect(page.getByTestId('chat-stop').or(page.getByTestId('chat-send'))).toBeVisible({ timeout: 20_000 });
   if (await page.getByTestId('chat-stop').isVisible()) await page.getByTestId('chat-stop').click();
   await expect(page.getByTestId('chat-send')).toBeVisible({ timeout: 60_000 });
 });

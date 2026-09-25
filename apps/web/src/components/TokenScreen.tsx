@@ -22,7 +22,7 @@ export function TokenScreen({ onDone }: { onDone(): void }) {
   };
 
   return (
-    <div className="token-screen">
+    <main className="token-screen">
       <form className="token-card" onSubmit={submit}>
         <img src="/icon-192.png" alt="" className="token-logo" />
         <h1>karpathy.ai</h1>
@@ -34,6 +34,6 @@ export function TokenScreen({ onDone }: { onDone(): void }) {
         {error && <div className="form-error" role="alert">{error}</div>}
         <button className="btn wide" data-testid="token-submit" disabled={!value.trim() || busy}>{busy ? 'Checking…' : 'Continue'}</button>
       </form>
-    </div>
+    </main>
   );
 }

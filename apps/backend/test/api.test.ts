@@ -166,6 +166,18 @@ describe('vault admin', () => {
     expect((await t.api.get(`/vaults/${t.id}/files`)).body).toEqual([{ path: 'x.md', type: 'file' }]);
   });
 
+  it('DELETE is blocked while unpushed commits exist (decision 11)', async () => {
+    const t = await vaultApp();
+    const { rename } = await import('node:fs/promises');
+    await rename(t.remote.bare, `${t.remote.bare}.away`);
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Other.md'), 'x');
+    await t.api.post(`/vaults/${t.id}/commit`, { message: 'local only' });
+    const r = await t.api.delete(`/vaults/${t.id}`);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('unpushed');
+    await rename(`${t.remote.bare}.away`, t.remote.bare);
+  });
+
   it('DELETE is blocked while uncommitted changes exist, never touches the remote', async () => {
     const t = await vaultApp();
     const f = (await t.api.get(`/vaults/${t.id}/file?path=Home.md`)).body;

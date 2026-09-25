@@ -9,7 +9,7 @@ import { OpencodeCommitMessages } from '../src/commit-message.js';
 import { OpencodeHarness } from '../src/harness/opencode.js';
 import { makeApp, TOKEN } from './app-helpers.js';
 import { makeRemote, sh } from './helpers.js';
-import { DEAD_MODEL, startOpencode, testDir } from './opencode-container.js';
+import { DEAD_MODEL, DEAD_MODEL_2, startOpencode, testDir } from './opencode-container.js';
 
 // Default tier: a real opencode container, but the model doesn't exist in Ollama, so every
 // turn fails fast. That exercises the whole turn lifecycle deterministically without an LLM.
@@ -152,6 +152,24 @@ describe('chat API against a real opencode container', () => {
     await waitIdle(t.chat, t.id, chatId);
     const detail = (await t.api.get(`/vaults/${t.id}/chats/${chatId}`)).body;
     expect(detail.messages[0].model).toBe(DEAD_MODEL);
+  });
+
+  it('changing the model in settings changes the model reported for new turns (plan P4)', async () => {
+    const t = await setup();
+    const { createApp } = await import('../src/app.js');
+    const request = (await import('supertest')).default;
+    const app = createApp({ token: TOKEN, vaults: t.vaults, store: t.store, chat: t.chat, availableModels: () => t.harness.models() });
+    const auth = { Authorization: `Bearer ${TOKEN}` };
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    const turnWith = async (model: string) => {
+      expect((await request(app).patch('/api/settings').set(auth).send({ model })).status).toBe(200);
+      await t.api.post(`/vaults/${t.id}/chats/${chatId}/prompt`, { text: `with ${model}` });
+      await waitIdle(t.chat, t.id, chatId);
+    };
+    await turnWith(DEAD_MODEL_2);
+    await turnWith(DEAD_MODEL);
+    const users = (await t.api.get(`/vaults/${t.id}/chats/${chatId}`)).body.messages.filter((m: { role: string }) => m.role === 'user');
+    expect(users.map((m: { model: string }) => m.model)).toEqual([DEAD_MODEL_2, DEAD_MODEL]);
   });
 
   it('queued text, turn state in the list, and a title from the first prompt (#13)', async () => {

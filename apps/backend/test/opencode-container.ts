@@ -13,6 +13,8 @@ const OLLAMA_VOLUME = process.env.OLLAMA_VOLUME ?? 'kai-spike-ollama';
 export const LLM_MODEL = process.env.LLM_TEST_MODEL ?? 'ollama/qwen2.5:3b';
 /** Declared to opencode but not pulled in Ollama: every turn fails fast with a non-retryable 404. */
 export const DEAD_MODEL = 'ollama/kai-no-such-model';
+/** A second declared-but-not-pulled model, to observe a model switch without an LLM. */
+export const DEAD_MODEL_2 = 'ollama/kai-no-such-model-2';
 const CONFIG = resolve(import.meta.dirname, '../../../deploy/opencode/opencode.json');
 export const TEST_ROOT = resolve(import.meta.dirname, '../../../tmp/test-run');
 
@@ -54,7 +56,7 @@ export async function startOpencode(vaultsDir: string) {
     });
   });
   const models = Object.fromEntries(
-    [LLM_MODEL, DEAD_MODEL].map((m) => m.split('/').slice(1).join('/')).map((id) => [id, { name: id, tool_call: true }]),
+    [LLM_MODEL, DEAD_MODEL, DEAD_MODEL_2].map((m) => m.split('/').slice(1).join('/')).map((id) => [id, { name: id, tool_call: true }]),
   );
   const providerCfg = { provider: { ollama: { npm: '@ai-sdk/openai-compatible', name: 'Ollama', options: { baseURL: `http://${OLLAMA}:11434/v1` }, models } } };
   docker(

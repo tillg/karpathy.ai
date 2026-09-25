@@ -55,3 +55,17 @@ MVP boundary = milestone **M4** (chat that reads and writes the vault, mobile, g
 Out of scope: graph view, plugins, canvas, multi-user/real-time collaboration, offline AI.
 Skill portability caveats (Python scripts, scraper credentials, the non-portable RTK hook and
 global `~/.claude/CLAUDE.md`) are listed in `specs/01_mvp/mvp.md` §4.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues in `tillg/karpathy.ai` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

@@ -37,16 +37,29 @@ you hit **Commit & Push**. Obsidian mobile and desktop are attached to the same 
 
 ## Status
 
-Specification. See [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md); UI layout prototypes in
+Specification. See [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md), phased plan in
+[`specs/01_mvp/plan.md`](specs/01_mvp/plan.md); UI layout prototypes in
 [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
 
 ## Development
 
-Project skills live in `.claude/skills/`. `/grill-with-docs` (from
-[mattpocock/skills](https://github.com/mattpocock/skills)) interviews you about a plan
-and records resolved terms in `CONTEXT.md` and hard decisions as ADRs in `docs/adr/`;
-it depends on the bundled `grilling` and `domain-modeling` skills.
+Project skills live in `.claude/skills/`, vendored from
+[mattpocock/skills](https://github.com/mattpocock/skills) (`c55ee46`, without the
+`agents/` Codex configs):
+
+| Skill | Use |
+|---|---|
+| `/grill-with-docs` | Interview about a plan; records terms in `CONTEXT.md`, hard decisions as ADRs in `docs/adr/` |
+| `/to-spec`, `/to-tickets` | Turn a conversation or plan into a spec / tracer-bullet tickets on the issue tracker |
+| `/wayfinder` | Chart a large effort as a map of decision tickets and resolve them one by one |
+| `/triage` | Move issues through triage states and write agent briefs |
+| `/implement` | Implement a spec/tickets test-first, then review |
+| `tdd`, `code-review`, `codebase-design` | Red-green loop, two-axis review (standards + spec), deep-module vocabulary |
+| `/setup-matt-pocock-skills` | One-time repo setup (issue tracker, triage labels, domain docs) that `to-spec`, `to-tickets`, `triage`, `wayfinder` and `code-review` expect |
+
+Supporting skills called by the ones above: `grilling`, `domain-modeling`, `research`,
+`prototype`.
 
 ## Name
 

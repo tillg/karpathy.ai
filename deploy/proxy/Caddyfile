@@ -1,0 +1,16 @@
+# Prod: own domain on the home VPN, Let's Encrypt cert via DNS-01 (no public port needed).
+{$DOMAIN} {
+	tls {
+		dns {$DNS_PROVIDER:cloudflare} {file.{$DNS_API_TOKEN_FILE}}
+	}
+	encode zstd gzip
+	# Streams (NDJSON chat/events) must not be buffered.
+	reverse_proxy /api/* backend:8787 {
+		flush_interval -1
+	}
+	root * /srv
+	@sw path /sw.js /registerSW.js /manifest.webmanifest
+	header @sw Cache-Control "no-cache"
+	try_files {path} /index.html
+	file_server
+}

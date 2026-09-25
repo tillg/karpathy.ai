@@ -8,3 +8,12 @@ tmp/
 .LSOverride
 .Spotlight-V100
 .Trashes
+
+# deploy secrets / local env
+deploy/secrets/
+deploy/.env
+deploy/opencode.env
+node_modules/
+dist/
+test-results/
+playwright-report/

@@ -1,0 +1,12 @@
+# Dev: Caddy's internal CA on localhost; the PWA comes from the Vite dev server (HMR).
+{
+	local_certs
+	skip_install_trust
+}
+https://localhost {
+	tls internal
+	reverse_proxy /api/* backend:8787 {
+		flush_interval -1
+	}
+	reverse_proxy web:5173
+}

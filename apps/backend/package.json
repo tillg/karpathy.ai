@@ -1,0 +1,27 @@
+{
+  "name": "@karpathy/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run --project default",
+    "test:github": "vitest run --project github",
+    "test:llm": "vitest run --project llm"
+  },
+  "dependencies": {
+    "@karpathy/shared": "*",
+    "@opencode-ai/sdk": "1.18.25",
+    "chokidar": "^5.0.0",
+    "express": "^5.2.1",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.3.0",
+    "vitest": "^5.0.2"
+  }
+}

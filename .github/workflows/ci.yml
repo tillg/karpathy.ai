@@ -1,0 +1,37 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+  schedule: [{ cron: '0 3 * * *' }]
+  workflow_dispatch:
+
+jobs:
+  default:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w apps/web
+      - run: docker compose -f deploy/compose.yml -f deploy/compose.dev.yml config -q
+        env: { DOMAIN: ci.example.com, GIT_AUTHOR_NAME: ci, GIT_AUTHOR_EMAIL: ci@example.com }
+
+  nightly:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:github
+        env: { TEST_VAULT_TOKEN: '${{ secrets.TEST_VAULT_TOKEN }}' }
+      - run: npm run test:llm
+        env:
+          OPENAI_API_KEY: '${{ secrets.OPENAI_API_KEY }}'
+          LLM_TEST_MODEL: openai/gpt-5-mini

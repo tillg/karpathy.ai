@@ -1,0 +1,30 @@
+# Backend: Node/TS run via tsx (no build step). git + ripgrep for the git and search APIs.
+FROM node:22-alpine AS base
+RUN apk add --no-cache git ripgrep
+ARG APP_UID=1000
+ARG APP_GID=1000
+# Mount points owned by the app user, so fresh named volumes inherit the ownership.
+RUN mkdir -p /vaults /config /app && chown -R ${APP_UID}:${APP_GID} /vaults /config /app
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/backend/package.json apps/backend/
+HEALTHCHECK --interval=10s --timeout=3s --retries=6 CMD wget -qO- http://127.0.0.1:8787/healthz || exit 1
+
+# Dev: all deps; sources are bind-mounted and run with tsx watch (compose.dev.yml).
+FROM base AS dev
+RUN npm ci --workspace apps/backend --include-workspace-root=false && npm cache clean --force
+USER ${APP_UID}:${APP_GID}
+WORKDIR /app/apps/backend
+ENV PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config
+CMD ["npx", "tsx", "watch", "--clear-screen=false", "src/main.ts"]
+
+FROM base AS prod
+RUN npm ci --workspace apps/backend --include-workspace-root=false --omit=dev && npm cache clean --force
+COPY packages/shared packages/shared
+COPY apps/backend apps/backend
+USER ${APP_UID}:${APP_GID}
+WORKDIR /app/apps/backend
+ENV NODE_ENV=production PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config
+EXPOSE 8787
+CMD ["npx", "tsx", "src/main.ts"]

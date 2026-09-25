@@ -1,0 +1,67 @@
+# karpathy.ai stack (mvp §2.5). Only the proxy publishes ports; opencode is internal-only.
+name: karpathy-ai
+
+x-app-user: &app-user "${APP_UID:-1000}:${APP_GID:-1000}"
+
+services:
+  proxy:
+    build: { context: .., dockerfile: deploy/proxy/Dockerfile }
+    restart: unless-stopped
+    ports: ["443:443", "80:80"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+      DNS_PROVIDER: ${DNS_PROVIDER:-cloudflare}
+      DNS_API_TOKEN_FILE: /run/secrets/dns_api_token
+    secrets: [dns_api_token]
+    volumes: [caddy-data:/data]
+    depends_on:
+      backend: { condition: service_healthy }
+    networks: [edge, internal]
+
+  backend:
+    build: { context: .., dockerfile: deploy/backend/Dockerfile }
+    restart: unless-stopped
+    user: *app-user
+    environment:
+      BEARER_TOKEN_FILE: /run/secrets/bearer_token
+      GITHUB_TOKEN_FILE: /run/secrets/github_token
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:?set GIT_AUTHOR_NAME}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:?set GIT_AUTHOR_EMAIL}
+      OPENCODE_URL: http://opencode:4096
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-5}
+      OPENCODE_VAULTS_DIR: /vaults
+    secrets: [bearer_token, github_token]
+    volumes:
+      - vaults:/vaults
+      - config:/config
+    depends_on:
+      opencode: { condition: service_started }
+    networks: [internal]
+
+  opencode:
+    build: { context: .., dockerfile: deploy/opencode/Dockerfile }
+    restart: unless-stopped
+    user: *app-user
+    env_file: [{ path: ./opencode.env, required: false }]
+    environment:
+      OPENCODE_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-5}
+    volumes:
+      - vaults:/vaults
+      - opencode-data:/data
+    networks: [internal]
+
+networks:
+  edge: {}
+  # No egress restriction: opencode must reach the LLM provider APIs.
+  internal: {}
+
+volumes:
+  vaults: {}
+  config: {}
+  opencode-data: {}
+  caddy-data: {}
+
+secrets:
+  bearer_token: { file: ./secrets/bearer_token }
+  github_token: { file: ./secrets/github_token }
+  dns_api_token: { file: ./secrets/dns_api_token }

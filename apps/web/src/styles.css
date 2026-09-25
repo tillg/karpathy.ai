@@ -255,7 +255,7 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .inrow { display: flex; align-items: flex-end; gap: 8px; }
 .inrow textarea { flex: 1; min-width: 0; resize: none; border: .5px solid var(--sep); background: var(--bg2); border-radius: 20px; padding: 8px 14px; font-size: 16px; outline: none; max-height: 120px; line-height: 1.35; }
 .send { width: 36px; height: 36px; border-radius: 50%; background: var(--tint); color: var(--on-tint); display: flex; align-items: center; justify-content: center; flex: none; margin-bottom: 1px; }
-.send.stop { background: var(--red); color: #fff; }
+.send.stop { background: var(--badge); color: #fff; } /* --badge: white on it ≥ 4.5:1 in both themes (#51) */
 .grp { margin: 0 16px 22px; background: var(--bg2); border-radius: 12px; overflow: hidden; }
 .row { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 44px; padding-right: 8px; position: relative; }
 .row + .row::before { content: ""; position: absolute; top: 0; left: 48px; right: 0; height: .5px; background: var(--sep); }
@@ -384,4 +384,10 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 /* Honour "Reduce motion" (#47). */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Phone: secondary controls in the conflict view get a 44px target too (#52). */
+@media (max-width: 699px) {
+  .dl.skip, .banner .link { min-height: 44px; }
+  .banner .link { display: inline-flex; align-items: center; padding: 0 6px; }
 }

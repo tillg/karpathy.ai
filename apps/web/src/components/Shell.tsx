@@ -56,6 +56,15 @@ export function Shell() {
     return () => removeEventListener('keydown', k);
   }, [overlay, sidebarOpen, setSidebarOpen, setChatOpen]);
 
+  // Tablet: an opened overlay takes focus (its toggle is now behind the scrim, #50).
+  const { chatOpen } = s;
+  useEffect(() => {
+    if (!tablet || (!sidebarOpen && !chatOpen)) return;
+    const pane = document.getElementById(sidebarOpen ? 'sidebar' : 'chat');
+    if (pane && !pane.contains(document.activeElement))
+      pane.querySelector<HTMLElement>('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')?.focus();
+  }, [tablet, sidebarOpen, chatOpen]);
+
   return (
     <>
       {/* Page heading + banner landmark for screen readers (issue #47); the panes are main/aside. */}

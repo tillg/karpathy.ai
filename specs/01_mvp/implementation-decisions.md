@@ -20,9 +20,9 @@ real Safari (decision 43).
 
 **Testing:** backend 119 tests (real git with local bare remotes + a real opencode container),
 `@github` tier 3 tests (throwaway repo `tillg/karpathy-ai-test-vault`), `@llm` tier 7 tests
-(real model turns), web 48 unit tests, Playwright e2e 33 spec files / ~135 tests in Chromium
-(desktop, iPad, iPhone) and WebKit, plus a prod-image smoke run. Five rounds of exploratory,
-resilience, security, accessibility and performance testing filed 49 GitHub issues
+(real model turns), web 51 unit tests, Playwright e2e ~36 spec files / 158 tests in Chromium
+(desktop, iPad, iPhone) and WebKit incl. axe accessibility checks, plus a prod-image smoke run.
+Five rounds of exploratory, resilience, security, accessibility and performance testing filed 52 GitHub issues
 (`e2e-found` label); all fixed with a regression test and closed except those still in progress
 at the time of writing (see `gh issue list -R tillg/karpathy.ai`).
 

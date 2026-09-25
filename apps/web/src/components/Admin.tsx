@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { useApp } from '../store';
 import { Modal } from './Dialogs';
+import { Icon } from './Icon';
 
 interface Form { name: string; repo: string; branch: string; root: string }
 const emptyForm: Form = { name: '', repo: '', branch: 'main', root: '' };
@@ -72,25 +73,37 @@ function SettingsForm() {
   const [threshold, setThreshold] = useState('');
   const [model, setModel] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (settings) { setThreshold(String(settings.commitReminderThreshold)); setModel(settings.model); }
   }, [settings]);
+  const edit = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { set(e.target.value); setSaved(false); };
   const save = async () => {
+    setSaved(false);
+    const n = Number(threshold);
+    if (!/^\d+$/.test(threshold.trim()) || n < 1 || n > 1000) return setError('Commit reminder: enter a whole number between 1 and 1000.');
+    if (!model.trim()) return setError('Model: enter provider/model, e.g. anthropic/claude-sonnet-5.');
+    setBusy(true);
     try {
-      setSettings(await api.patchSettings({ commitReminderThreshold: Number(threshold), model: model.trim() }));
+      setSettings(await api.patchSettings({ commitReminderThreshold: n, model: model.trim() }));
       setError(null);
+      setSaved(true);
       toast('Settings saved');
-    } catch (e) { setError(errorText(e)); }
+    } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   };
   return (
     <div className="form">
       <label className="field"><span>Commit reminder after (changed files)</span>
-        <input data-testid="settings-threshold" type="number" min={1} max={1000} value={threshold} onChange={(e) => setThreshold(e.target.value)} /></label>
+        <input data-testid="settings-threshold" type="number" min={1} max={1000} step={1} value={threshold} onChange={edit(setThreshold)} /></label>
       <label className="field"><span>Model (server-wide, provider/model)</span>
-        <input data-testid="settings-model" value={model} autoCapitalize="off" spellCheck={false} onChange={(e) => setModel(e.target.value)} /></label>
+        <input data-testid="settings-model" value={model} autoCapitalize="off" spellCheck={false} onChange={edit(setModel)} /></label>
       <p className="muted">Provider keys live on the server only; the app never sees them.</p>
-      {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="acts"><button className="btn" data-testid="settings-save" onClick={() => void save()}>Save settings</button></div>
+      {error && <div className="form-error" role="alert" data-testid="settings-error">{error}</div>}
+      <div className="acts">
+        {saved && <span className="saved" role="status" data-testid="settings-saved"><Icon n="checkmark" size={15} />Saved</span>}
+        <button className="btn" data-testid="settings-save" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save settings'}</button>
+      </div>
     </div>
   );
 }

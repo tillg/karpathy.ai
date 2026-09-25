@@ -102,7 +102,9 @@ test('AI write → changed chip, "Open changed page", changes counter increments
   }
   await expect(chip).toBeVisible();
   await expect(chip).toContainText(/changed (\.\/)?ai-note\.md/);
-  await expect(badge).toHaveAttribute('data-count', String(before + 1));
+  // The counter follows the event stream; the small model sometimes writes extra files, so
+  // assert "went up and includes ai-note.md" rather than an exact count.
+  await expect.poll(async () => Number(await badge.getAttribute('data-count'))).toBeGreaterThan(before);
   expect(await api.file(vault.id, 'ai-note.md')).not.toBeNull();
 
   await page.locator('[data-testid="open-changed"][data-path$="ai-note.md"]').click();

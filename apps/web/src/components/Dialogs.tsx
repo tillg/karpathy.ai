@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { dismissReminder, reminderDue, type Dismissed } from '../lib/reminder';
 import { useApp } from '../store';
 
-export function Modal({ title, onClose, children, wide, testid }: { title: string; onClose(): void; children: ReactNode; wide?: boolean; testid?: string }) {
+export function Modal({ title, onClose, children, wide, testid, className }: { title: string; onClose(): void; children: ReactNode; wide?: boolean; testid?: string; className?: string }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     addEventListener('keydown', k);
@@ -10,7 +10,7 @@ export function Modal({ title, onClose, children, wide, testid }: { title: strin
   }, [onClose]);
   return (
     <div className="modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-label={title} data-testid={testid}>
+      <div className={`modal${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-label={title} data-testid={testid}>
         <div className="modal-bar"><b>{title}</b><button className="ib txt" onClick={onClose}>Close</button></div>
         <div className="modal-body">{children}</div>
       </div>

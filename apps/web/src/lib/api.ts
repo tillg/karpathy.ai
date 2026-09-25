@@ -19,23 +19,25 @@ export class ApiError extends Error {
 }
 
 /** Raw authed fetch against /api; throws ApiError for non-2xx. */
-export async function request(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
+export async function request(method: string, path: string, body?: unknown, signal?: AbortSignal, keepalive = false): Promise<Response> {
   const headers: Record<string, string> = { Authorization: `Bearer ${getToken() ?? ''}` };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal });
+  const data = body === undefined ? undefined : JSON.stringify(body);
+  // keepalive lets a save outlive the page (pagehide), but browsers cap such bodies at 64 KiB.
+  const res = await fetch(`/api${path}`, { method, headers, body: data, signal, keepalive: keepalive && (data?.length ?? 0) < 60_000 });
   if (res.ok) return res;
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const err = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
     // The offline cache holds note contents; drop it together with the token.
     void globalThis.caches?.delete('vault-api');
     onUnauthorized();
   }
-  throw new ApiError(res.status, typeof data.error === 'string' ? data.error : `${res.status} ${res.statusText}`, data.code as string | undefined, data);
+  throw new ApiError(res.status, typeof err.error === 'string' ? err.error : `${res.status} ${res.statusText}`, err.code as string | undefined, err);
 }
 
-async function json<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await request(method, path, body, signal);
+async function json<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, keepalive = false): Promise<T> {
+  const res = await request(method, path, body, signal, keepalive);
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
@@ -58,12 +60,12 @@ export const api = {
 
   files: (id: string) => json<FileEntry[]>('GET', `${v(id)}/files`),
   file: (id: string, path: string) => json<FileContent>('GET', `${v(id)}/file?${q(path)}`),
-  putFile: (id: string, path: string, content: string, version: string | null, force = false) =>
-    json<{ version: string }>('PUT', `${v(id)}/file?${q(path)}`, { content, version, ...(force ? { force } : {}) }),
+  putFile: (id: string, path: string, content: string, version: string | null, force = false, keepalive = false) =>
+    json<{ version: string }>('PUT', `${v(id)}/file?${q(path)}`, { content, version, ...(force ? { force } : {}) }, undefined, keepalive),
   deleteFile: (id: string, path: string, version: string) =>
     json<void>('DELETE', `${v(id)}/file?${q(path)}&version=${encodeURIComponent(version)}`),
   search: (id: string, text: string, signal?: AbortSignal) =>
-    json<SearchHit[]>('GET', `${v(id)}/search?q=${encodeURIComponent(text)}`, undefined, signal),
+    json<{ hits: SearchHit[]; truncated: boolean }>('GET', `${v(id)}/search?q=${encodeURIComponent(text)}`, undefined, signal),
 
   changes: (id: string) => json<Change[]>('GET', `${v(id)}/changes`),
   diff: (id: string, path: string) => json<Diff>('GET', `${v(id)}/changes/diff?${q(path)}`),

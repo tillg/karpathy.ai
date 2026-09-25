@@ -1,7 +1,9 @@
 import type { FileEntry, Settings, Vault, VaultEvent, VaultStatus } from '@karpathy/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, api, errorText } from './lib/api';
+import { draftAction, dropDraft, getDraft, putDraft } from './lib/drafts';
 import { readNdjson } from './lib/ndjson';
+import { formatRoute, parseRoute } from './lib/route';
 import { parseWikilink, resolveWikilink } from './lib/wikilink';
 
 export type Section = 'files' | 'search' | 'changes';
@@ -15,11 +17,25 @@ export interface NoteView {
   version: string;
   dirty: boolean;
   saving: boolean;
+  /** Deleted elsewhere (AI, another device, discard) while open. */
+  deleted?: boolean;
   goto?: { line: number; nonce: number };
 }
 
+/** The open note's save state; `version` is the server version `saved` corresponds to. */
+interface OpenNote { vault: string; path: string; version: string; saved: string; draft: string; deleted?: boolean }
+
 const ACTIVE_KEY = 'karpathy.activeVault';
 const AUTOSAVE_MS = 1500;
+const RETRY_MS = 10_000;
+const drafts = () => localStorage;
+
+/** Mirrors the open note's unsaved text to localStorage (dropped once it is on the server). */
+const persist = (n: OpenNote) => {
+  if (n.draft === n.saved) dropDraft(drafts(), n.vault, n.path);
+  else putDraft(drafts(), n.vault, n.path, { base: n.version, text: n.draft });
+};
+const isOpen = (n: OpenNote | null, st: { vault: string; path: string } | null) => !!st && !!n && n.vault === st.vault && n.path === st.path;
 
 const headingLine = (text: string, heading: string) => {
   const i = text.split('\n').findIndex((l) => /^#{1,6}\s/.test(l) && l.replace(/^#+\s+/, '').trim() === heading);
@@ -98,7 +114,13 @@ function useAppState() {
   // ---- vaults + settings ----
   const [vaults, setVaults] = useState<Vault[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [activeId, setActiveIdState] = useState<string | null>(() => localStorage.getItem(ACTIVE_KEY));
+  // The URL (#/<vault>/<path>) wins over the stored vault; its note is opened once the vault is usable.
+  const initialRoute = useRef(parseRoute(location.hash));
+  const pendingRoute = useRef<{ vault: string; path: string } | null>(
+    initialRoute.current.vault && initialRoute.current.path ? { vault: initialRoute.current.vault, path: initialRoute.current.path } : null);
+  const [activeId, setActiveIdState] = useState<string | null>(() => initialRoute.current.vault ?? localStorage.getItem(ACTIVE_KEY));
+  const activeRef = useRef(activeId);
+  activeRef.current = activeId;
   const reloadVaults = useCallback(async () => {
     try { setVaults(await api.vaults()); } catch (e) { toast(errorText(e)); setVaults((v) => v ?? []); }
   }, [toast]);
@@ -134,40 +156,59 @@ function useAppState() {
   useEffect(() => {
     setStatus(null);
     setFiles([]);
+  }, [activeId, usable]);
+  // Going offline keeps the tree in memory (the refetch may fail without a cached copy).
+  useEffect(() => {
     if (!usable || !activeId) return;
     if (online) api.open(activeId).then(setStatus).catch((e) => toast(errorText(e)));
     void refreshFiles();
   }, [activeId, usable, online, refreshFiles, toast]);
 
   // ---- note + autosave ----
+  // Unsaved text is mirrored to localStorage (lib/drafts) on every edit, so a reload, a closed tab
+  // or a killed PWA never loses it; it is restored when the note is opened again.
   const [note, setNote] = useState<NoteView | null>(null);
-  const noteRef = useRef<{ path: string; version: string; saved: string; draft: string } | null>(null);
+  const noteRef = useRef<OpenNote | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inflight = useRef<Promise<void> | null>(null);
-  const [stale, setStale] = useState<{ path: string } | null>(null);
+  /** Why the last save of the open note failed: 'stale' and 'deleted' block leaving the note. */
+  const failed = useRef<'stale' | 'deleted' | 'error' | null>(null);
+  const [stale, setStale] = useState<{ vault: string; path: string } | null>(null);
 
   /** Resolves true when the open note's text is on the server (nothing to save counts). */
-  const save = useCallback(async (force = false): Promise<boolean> => {
+  const save = useCallback(async (force = false, keepalive = false): Promise<boolean> => {
     clearTimeout(timer.current);
     while (inflight.current) await inflight.current;
     const n = noteRef.current;
-    if (!n || !activeId || (!force && n.draft === n.saved)) return true;
+    if (!n || (!force && n.draft === n.saved)) return true;
+    if (n.deleted) { failed.current = 'deleted'; return false; }
     let ok = false;
     const text = n.draft;
     setNote((v) => v && { ...v, saving: true });
-    inflight.current = api.putFile(activeId, n.path, text, n.version, force)
+    inflight.current = api.putFile(n.vault, n.path, text, n.version, force, keepalive)
       .then((r) => {
-        if (noteRef.current !== n) return;
         n.version = r.version;
         n.saved = text;
         ok = true;
-        setStale(null);
+        persist(n);
+        if (noteRef.current !== n) return;
+        if (failed.current === 'error') toast('Saved');
+        failed.current = null;
+        setStale((st) => (st?.vault === n.vault && st.path === n.path ? null : st));
         setNote((v) => v && { ...v, version: r.version, dirty: n.draft !== text });
       })
       .catch((e) => {
-        if (e instanceof ApiError && e.status === 409) setStale({ path: n.path });
-        else if (e instanceof ApiError && e.status === 423) toast('Vault is in conflict — resolve it before editing');
-        else toast(`Save failed: ${errorText(e)}`);
+        if (noteRef.current !== n) return;
+        if (e instanceof ApiError && e.status === 409) {
+          failed.current = 'stale';
+          setStale({ vault: n.vault, path: n.path });
+          return;
+        }
+        if (e instanceof ApiError && e.status === 423) toast('Vault is in conflict — resolve it before editing');
+        else if (failed.current !== 'error') toast(`Save failed: ${errorText(e)}`);
+        failed.current = 'error';
+        // The draft is kept locally; retry later (and on `online`, see below).
+        if (navigator.onLine) timer.current = setTimeout(() => void save(false), RETRY_MS);
       })
       .finally(() => {
         inflight.current = null;
@@ -175,32 +216,83 @@ function useAppState() {
       });
     await inflight.current;
     return ok;
-  }, [activeId, toast]);
+  }, [toast]);
 
   const flush = useCallback(() => save(false), [save]);
+
+  /** Flush before leaving the open note. False = stay: the save is stale or the note was deleted. */
+  const leave = useCallback(async () => {
+    if (await save(false)) return true;
+    const n = noteRef.current;
+    if (failed.current === 'stale' && n) setStale({ vault: n.vault, path: n.path });
+    if (failed.current === 'deleted' && n) toast(`${n.path} was deleted — keep it as a new note or close it first`);
+    // Other failures (offline, server error): the draft is stored locally and restored on reopen.
+    return failed.current !== 'stale' && failed.current !== 'deleted';
+  }, [save, toast]);
 
   const editDraft = useCallback((text: string) => {
     const n = noteRef.current;
     if (!n) return;
     n.draft = text;
+    persist(n);
     setNote((v) => v && (v.dirty === (text !== n.saved) ? v : { ...v, dirty: text !== n.saved }));
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(false), AUTOSAVE_MS);
+    if (!n.deleted) timer.current = setTimeout(() => void save(false), AUTOSAVE_MS);
   }, [save]);
 
-  const load = useCallback(async (path: string, line?: number, heading?: string) => {
-    if (!activeId) return false;
+  /** Loads a note; a locally stored draft is restored (or, if the note changed since, goes stale). */
+  const load = useCallback(async (path: string, line?: number, heading?: string): Promise<'ok' | 'missing' | 'error'> => {
+    const vault = activeId;
+    if (!vault) return 'error';
     try {
-      const f = await api.file(activeId, path);
-      noteRef.current = { path, version: f.version, saved: f.content, draft: f.content };
-      if (heading) line = headingLine(f.content, heading) ?? line;
-      setNote({ path, loaded: f.content, loadNonce: Date.now(), version: f.version, dirty: false, saving: false, ...(line ? { goto: { line, nonce: Date.now() } } : {}) });
-      return true;
+      const f = await api.file(vault, path);
+      const d = getDraft(drafts(), vault, path);
+      const act = draftAction(d, f.version, f.content);
+      if (act === 'none' && d) dropDraft(drafts(), vault, path);
+      const text = act === 'none' ? f.content : d!.text;
+      // Stale draft: keep its old base, so saving it goes through the stale-save flow.
+      const version = act === 'stale' ? d!.base : f.version;
+      clearTimeout(timer.current);
+      failed.current = null;
+      noteRef.current = { vault, path, version, saved: f.content, draft: text };
+      if (heading) line = headingLine(text, heading) ?? line;
+      setNote({ path, loaded: text, loadNonce: Date.now(), version, dirty: text !== f.content, saving: false, ...(line ? { goto: { line, nonce: Date.now() } } : {}) });
+      if (act === 'restore') {
+        toast('Restored unsaved changes');
+        timer.current = setTimeout(() => void save(false), AUTOSAVE_MS);
+      }
+      if (act === 'stale') setStale({ vault, path });
+      return 'ok';
     } catch (e) {
-      toast(e instanceof ApiError && e.status === 404 ? `No page “${path}”` : errorText(e));
-      return false;
+      const missing = e instanceof ApiError && e.status === 404;
+      toast(missing ? `No page “${path}”` : errorText(e));
+      return missing ? 'missing' : 'error';
     }
-  }, [activeId, toast]);
+  }, [activeId, toast, save]);
+
+  // Leaving the page (reload, tab closed, PWA backgrounded/killed): flush now; warn while unsaved.
+  useEffect(() => {
+    const hide = () => { if (document.visibilityState === 'hidden') void save(false, true); };
+    const pagehide = () => void save(false, true);
+    const beforeunload = (e: BeforeUnloadEvent) => {
+      const n = noteRef.current;
+      if (n && n.draft !== n.saved) { e.preventDefault(); e.returnValue = ''; }
+    };
+    document.addEventListener('visibilitychange', hide);
+    addEventListener('pagehide', pagehide);
+    addEventListener('beforeunload', beforeunload);
+    return () => {
+      document.removeEventListener('visibilitychange', hide);
+      removeEventListener('pagehide', pagehide);
+      removeEventListener('beforeunload', beforeunload);
+    };
+  }, [save]);
+
+  // Back online: retry a save that failed meanwhile.
+  useEffect(() => {
+    const n = noteRef.current;
+    if (online && n && n.draft !== n.saved && failed.current !== 'stale') void save(false);
+  }, [online, save]);
 
   // ---- UI state ----
   const [section, setSection] = useState<Section>('files');
@@ -218,15 +310,16 @@ function useAppState() {
   const [commitOpen, setCommitOpen] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
 
-  const openNote = useCallback(async (path: string, line?: number, heading?: string) => {
+  /** `keepMode`: link/history navigation keeps Read mode; the tree, search etc. open in Write mode. */
+  const openNote = useCallback(async (path: string, line?: number, heading?: string, keepMode = false) => {
     const cur = noteRef.current;
     if (cur?.path === path) {
       const l = heading ? headingLine(cur.draft, heading) : line;
       if (l) setNote((v) => v && { ...v, goto: { line: l, nonce: Date.now() } });
     } else {
-      await flush();
-      if (!(await load(path, line, heading))) return;
-      setMode('write');
+      if (!(await leave())) return;
+      if ((await load(path, line, heading)) !== 'ok') return;
+      if (!keepMode) setMode('write');
     }
     if (phone) {
       const tab = phoneTab === 'chat' ? 'files' : phoneTab;
@@ -236,36 +329,88 @@ function useAppState() {
       setSidebarOpen(false);
       setChatOpen(false);
     }
-  }, [flush, load, phone, wide, phoneTab]);
+  }, [leave, load, phone, wide, phoneTab]);
 
-  const closeNote = useCallback(async () => {
-    await flush();
+  const dropNote = useCallback(() => {
+    clearTimeout(timer.current);
     noteRef.current = null;
     setNote(null);
     setNoteTab(null);
-  }, [flush]);
+  }, []);
+
+  const closeNote = useCallback(async () => {
+    if (!(await leave())) return false;
+    dropNote();
+    return true;
+  }, [leave, dropNote]);
 
   const followLink = useCallback((inner: string) => {
     const l = parseWikilink(inner);
     if (!l.target) {
-      if (l.heading && noteRef.current) void openNote(noteRef.current.path, undefined, l.heading);
+      if (l.heading && noteRef.current) void openNote(noteRef.current.path, undefined, l.heading, true);
       return;
     }
     const p = resolveWikilink(l.target, pathsRef.current);
-    if (p) void openNote(p, undefined, l.heading);
+    if (p) void openNote(p, undefined, l.heading, true);
     else toast(`No page “${l.target}” yet`);
   }, [openNote, toast]);
 
   const exists = useCallback((target: string) => resolveWikilink(target, pathsRef.current) !== null, []);
 
+  /** Stale dialog: drop my edits of the stale note (and show the server version if it is open). */
   const reloadNote = useCallback(async () => {
-    const n = noteRef.current;
-    clearTimeout(timer.current);
+    const st = stale;
     setStale(null);
-    if (n) await load(n.path);
-  }, [load]);
+    if (!st) return;
+    dropDraft(drafts(), st.vault, st.path);
+    if (!isOpen(noteRef.current, st)) return;
+    clearTimeout(timer.current);
+    if ((await load(st.path)) === 'missing') dropNote();
+  }, [stale, load, dropNote]);
 
-  const overwriteNote = useCallback(() => save(true), [save]);
+  /** Stale dialog: force-save my text of the stale note. */
+  const overwriteNote = useCallback(async () => {
+    const st = stale;
+    if (!st) return false;
+    if (isOpen(noteRef.current, st)) return save(true);
+    setStale(null);
+    const d = getDraft(drafts(), st.vault, st.path);
+    if (!d) return true;
+    try {
+      await api.putFile(st.vault, st.path, d.text, d.base, true);
+      dropDraft(drafts(), st.vault, st.path);
+      return true;
+    } catch (e) {
+      toast(`Save failed: ${errorText(e)}`);
+      return false;
+    }
+  }, [stale, save, toast]);
+
+  /** Deleted-note banner: recreate the note with the current text. */
+  const keepDeletedNote = useCallback(async () => {
+    const n = noteRef.current;
+    if (!n?.deleted) return;
+    const text = n.draft;
+    try {
+      const r = await api.putFile(n.vault, n.path, text, null);
+      n.deleted = false;
+      n.version = r.version;
+      n.saved = text;
+      failed.current = null;
+      persist(n);
+      setNote((v) => v && { ...v, deleted: false, version: r.version, dirty: n.draft !== text });
+      void refreshFiles();
+    } catch (e) {
+      toast(e instanceof ApiError && e.status === 409 ? `${n.path} exists again — reopen it` : errorText(e));
+    }
+  }, [refreshFiles, toast]);
+
+  /** Deleted-note banner: close it (dropping unsaved edits). */
+  const closeDeletedNote = useCallback(() => {
+    const n = noteRef.current;
+    if (n) dropDraft(drafts(), n.vault, n.path);
+    dropNote();
+  }, [dropNote]);
 
   const deleteNote = useCallback(async () => {
     const n = noteRef.current;
@@ -273,15 +418,14 @@ function useAppState() {
     try {
       clearTimeout(timer.current);
       await api.deleteFile(activeId, n.path, n.version);
-      noteRef.current = null;
-      setNote(null);
-      setNoteTab(null);
+      dropDraft(drafts(), n.vault, n.path);
+      dropNote();
       toast(`Deleted ${n.path}`);
       void refreshFiles();
     } catch (e) {
       toast(e instanceof ApiError && e.status === 409 ? 'The note changed since it was loaded — reload it first' : errorText(e));
     }
-  }, [activeId, refreshFiles, toast]);
+  }, [activeId, refreshFiles, toast, dropNote]);
 
   const newNote = useCallback(async (path: string) => {
     if (!activeId) return;
@@ -291,19 +435,55 @@ function useAppState() {
       await refreshFiles();
       await openNote(path);
     } catch (e) {
-      toast(e instanceof ApiError && e.status === 409 ? `${path} already exists` : errorText(e));
+      toast(e instanceof ApiError && e.code === 'exists-case' ? `Can’t create ${path}: ${e.message}` : e instanceof ApiError && e.status === 409 ? `${path} already exists` : errorText(e));
     }
   }, [activeId, refreshFiles, openNote, toast]);
 
-  // Switching vaults: flush and drop the open note and chat.
-  const setActiveId = useCallback(async (id: string) => {
-    await flush();
-    noteRef.current = null;
-    setNote(null);
-    setNoteTab(null);
+  // Switching vaults: flush and drop the open note and chat; `path` = note to open there (history).
+  const setActiveId = useCallback(async (id: string, path?: string | null) => {
+    if (!(await leave())) return;
+    dropNote();
     setChatId(null);
+    pendingRoute.current = path ? { vault: id, path } : null;
     setActiveIdState(id);
-  }, [flush]);
+  }, [leave, dropNote]);
+
+  // ---- URL: #/<vault>/<path> (Back/Forward, reload) ----
+  const syncRoute = useCallback((replace = false) => {
+    if (pendingRoute.current) return;
+    const h = formatRoute(activeRef.current, noteRef.current?.path);
+    if (location.hash === h) return;
+    const url = h || location.pathname + location.search;
+    if (replace || !location.hash) history.replaceState(null, '', url);
+    else history.pushState(null, '', url);
+  }, []);
+  useEffect(() => syncRoute(), [activeId, note?.path, syncRoute]);
+
+  // Open the note from the URL once its vault is usable.
+  useEffect(() => {
+    const p = pendingRoute.current;
+    if (!p || !vaults) return;
+    if (p.vault !== activeId || (active && active.state === 'clone-failed')) { pendingRoute.current = null; syncRoute(true); return; }
+    if (!usable) return;
+    pendingRoute.current = null;
+    void openNote(p.path, undefined, undefined, true).then(() => syncRoute(true));
+  }, [vaults, active, activeId, usable, openNote, syncRoute]);
+
+  useEffect(() => {
+    const onPop = async () => {
+      const r = parseRoute(location.hash);
+      if (!r.vault) return;
+      if (r.vault !== activeRef.current) await setActiveId(r.vault, r.path);
+      else if (r.path && r.path !== noteRef.current?.path) await openNote(r.path, undefined, undefined, true);
+      else if (!r.path && noteRef.current) await closeNote();
+      else if (r.path && phone) setNoteTab(phoneTab === 'chat' ? 'files' : phoneTab);
+      // Blocked (stale save) or failed: the URL shows what is actually open.
+      syncRoute(true);
+    };
+    const h = () => void onPop();
+    addEventListener('popstate', h);
+    return () => removeEventListener('popstate', h);
+  }, [setActiveId, openNote, closeNote, syncRoute, phone, phoneTab]);
 
   // ---- event stream ----
   const onEvent = useCallback((e: VaultEvent) => {
@@ -318,8 +498,16 @@ function useAppState() {
     const hit = n && e.files.find((f) => f.path === n.path);
     if (!n || !hit || hit.version === n.version) return;
     if (hit.version === null) {
-      if (n.draft === n.saved) toast(`${n.path} was deleted`);
+      // Banner in NotePane: close it or keep it as a new note. No autosave meanwhile.
+      clearTimeout(timer.current);
+      n.deleted = true;
+      setNote((v) => v && { ...v, deleted: true });
       return;
+    }
+    if (n.deleted) {
+      // Recreated elsewhere: a save now goes through the stale-save flow.
+      n.deleted = false;
+      setNote((v) => v && { ...v, deleted: false });
     }
     // Unsaved changes are kept; the stale-save flow handles them on the next save.
     if (n.draft === n.saved && !inflight.current) {
@@ -336,6 +524,7 @@ function useAppState() {
     vaults, reloadVaults, settings, setSettings, active, activeId, setActiveId, usable,
     status, setStatus, files, paths, refreshFiles, changesNonce,
     note, openNote, closeNote, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
+    keepDeletedNote, closeDeletedNote,
     followLink, exists, readOnly, conflict,
     section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen,
     sidebarOpen, setSidebarOpen, mode, setMode, adminOpen, setAdminOpen, commitOpen, setCommitOpen, chatId, setChatId,

@@ -62,3 +62,29 @@ export function changedPaths(parts: ChatPart[]): string[] {
   }
   return out;
 }
+
+/** An optimistic prompt shown as a user bubble until the server has the message. */
+export interface PendingPrompt {
+  text: string;
+  /** User messages in the chat when the prompt was sent. */
+  userCount: number;
+  /** The server accepted (queued) the prompt. */
+  sent: boolean;
+  /** The turn was seen running. */
+  ran: boolean;
+}
+
+export const userCount = (c: ChatView | null) => c?.messages.filter((m) => m.role === 'user').length ?? 0;
+
+/**
+ * Next state of a pending prompt given the latest chat (pure): keep it (possibly updated),
+ * `drop` it (the server has the message), or `restore` it to the composer — the turn went idle
+ * without ever running (stopped while queued, or the pull before it failed).
+ */
+export function settlePending(p: PendingPrompt, c: ChatView): PendingPrompt | 'drop' | 'restore' {
+  if (userCount(c) > p.userCount) return 'drop';
+  if (!p.sent) return p;
+  if (c.turn === 'running') return p.ran ? p : { ...p, ran: true };
+  if (c.turn === 'idle') return p.ran ? 'drop' : 'restore';
+  return p;
+}

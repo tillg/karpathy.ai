@@ -1,7 +1,7 @@
 import type { ChatEvent, ChatMessage, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
-import { applyChatEvent, changedPaths, type ChatView } from '../lib/chat';
+import { applyChatEvent, changedPaths, settlePending, userCount, type ChatView, type PendingPrompt } from '../lib/chat';
 import { readNdjson } from '../lib/ndjson';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -115,7 +115,7 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
   const { settings, conflict, online, toast } = useApp();
   const { chat, setChat, error, attach } = useChat(vaultId, chatId);
   const [text, setText] = useState('');
-  const [pending, setPending] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingPrompt | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const model = (settings?.model ?? '').split('/').pop() ?? '';
   const busy = chat?.turn === 'queued' || chat?.turn === 'running';
@@ -125,20 +125,23 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
     if (el) el.scrollTop = el.scrollHeight;
   }, [chat, pending]);
   useEffect(() => {
-    // Drop the optimistic bubble once the server has the message (or the turn is over).
+    // Keep the optimistic bubble until the server has the message; a prompt stopped while
+    // still queued goes back into the composer.
     if (!pending || !chat) return;
-    const last = [...chat.messages].reverse().find((m) => m.role === 'user');
-    const lastText = last?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('').trim();
-    if (lastText === pending || chat.turn === 'idle') setPending(null);
+    const r = settlePending(pending, chat);
+    if (r === 'drop') setPending(null);
+    else if (r === 'restore') { setPending(null); setText((t) => t || pending.text); }
+    else if (r !== pending) setPending(r);
   }, [chat, pending]);
 
   const send = async () => {
     const t = text.trim();
-    if (!t || busy) return;
+    if (!t || busy || pending) return;
     setText('');
-    setPending(t);
+    setPending({ text: t, userCount: userCount(chat), sent: false, ran: false });
     try {
       await api.prompt(vaultId, chatId, t);
+      setPending((p) => p && { ...p, sent: true });
       setChat((c) => c && { ...c, turn: 'queued' });
       void attach();
     } catch (e) {
@@ -160,7 +163,7 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
           {error && <div className="form-error">{error}</div>}
           {chat && !chat.messages.length && !pending && <div className="day">New chat · ask about this vault</div>}
           {chat?.messages.map((m) => <Message key={m.id} m={m} model={model} />)}
-          {pending && <div className="u pending">{pending}</div>}
+          {pending && <div className="u pending" data-testid="chat-pending">{pending.text}</div>}
           {chat?.turn === 'queued' && <div className="turn-state" data-testid="chat-queued"><span className="spin" />{chat.waiting === 'sync' ? 'Waiting for sync…' : 'Waiting for other chat…'}</div>}
           {chat?.turn === 'running' && <div className="turn-state"><span className="spin" />Working…</div>}
           {chat?.error && <div className="form-error">{chat.error}</div>}
@@ -218,15 +221,25 @@ function ChatList({ vaultId }: { vaultId: string }) {
 
 export function ChatPane() {
   const { activeId, chatId, setChatId, usable, settings, phone, setChatOpen, toast } = useApp();
+  /** Leaves the open chat; a chat that never got a message (e.g. its only prompt was stopped while queued) is deleted. */
+  const leave = async (next: string | null) => {
+    if (chatId && activeId) {
+      try {
+        const d = await api.chat(activeId, chatId);
+        if (!d.messages.length && d.turn === 'idle') await api.deleteChat(activeId, chatId);
+      } catch { /* best effort */ }
+    }
+    setChatId(next);
+  };
   const newChat = async () => {
     if (!activeId) return;
-    try { setChatId((await api.newChat(activeId)).chatId); } catch (e) { toast(errorText(e)); }
+    try { await leave((await api.newChat(activeId)).chatId); } catch (e) { toast(errorText(e)); }
   };
   return (
     <section className="pane always" id="chat">
       <div className="bar">
         {chatId
-          ? <button className="ib back" data-testid="chat-back" onClick={() => setChatId(null)}><Icon n="chevron_left" size={24} /><span>Chats</span></button>
+          ? <button className="ib back" data-testid="chat-back" onClick={() => void leave(null)}><Icon n="chevron_left" size={24} /><span>Chats</span></button>
           : <span className="bar-title">Chats</span>}
         <div className="ctitle">{chatId && <span className="model">{(settings?.model ?? '').split('/').pop()}</span>}</div>
         <span className="sp" />

@@ -61,7 +61,7 @@ export function NotePane() {
               <button className={mode === 'read' ? 'on' : ''} data-testid="mode-read" onClick={() => setMode('read')}>Read</button>
             </div>
             {mode === 'write' && <button className="ib" title="Find in note" data-testid="find-in-note" onClick={() => editor.current?.openSearch()}><Icon n="search" /></button>}
-            <button className="ib" title="Delete note" data-testid="delete-note" disabled={readOnly} onClick={del}><Icon n="trash" /></button>
+            <button className="ib" title="Delete note" data-testid="delete-note" disabled={readOnly || note.deleted} onClick={del}><Icon n="trash" /></button>
           </>
         )}
         <button className={`ib${s.chatOpen && !phone ? ' on' : ''}`} title="AI chat" data-testid="chat-toggle"
@@ -69,12 +69,21 @@ export function NotePane() {
       </div>
       <div className="scroll">
         {!online && <div className="banner warn" data-testid="offline-banner">Offline — showing cached notes, read-only.</div>}
+        {note?.deleted && (
+          <div className="banner warn" data-testid="deleted-banner">
+            This note was deleted by the AI, another device or a discard.{note.dirty ? ' Your unsaved changes are still here.' : ''}
+            <span className="banner-acts">
+              <button className="link" data-testid="deleted-keep" disabled={readOnly} onClick={() => void s.keepDeletedNote()}>Keep as new note</button>
+              <button className="link" data-testid="deleted-close" onClick={s.closeDeletedNote}>Close</button>
+            </span>
+          </div>
+        )}
         {online && conflict && <div className="banner warn" data-testid="conflict-banner">This vault is in conflict with GitHub — read-only until resolved in <button className="link" onClick={() => { s.setSection('changes'); s.setPhoneTab('changes'); s.setPhoneNote(false); s.setSidebarOpen(true); }}>Changes</button>.</div>}
         {note ? (
           <div className="doc">
             <h1 className="note-title">{title}</h1>
             {mode === 'write'
-              ? <Editor key={note.path} ref={editor} doc={note.loaded} readOnly={readOnly}
+              ? <Editor key={note.path} ref={editor} doc={note.loaded} readOnly={readOnly || !!note.deleted}
                   onChange={(t) => { draft.current = t; s.editDraft(t); }} exists={s.exists} onWikilink={s.followLink} />
               : <ReadView text={note.dirty ? draft.current : note.loaded} />}
             <div className="dfoot" data-testid="save-state">

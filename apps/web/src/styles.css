@@ -141,9 +141,26 @@ mark { background: rgba(245,158,11,.35); color: inherit; border-radius: 3px; pad
 .diff .ad { background: var(--add); } .diff .de { background: var(--del); } .diff .hh { color: var(--label2); }
 .conflict { margin: 8px 16px 16px; padding: 10px 12px; border-radius: 12px; background: var(--bg2); border: .5px solid var(--sep); }
 .conflict .chg-row { color: var(--orange); gap: 8px; }
-.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.side-h { font-size: 11.5px; font-weight: 600; color: var(--label2); text-transform: uppercase; margin-bottom: 4px; }
-.sides pre { margin: 0; max-height: 180px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--fill2); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.cf-legend { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; margin: 6px 0 2px; font-size: 12px; color: var(--label2); }
+.cf-legend > span { white-space: nowrap; }
+.cf-legend b { padding: 0 6px; margin-right: 3px; border-radius: 5px; font: 600 11px/18px var(--mono); color: var(--label); }
+.conflict .cdiff { max-height: 240px; }
+.cdiff .dl { display: flex; min-height: 1.6em; }
+.cdiff .g { flex: none; width: 52px; color: var(--label2); font-size: 10.5px; user-select: none; }
+.c-mine { background: var(--add); } .c-theirs { background: var(--tint-soft); }
+.cf-note { padding: 4px 0 0; }
+.cdiff .skip { width: 100%; text-align: left; font: inherit; }
+.cdiff .skip:hover { background: var(--fill2); }
+.cf-controls .seg button { justify-content: center; }
+.conflict > .btn.wide { margin-bottom: 8px; }
+.modal.compare { width: min(1100px, 100%); height: min(900px, 100%); }
+.modal.compare .cdiff { font-size: 13px; }
+.cf-controls { position: sticky; bottom: -20px; margin: 0 -20px -20px; padding: 12px 20px 20px; background: var(--bg); border-top: .5px solid var(--sep); display: flex; flex-direction: column; gap: 8px; }
+/* Paths: the file name is never cut off (it wraps), the folder is secondary text below it. */
+.plabel { display: flex; flex-direction: column; min-width: 0; padding: 3px 0; }
+.chg-main .plabel.nm, .conflict .plabel.nm { white-space: normal; overflow: visible; }
+.plabel .pbase { overflow-wrap: anywhere; line-height: 1.35; }
+.plabel .pdir { font-size: 11.5px; line-height: 1.3; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- detail / editor ---------- */
 #detail { flex: 1; }
@@ -260,6 +277,7 @@ mark { background: rgba(245,158,11,.35); color: inherit; border-radius: 3px; pad
 .form { display: flex; flex-direction: column; gap: 10px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--label2); font-weight: 500; }
 .field input { height: 40px; border: .5px solid var(--sep); background: var(--bg2); border-radius: 10px; padding: 0 12px; font-size: 16px; outline: none; }
+.acts .saved { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; color: var(--green); font-size: 14px; font-weight: 600; }
 .field input:focus, .ta-wrap textarea:focus, .inrow textarea:focus { border-color: var(--tint); }
 .vrow { background: var(--bg2); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
 .vrow-h { display: flex; align-items: center; gap: 10px; }
@@ -325,3 +343,8 @@ mark { background: rgba(245,158,11,.35); color: inherit; border-radius: 3px; pad
 }
 #app.phone .trow { min-height: 44px; font-size: 16px; }
 .editor .cm-fm .cm-md-mark, .editor .cm-fm .cm-md-mark * { color: inherit !important; }
+
+/* Deleted-note banner actions (issue #8). */
+.banner-acts { display: inline-flex; gap: 14px; margin-left: 10px; }
+/* Not a scroll container: CM's scrollIntoView during the phone slide transition must not shift the layout (issue #2). */
+#app { overflow: clip; }

@@ -15,6 +15,7 @@ export function SearchPanel() {
   const { activeId, openNote, online, usable } = useApp();
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export function SearchPanel() {
     if (!text || !activeId || !usable) { setHits(null); return; }
     const c = new AbortController();
     const t = setTimeout(() => {
-      api.search(activeId, text, c.signal).then((h) => { setHits(h); setError(null); }).catch((e) => !c.signal.aborted && setError(errorText(e)));
+      api.search(activeId, text, c.signal).then((r) => { setHits(r.hits); setTruncated(r.truncated); setError(null); }).catch((e) => !c.signal.aborted && setError(errorText(e)));
     }, 250);
     return () => { clearTimeout(t); c.abort(); };
   }, [q, activeId, usable]);
@@ -41,7 +42,8 @@ export function SearchPanel() {
           value={q} onChange={(e) => setQ(e.target.value)} disabled={!online} autoComplete="off" />
       </div>
       {error && <div className="form-error">{error}</div>}
-      {hits && <div className="meta">{hits.length} matches · {groups.length} notes</div>}
+      {hits && <div className="meta" data-testid="search-meta">{hits.length} matches · {groups.length} notes</div>}
+      {hits && truncated && <div className="banner warn" data-testid="search-truncated">Showing first {hits.length} matches — refine your search</div>}
       {hits && !hits.length && <div className="empty">No results for “{q}”</div>}
       {groups.map(([path, hs]) => (
         <div key={path} className="hit">

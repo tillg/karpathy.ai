@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChatEvent, changedPaths, type ChatView } from './chat';
+import { applyChatEvent, changedPaths, settlePending, type ChatView, type PendingPrompt } from './chat';
 
 const empty: ChatView = { id: 'c1', title: 'T', messages: [], turn: 'idle' };
 
@@ -35,5 +35,30 @@ describe('changedPaths', () => {
     const call = (id: string, path: string, writes: boolean, status: 'completed' | 'denied' = 'completed') =>
       ({ type: 'tool' as const, id, call: { id, tool: writes ? 'edit' : 'read', status, path, writes } });
     expect(changedPaths([call('1', 'a.md', true), call('2', 'b.md', false), call('3', 'a.md', true), call('4', 'c.md', true, 'denied')])).toEqual(['a.md']);
+  });
+});
+
+describe('settlePending', () => {
+  const p: PendingPrompt = { text: 'hi', userCount: 0, sent: true, ran: false };
+  const user = { id: 'u1', role: 'user' as const, createdAt: 1, parts: [{ type: 'text' as const, id: 'x', text: 'hi' }] };
+
+  it('keeps the bubble while the prompt is queued or not yet accepted', () => {
+    expect(settlePending(p, { ...empty, turn: 'queued' })).toBe(p);
+    const unsent = { ...p, sent: false };
+    expect(settlePending(unsent, empty)).toBe(unsent);
+  });
+
+  it('drops it once the server has the user message', () => {
+    expect(settlePending(p, { ...empty, turn: 'running', messages: [user] })).toBe('drop');
+  });
+
+  it('restores the text when the turn goes idle without having run (stopped while queued)', () => {
+    expect(settlePending(p, empty)).toBe('restore');
+  });
+
+  it('does not restore after the turn ran', () => {
+    const ran = settlePending(p, { ...empty, turn: 'running' });
+    expect(ran).toEqual({ ...p, ran: true });
+    expect(settlePending(ran as PendingPrompt, empty)).toBe('drop');
   });
 });

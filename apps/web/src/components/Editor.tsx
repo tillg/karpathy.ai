@@ -4,6 +4,7 @@ import { Annotation, Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { liveMarkdown } from '../lib/cm';
+import { minimalChange } from '../lib/diff';
 
 export interface EditorHandle {
   openSearch(): void;
@@ -53,10 +54,16 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reload in place as a minimal change, so the selection and scroll position survive (issue #4).
   useEffect(() => {
     const v = view.current;
-    if (!v || v.state.doc.toString() === props.doc) return;
-    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: props.doc }, annotations: External.of(true) });
+    if (!v) return;
+    const cur = v.state.doc.toString();
+    const c = minimalChange(cur, props.doc);
+    if (!c) return;
+    // With a CRLF separator a line break is one position in CM but two chars in the string.
+    const pos = (s: string, i: number) => (v.state.lineBreak === '\r\n' ? i - (s.slice(0, i).match(/\r\n/g)?.length ?? 0) : i);
+    v.dispatch({ changes: { from: pos(cur, c.from), to: pos(cur, c.to), insert: c.insert }, annotations: External.of(true) });
   }, [props.doc]);
 
   useEffect(() => {

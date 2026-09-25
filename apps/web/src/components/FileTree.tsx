@@ -4,7 +4,7 @@ import { useApp } from '../store';
 import { Icon } from './Icon';
 
 export function FileTree() {
-  const { files, note, openNote, newNote, readOnly, usable } = useApp();
+  const { files, note, openNote, newNote, readOnly, usable, online } = useApp();
   const tree = useMemo(() => buildTree(files), [files]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggle = (p: string) => setCollapsed((c) => {
@@ -44,7 +44,7 @@ export function FileTree() {
       <div className="gh">Notes
         <button className="ib sm" title="New note" data-testid="new-note" onClick={create} disabled={readOnly || !usable}><Icon n="square_pencil" size={19} /></button>
       </div>
-      {tree.length ? render(tree, 0) : <div className="empty">{usable ? 'This vault is empty.' : ''}</div>}
+      {tree.length ? render(tree, 0) : <div className="empty">{!usable ? '' : online ? 'This vault is empty.' : 'Offline — the file list is not cached yet.'}</div>}
     </div>
   );
 }

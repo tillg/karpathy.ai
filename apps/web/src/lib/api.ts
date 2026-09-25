@@ -69,9 +69,12 @@ export const api = {
 
   changes: (id: string) => json<Change[]>('GET', `${v(id)}/changes`),
   diff: (id: string, path: string) => json<Diff>('GET', `${v(id)}/changes/diff?${q(path)}`),
-  discard: (id: string, path: string) => json<void>('POST', `${v(id)}/discard?${q(path)}`),
+  /** `version` = what the user reviewed; the backend refuses if the file changed since (#32). */
+  discard: (id: string, path: string, version?: string | null) =>
+    json<void>('POST', `${v(id)}/discard?${q(path)}${version !== undefined ? `&version=${encodeURIComponent(String(version))}` : ''}`),
   commitMessage: (id: string, signal: AbortSignal) => json<{ message: string }>('POST', `${v(id)}/commit-message`, undefined, signal),
-  commit: (id: string, message: string) => json<CommitResult>('POST', `${v(id)}/commit`, { message }),
+  /** `paths` = the changed files the user reviewed; 409 `changes-moved` if others arrived (#33). */
+  commit: (id: string, message: string, paths?: string[]) => json<CommitResult>('POST', `${v(id)}/commit`, { message, paths }),
   push: (id: string) => json<CommitResult>('POST', `${v(id)}/push`),
   conflictSides: (id: string, path: string) => json<{ mine: string | null; theirs: string | null }>('GET', `${v(id)}/conflicts/sides?${q(path)}`),
   resolve: (id: string, path: string, choice: ConflictChoice) => json<VaultStatus>('POST', `${v(id)}/conflicts/resolve`, { path, choice }),

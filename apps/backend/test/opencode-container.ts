@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 
 // Real opencode container for integration tests (no mocks). The vaults dir must be under the
@@ -45,13 +46,20 @@ export async function startOpencode(vaultsDir: string) {
   ensureOllama();
   await mkdir(vaultsDir, { recursive: true });
   const name = `kai-test-oc-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
+  // A fixed host port, so a stop/start (restart tests) keeps the URL.
+  const hostPort = await new Promise<number>((resolve) => {
+    const srv = createServer().listen(0, '127.0.0.1', () => {
+      const p = (srv.address() as { port: number }).port;
+      srv.close(() => resolve(p));
+    });
+  });
   const models = Object.fromEntries(
     [LLM_MODEL, DEAD_MODEL].map((m) => m.split('/').slice(1).join('/')).map((id) => [id, { name: id, tool_call: true }]),
   );
   const providerCfg = { provider: { ollama: { npm: '@ai-sdk/openai-compatible', name: 'Ollama', options: { baseURL: `http://${OLLAMA}:11434/v1` }, models } } };
   docker(
     'run', '-d', '--name', name, '--network', NET, '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
-    '-p', '127.0.0.1::4096',
+    '-p', `127.0.0.1:${hostPort}:4096`,
     '-e', 'HOME=/home/app', '-e', 'XDG_DATA_HOME=/data', '-e', `OPENCODE_MODEL=${LLM_MODEL}`,
     '-e', `OPENCODE_CONFIG_CONTENT=${JSON.stringify(providerCfg)}`,
     '--tmpfs', `/home/app:uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000},mode=0700`,
@@ -60,8 +68,7 @@ export async function startOpencode(vaultsDir: string) {
     '-v', `${vaultsDir}:/vaults`,
     IMAGE, 'serve', '--hostname', '0.0.0.0', '--port', '4096',
   );
-  const port = docker('port', name, '4096/tcp').split('\n')[0]!.split(':').pop();
-  const url = `http://127.0.0.1:${port}`;
+  const url = `http://127.0.0.1:${hostPort}`;
   const deadline = Date.now() + 60_000;
   for (;;) {
     try {

@@ -34,6 +34,7 @@ await vaults.init();
 const harness = new OpencodeHarness(env.opencodeUrl);
 const chat = new ChatService(vaults, store, harness, env.opencodeVaultsDir);
 vaults.onReady = (id) => void chat.watch(id);
+vaults.beforeRemove = (id) => chat.deleteAllChats(id);
 // opencode may still be starting; chats attach lazily on first use as well.
 await chat.init().catch((e) => console.warn('chat init:', (e as Error).message));
 const commitMessages = new OpencodeCommitMessages(vaults, store, harness, (id) => chat.dir(id));

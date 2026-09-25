@@ -10,6 +10,8 @@ export function CommitDialog() {
   const [message, setMessage] = useState('');
   const [phase, setPhase] = useState<'saving' | 'proposing' | 'ready' | 'committing'>('saving');
   const [error, setError] = useState<string | null>(null);
+  /** The changed files the proposal (and the user's review) is about (#33). */
+  const [paths, setPaths] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
     if (!activeId) return;
@@ -19,6 +21,7 @@ export function CommitDialog() {
       await flush(); // the pending autosave must land before the commit (mvp §2.4)
       if (c.signal.aborted) return;
       setPhase('proposing');
+      setPaths((await api.changes(activeId).catch(() => null))?.map((x) => x.path));
       try {
         setMessage((await api.commitMessage(activeId, c.signal)).message);
       } catch {
@@ -43,13 +46,18 @@ export function CommitDialog() {
         setPhase('ready');
         return;
       }
-      const r = await api.commit(activeId, message);
+      const r = await api.commit(activeId, message, paths);
       if (!r.commit) toast('Nothing to commit');
       else toast(r.pushed ? 'Committed and pushed to GitHub' : `Committed; push failed: ${r.pushError ?? 'unknown error'}`);
       setStatus(await api.status(activeId));
       close();
     } catch (e) {
-      setError(e instanceof ApiError && e.code === 'conflict' ? 'Pulling from GitHub ran into a conflict. Resolve it in Changes, then commit.' : errorText(e));
+      if (e instanceof ApiError && e.code === 'changes-moved') {
+        const now = (e.body.paths as string[] | undefined) ?? [];
+        const added = now.filter((p) => !paths?.includes(p));
+        setPaths(now);
+        setError(`More changes arrived while waiting${added.length ? `: ${added.join(', ')}` : ''}. Check the message (it now covers ${now.length} file${now.length === 1 ? '' : 's'}), then commit again.`);
+      } else setError(e instanceof ApiError && e.code === 'conflict' ? 'Pulling from GitHub ran into a conflict. Resolve it in Changes, then commit.' : errorText(e));
       setPhase('ready');
     }
   };

@@ -59,6 +59,8 @@ export class Vaults {
   private rt = new Map<string, Runtime>();
   /** Called when a vault's clone becomes ready (the chat service opens its subscription). */
   onReady?: (id: string) => void;
+  /** Called under the lock once removal is allowed (the chat service deletes the vault's chats). */
+  beforeRemove?: (id: string) => Promise<void>;
 
   constructor(
     private readonly store: ConfigStore,
@@ -133,8 +135,8 @@ export class Vaults {
       await r.lock.withExclusive(async () => {
         if (r.state === 'ready') {
           const repo = this.repo(v);
-          if ((await repo.changes()).length > 0 || (await repo.unpushedCount()) > 0 || r.conflict)
-            throw new HttpError(409, 'commit or discard uncommitted changes first', 'dirty');
+          if ((await repo.changes()).length > 0 || r.conflict) throw new HttpError(409, 'commit or discard uncommitted changes first', 'dirty');
+          if ((await repo.unpushedCount()) > 0) throw new HttpError(409, 'push the unpushed commits first (retry the push)', 'unpushed');
         }
         if (repoChange) {
           next.repo = input.repo!;
@@ -184,6 +186,7 @@ export class Vaults {
         if ((await repo.changes()).length > 0 || r.conflict) throw new HttpError(409, 'commit or discard uncommitted changes first', 'dirty');
         if ((await repo.unpushedCount()) > 0) throw new HttpError(409, 'push unpushed commits first', 'unpushed');
       }
+      await this.beforeRemove?.(id);
       await r.watcher?.close();
       await rm(this.cloneDir(id), { recursive: true, force: true });
       await this.store.update((c) => {
@@ -336,7 +339,8 @@ export class Vaults {
 
   async changes(id: string): Promise<Change[]> {
     this.requireReady(id);
-    return this.repo(this.config(id)).changes();
+    const repo = this.repo(this.config(id));
+    return Promise.all((await repo.changes()).map(async (c) => ({ ...c, version: await versionOfFile(join(repo.rootDir, c.path)) })));
   }
 
   async diff(id: string, path: string): Promise<string> {
@@ -382,7 +386,8 @@ export class Vaults {
     return result;
   }
 
-  async commit(id: string, message: string): Promise<CommitResult> {
+  /** `paths`: the changed files the user reviewed; if others arrived while waiting → 409 (#33). */
+  async commit(id: string, message: string, paths?: string[]): Promise<CommitResult> {
     this.requireReady(id);
     const r = this.runtime(id);
     if (!message.trim()) throw new HttpError(400, 'commit message is required');
@@ -392,6 +397,8 @@ export class Vaults {
       if (pull?.kind === 'conflict') throw new HttpError(409, 'pull ran into a conflict; resolve it, then commit', 'conflict');
       const repo = this.repo(this.config(id));
       const changed = new Set((await repo.changes()).map((c) => c.path));
+      if (paths && (paths.length !== changed.size || paths.some((p) => !changed.has(p))))
+        throw new HttpError(409, 'The changes differ from what you reviewed (e.g. the AI changed more files while the commit waited). Review them and commit again.', 'changes-moved', { paths: [...changed] });
       const touched = this.store.get().aiTouched[id] ?? [];
       const withAi = touched.some((p) => changed.has(p));
       const commit = await repo.commit(message, withAi);
@@ -415,12 +422,21 @@ export class Vaults {
     });
   }
 
-  async discard(id: string, path: string): Promise<void> {
+  /**
+   * `version` = what the user saw when confirming (from GET /changes). Discard waits for a
+   * running AI turn; if the file changed meanwhile, it refuses instead of throwing away edits
+   * the user never reviewed (#32).
+   */
+  async discard(id: string, path: string, version?: string | null): Promise<void> {
     this.requireReady(id);
     const r = this.runtime(id);
     const rel = normalizeRel(path);
     await r.lock.withExclusive(async () => {
       if (r.conflict) throw new HttpError(423, 'vault is in conflict; resolve it first', 'conflict');
+      if (version !== undefined) {
+        const current = await versionOfFile(await resolveInVault(this.vaultRootDir(id), rel));
+        if (current !== version) throw new HttpError(409, `${rel} changed since you looked at it; review it again`, 'stale', { currentVersion: current });
+      }
       await this.repo(this.config(id)).discard(rel);
       await this.store.update((c) => {
         const set = c.aiTouched[id];
@@ -613,6 +629,7 @@ function checkNewName(path: string) {
   if (path.endsWith('/')) throw new HttpError(400, 'A file name must not end with "/"', 'bad-name');
   for (const seg of normalizeRel(path).split('/')) {
     if (HARNESS_CONFIG.includes(seg)) throw new HttpError(400, `"${seg}" is reserved: it would configure the AI harness`, 'bad-name');
+    // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
     if (/[\x00-\x1f<>:"|?*\\]/.test(seg)) throw new HttpError(400, `"${seg}" contains a character that isn't allowed in file names (<>:"|?* or control characters)`, 'bad-name');
     if (RESERVED.test(seg)) throw new HttpError(400, `"${seg}" is a reserved name on Windows`, 'bad-name');
     if (/[. ]$/.test(seg)) throw new HttpError(400, `"${seg}" must not end with a dot or space`, 'bad-name');

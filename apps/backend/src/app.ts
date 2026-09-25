@@ -47,7 +47,7 @@ const patchSettings = z.object({
   model: z.string().trim().regex(/^[^/\s]+\/\S+$/, { error: 'Model: use the form provider/model, e.g. anthropic/claude-sonnet-5' }).optional(),
 });
 const putFile = z.object({ content: z.string(), version: z.string().nullable(), force: z.boolean().optional() });
-const commitBody = z.object({ message: z.string().min(1).max(10_000) });
+const commitBody = z.object({ message: z.string().min(1).max(10_000), paths: z.array(z.string()).optional() });
 const resolveBody = z.object({ path: z.string().min(1), choice: z.enum(['mine', 'theirs', 'both']) });
 const promptBody = z.object({ text: z.string().trim().min(1).max(100_000) });
 
@@ -175,7 +175,8 @@ export function createApp(d: AppDeps) {
     res.json({ path, diff: await d.vaults.diff(req.params.id!, path) });
   });
   api.post('/vaults/:id/discard', async (req, res) => {
-    await d.vaults.discard(req.params.id!, qs(req, 'path'));
+    const v = req.query.version;
+    await d.vaults.discard(req.params.id!, qs(req, 'path'), typeof v === 'string' ? (v === 'null' ? null : v) : undefined);
     res.status(204).end();
   });
   api.post('/vaults/:id/commit-message', async (req, res) => {
@@ -186,7 +187,8 @@ export function createApp(d: AppDeps) {
     res.json(await d.commitMessages.propose(id));
   });
   api.post('/vaults/:id/commit', async (req, res) => {
-    res.json(await d.vaults.commit(req.params.id!, commitBody.parse(req.body).message));
+    const b = commitBody.parse(req.body);
+    res.json(await d.vaults.commit(req.params.id!, b.message, b.paths));
   });
   api.post('/vaults/:id/push', async (req, res) => {
     res.json(await d.vaults.push(req.params.id!));
@@ -239,6 +241,10 @@ export function createApp(d: AppDeps) {
     if (err instanceof PathError) return void res.status(400).json({ error: err.message, code: 'bad-path' });
     if (err instanceof z.ZodError) return void res.status(400).json({ error: err.issues.map((i) => i.message).join('; '), code: 'invalid' });
     if ((err as { type?: string }).type === 'entity.parse.failed') return void res.status(400).json({ error: 'invalid JSON' });
+    // opencode unreachable (connection refused, reset, DNS): the AI is down, not the app.
+    const cause = (err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code;
+    if ((err as Error).message === 'fetch failed' || ['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(cause ?? ''))
+      return void res.status(503).json({ error: 'The AI service is not reachable right now. Try again in a moment.', code: 'ai-unavailable' });
     console.error(err);
     res.status(500).json({ error: (err as Error).message ?? 'internal error' });
   });

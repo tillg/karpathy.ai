@@ -15,6 +15,8 @@ export interface ConfigData {
   aiTouched: Record<string, string[]>;
   /** Per-vault unresolved Conflict paths (repo-relative), kept while the pull stash exists. */
   conflicts: Record<string, string[]>;
+  /** Per-vault queued chat prompts, so a backend restart doesn't drop them (#37). */
+  queued: Record<string, { chatId: string; text: string }[]>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -45,6 +47,7 @@ export class ConfigStore {
       settings: { ...DEFAULT_SETTINGS, ...defaults, ...raw.settings },
       aiTouched: raw.aiTouched ?? {},
       conflicts: raw.conflicts ?? {},
+      queued: raw.queued ?? {},
     };
     return store;
   }

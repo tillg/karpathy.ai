@@ -18,6 +18,8 @@ interface Running {
   release: Release;
   /** Set once the prompt call returned or opencode reported busy; guards against stale idles. */
   started: boolean;
+  /** The harness event stream dropped during the turn (e.g. opencode restarted, #28). */
+  interrupted?: boolean;
   readonly: boolean;
   startedAt: number;
   /** False while still waiting for the lock (the slot is only reserved). */
@@ -57,7 +59,34 @@ export class ChatService {
 
   /** Opens one event subscription per ready vault; adopts turns still running in opencode. */
   async init(): Promise<void> {
-    for (const vault of this.vaults.list()) if (vault.state === 'ready' || vault.state === 'conflict') await this.attach(vault.id, true);
+    for (const vault of this.vaults.list()) {
+      if (vault.state !== 'ready' && vault.state !== 'conflict') continue;
+      const c = await this.attach(vault.id, true).catch(() => null);
+      // Prompts queued before a restart run now (#37).
+      const saved = this.store.get().queued[vault.id] ?? [];
+      if (c && saved.length) {
+        c.queue.push(...saved.filter((t) => !c.queue.some((q) => q.chatId === t.chatId)));
+        void this.kick(vault.id);
+      }
+    }
+  }
+
+  private saveQueue(vaultId: string) {
+    const q = this.v.get(vaultId)?.queue ?? [];
+    void this.store
+      .update((c) => {
+        if (q.length) c.queued[vaultId] = q.map(({ chatId, text }) => ({ chatId, text }));
+        else delete c.queued[vaultId];
+      })
+      .catch(() => undefined);
+  }
+
+  /** Deletes every chat of a vault (it is being removed, #34). */
+  async deleteAllChats(vaultId: string) {
+    const dir = this.dir(vaultId);
+    for (const s of await this.harness.listSessions(dir).catch(() => [])) await this.harness.deleteSession(dir, s.id).catch(() => undefined);
+    this.vaultRemoved(vaultId);
+    await this.store.update((c) => { delete c.queued[vaultId]; });
   }
 
   close() {
@@ -92,7 +121,14 @@ export class ChatService {
     );
     const lock = this.vaults.lock(vaultId);
     let release = guard ? await lock.acquireShared('turn') : null;
-    const busy = await this.busyWithRetry(dir);
+    let busy: string[];
+    try {
+      busy = await this.busyWithRetry(dir, guard ? 15 : 0);
+    } catch (e) {
+      release?.();
+      this.vaultRemoved(vaultId);
+      throw e;
+    }
     if (busy.length > 0) {
       release ??= await lock.acquireShared('turn');
       c.adopted = { ids: new Set(busy), release };
@@ -112,13 +148,15 @@ export class ChatService {
     await this.attach(vaultId, true).catch((e) => console.warn(`chat watch ${vaultId}:`, (e as Error).message));
   }
 
-  private async busyWithRetry(dir: string): Promise<string[]> {
+  /** Startup/ready (`retries` > 0): wait up to 30 s, then assume none. On a request: fail fast (503). */
+  private async busyWithRetry(dir: string, retries: number): Promise<string[]> {
     for (let i = 0; ; i++) {
       try {
         return await this.harness.busySessions(dir);
       } catch (e) {
+        if (retries === 0) throw new HttpError(503, 'The AI service is not reachable right now. Try again in a moment.', 'ai-unavailable');
         // compose starts us after opencode is healthy; give a restarting opencode 30 s.
-        if (i >= 15) {
+        if (i >= retries) {
           console.warn(`opencode unreachable, assuming no running turn in ${dir}:`, (e as Error).message);
           return [];
         }
@@ -136,7 +174,10 @@ export class ChatService {
 
   private async requireChat(vaultId: string, chatId: string) {
     await this.chats(vaultId);
-    if (!(await this.harness.sessionExists(this.dir(vaultId), chatId))) throw new HttpError(404, `no such chat: ${chatId}`);
+    if (await this.harness.sessionExists(this.dir(vaultId), chatId)) return;
+    if (!(await this.harness.health().catch(() => false)))
+      throw new HttpError(503, 'The AI service is not reachable right now. Try again in a moment.', 'ai-unavailable');
+    throw new HttpError(404, `no such chat: ${chatId}`);
   }
 
   turnState(vaultId: string, chatId: string): TurnState {
@@ -183,6 +224,7 @@ export class ChatService {
     const c = this.v.get(vaultId)!;
     if (this.turnState(vaultId, chatId) !== 'idle') throw new HttpError(409, 'this chat already has a turn running or queued', 'busy');
     c.queue.push({ chatId, text });
+    this.saveQueue(vaultId);
     this.emit(vaultId, chatId, this.queuedEvent(vaultId));
     await this.titleFromFirstPrompt(vaultId, chatId, text);
     void this.kick(vaultId);
@@ -210,6 +252,7 @@ export class ChatService {
     const i = c.queue.findIndex((t) => t.chatId === chatId);
     if (i >= 0) {
       c.queue.splice(i, 1);
+      this.saveQueue(vaultId);
       this.emit(vaultId, chatId, { type: 'turn', state: 'idle' });
       this.endStreams(vaultId, chatId);
       return;
@@ -260,6 +303,7 @@ export class ChatService {
       });
     } catch (e) {
       c.queue.shift();
+      this.saveQueue(vaultId);
       c.running = null;
       this.emit(vaultId, turn.chatId, { type: 'error', message: `pull before the turn failed: ${(e as Error).message}` });
       this.finish(vaultId, turn.chatId);
@@ -272,6 +316,7 @@ export class ChatService {
       return void this.kick(vaultId);
     }
     c.queue.shift();
+    this.saveQueue(vaultId);
     running.holding = true;
     running.readonly = this.vaults.isConflict(vaultId);
     running.startedAt = Date.now();
@@ -293,9 +338,11 @@ export class ChatService {
   private endTurn(vaultId: string) {
     const c = this.v.get(vaultId);
     if (!c?.running) return;
-    const { chatId, release } = c.running;
+    const { chatId, release, interrupted } = c.running;
     c.running = null;
     release();
+    if (interrupted)
+      this.emit(vaultId, chatId, { type: 'error', message: 'The AI service restarted during this turn, so the answer may be incomplete. Send the prompt again.' });
     this.finish(vaultId, chatId);
     void this.kick(vaultId);
   }
@@ -357,7 +404,11 @@ export class ChatService {
         void this.vaults.markAiTouched(vaultId, [e.path]).catch(() => undefined);
         return;
       case 'status':
-        if (!e.sessionId) return void this.resync(vaultId); // stream reconnected
+        if (!e.sessionId) {
+          // The harness stream dropped and reconnects (opencode restart?).
+          if (c.running?.holding) c.running.interrupted = true;
+          return void this.resync(vaultId);
+        }
         if (e.state === 'idle' && c.adopted?.ids.has(e.sessionId)) return this.endAdopted(vaultId, e.sessionId);
         if (c.running?.chatId !== e.sessionId) return;
         if (e.state === 'busy') c.running.started = true;

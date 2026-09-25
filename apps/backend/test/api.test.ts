@@ -254,7 +254,7 @@ describe('files', () => {
     const f = (await t.api.get(`/vaults/${t.id}/file?path=Other.md`)).body;
     expect((await t.api.delete(`/vaults/${t.id}/file?path=Other.md&version=wrong`)).status).toBe(409);
     expect((await t.api.delete(`/vaults/${t.id}/file?path=Other.md&version=${f.version}`)).status).toBe(204);
-    expect((await t.api.get(`/vaults/${t.id}/changes`)).body).toEqual([{ path: 'Other.md', kind: 'deleted' }]);
+    expect((await t.api.get(`/vaults/${t.id}/changes`)).body).toEqual([{ path: 'Other.md', kind: 'deleted', version: null }]);
   });
 
   it('search finds content and file names', async () => {
@@ -302,7 +302,7 @@ describe('git API', () => {
     expect((await t.api.get(`/vaults/${t.id}/changes`)).body).toHaveLength(2);
     expect((await t.api.get(`/vaults/${t.id}/changes/diff?path=Home.md`)).body.diff).toContain('+changed Home.md');
     await t.api.post(`/vaults/${t.id}/discard?path=Home.md`);
-    expect((await t.api.get(`/vaults/${t.id}/changes`)).body).toEqual([{ path: 'Other.md', kind: 'modified' }]);
+    expect((await t.api.get(`/vaults/${t.id}/changes`)).body).toEqual([{ path: 'Other.md', kind: 'modified', version: expect.any(String) }]);
     expect((await t.api.get(`/vaults/${t.id}/status`)).body).toMatchObject({ state: 'ready', changedCount: 1, unpushedCount: 0, busy: 'none' });
   });
 
@@ -379,6 +379,43 @@ describe('git API', () => {
     expect((await t.api.post(`/vaults/${t.id}/open`)).body.pullError).toBeTruthy();
     await rename(`${t.remote.bare}.away`, t.remote.bare);
     expect((await t.api.post(`/vaults/${t.id}/open`)).body.pullError).toBeUndefined();
+  });
+
+  it('discard with a version refuses when the file changed while waiting (#32)', async () => {
+    const t = await vaultApp();
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Other.md'), 'human\n');
+    const ch = (await t.api.get(`/vaults/${t.id}/changes`)).body;
+    expect(ch).toEqual([{ path: 'Other.md', kind: 'modified', version: expect.any(String) }]);
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Other.md'), 'human + AI\n');
+    const r = await t.api.post(`/vaults/${t.id}/discard?path=Other.md&version=${ch[0].version}`);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('stale');
+    const now = (await t.api.get(`/vaults/${t.id}/changes`)).body[0].version;
+    expect((await t.api.post(`/vaults/${t.id}/discard?path=Other.md&version=${now}`)).status).toBe(204);
+  });
+
+  it('commit with the reviewed file list refuses when more changes arrived while waiting (#33)', async () => {
+    const t = await vaultApp();
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Other.md'), 'human\n');
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'ai.md'), 'ai\n');
+    const r = await t.api.post(`/vaults/${t.id}/commit`, { message: 'Update 1 file', paths: ['Other.md'] });
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('changes-moved');
+    expect(r.body.paths.sort()).toEqual(['Other.md', 'ai.md']);
+    expect((await t.api.post(`/vaults/${t.id}/commit`, { message: 'Update 2 files', paths: ['ai.md', 'Other.md'] })).body.pushed).toBe(true);
+  });
+
+  it('branch change refused for unpushed commits says so (#35)', async () => {
+    const t = await vaultApp();
+    const { rename } = await import('node:fs/promises');
+    await rename(t.remote.bare, `${t.remote.bare}.away`);
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Other.md'), 'x');
+    await t.api.post(`/vaults/${t.id}/commit`, { message: 'm' });
+    await rename(`${t.remote.bare}.away`, t.remote.bare);
+    const r = await t.api.patch(`/vaults/${t.id}`, { branch: 'other' });
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('unpushed');
+    expect(r.body.error).toMatch(/unpushed/);
   });
 
   it('push failure → unpushed; retry push later succeeds', async () => {

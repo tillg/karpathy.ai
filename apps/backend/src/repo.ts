@@ -138,8 +138,18 @@ export class Repo {
     }
     // 2. Fold unpushed commits back into uncommitted changes.
     if ((await this.unpushedCount()) > 0) {
-      const base = (await this.git.out(['merge-base', 'HEAD', this.upstream])).trim();
-      await this.git.run(['reset', '-q', '--mixed', base]);
+      const mb = await this.git.run(['merge-base', 'HEAD', this.upstream], { allowFail: true });
+      if (mb.code !== 0) {
+        // No common history (the remote was replaced, e.g. an orphan force-push, #36): keep the
+        // working tree exactly as it is and put it on top of the new upstream. Everything local
+        // (unpushed commits + uncommitted changes) becomes uncommitted changes; nothing is lost.
+        await this.git.run(['reset', '-q', '--mixed', this.upstream]);
+        // Files that only exist upstream: check them out (the working tree never had them).
+        const missing = (await this.git.out(['ls-files', '-z', '--deleted'])).split('\0').filter(Boolean);
+        if (missing.length) await this.git.run(['checkout', '-q', '--', ...missing]);
+        return { kind: 'ok', pushed: false };
+      }
+      await this.git.run(['reset', '-q', '--mixed', mb.stdout.trim()]);
     }
     // 3. Stash uncommitted changes (whole repo).
     const dirty = (await this.git.out(['status', '--porcelain', '--untracked-files=all'])).trim() !== '';

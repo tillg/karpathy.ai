@@ -26,16 +26,19 @@ export function DiffView({ diff }: { diff: string }) {
 }
 
 function ChangeRow({ c }: { c: Change }) {
-  const { activeId, openNote, toast, readOnly, changesNonce } = useApp();
+  const { activeId, openNote, toast, readOnly, changesNonce, status } = useApp();
   const [diff, setDiff] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   useEffect(() => {
     if (!open || !activeId) return;
     api.diff(activeId, c.path).then((d) => setDiff(d.diff)).catch((e) => setDiff(`(${errorText(e)})`));
   }, [open, activeId, c.path, changesNonce]);
   const discard = async () => {
     if (!activeId || !confirm(`Discard all uncommitted changes to ${c.path}? This cannot be undone.`)) return;
-    try { await api.discard(activeId, c.path); toast(`Discarded ${c.path}`); } catch (e) { toast(errorText(e)); }
+    setDiscarding(true);
+    try { await api.discard(activeId, c.path, c.version); toast(`Discarded ${c.path}`); } catch (e) { toast(errorText(e)); }
+    finally { setDiscarding(false); }
   };
   return (
     <div className="chg" data-testid="change-item" data-path={c.path}>
@@ -46,8 +49,9 @@ function ChangeRow({ c }: { c: Change }) {
           <Icon n={open ? 'chevron_down' : 'chevron_right'} size={13} />
         </button>
         {c.kind !== 'deleted' && <button className="ib sm" title="Open note" onClick={() => void openNote(c.path)}><Icon n="arrow_up_right_square" size={18} /></button>}
-        <button className="ib sm danger" title="Discard" data-testid="discard" disabled={readOnly} onClick={() => void discard()}><Icon n="arrow_uturn_left" size={18} /></button>
+        <button className="ib sm danger" title="Discard" data-testid="discard" disabled={readOnly || discarding} onClick={() => void discard()}><Icon n="arrow_uturn_left" size={18} /></button>
       </div>
+      {discarding && <div className="muted small" data-testid="discard-waiting"><span className="spin" /> {status?.busy === 'turn' ? 'Waiting for AI turn…' : 'Discarding…'}</div>}
       {open && (diff === null ? <div className="meta">Loading diff…</div> : diff ? <DiffView diff={diff} /> : <div className="meta">No textual diff</div>)}
     </div>
   );

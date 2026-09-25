@@ -190,6 +190,49 @@ describe('chat API against a real opencode container', () => {
     expect(() => execFileSync('docker', ['exec', oc.name, 'cat', sentinel], { stdio: 'pipe' })).toThrow();
   });
 
+  it('opencode unreachable → 503 "AI unavailable", not 404 (#29)', async () => {
+    const t = await setup();
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    const dead = new ChatService(t.vaults, t.store, new OpencodeHarness('http://127.0.0.1:9'), '/vaults');
+    const { createApp } = await import('../src/app.js');
+    const request = (await import('supertest')).default;
+    const app = createApp({ token: TOKEN, vaults: t.vaults, store: t.store, chat: dead });
+    const r = await request(app).get(`/api/vaults/${t.id}/chats/${chatId}`).set({ Authorization: `Bearer ${TOKEN}` });
+    expect(r.status).toBe(503);
+    expect(r.body.code).toBe('ai-unavailable');
+    dead.close();
+  });
+
+  it('removing a vault deletes its chats; re-adding the same repo starts clean (#34)', async () => {
+    const t = await setup();
+    t.vaults.beforeRemove = (id) => t.chat.deleteAllChats(id);
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    expect((await t.api.delete(`/vaults/${t.id}`)).status).toBe(204);
+    const id2 = await t.addVault(t.remote.repo, { name: t.remote.repo.split('/')[1] });
+    expect(id2).toBe(t.id);
+    expect((await t.api.get(`/vaults/${id2}/chats`)).body.map((c: { id: string }) => c.id)).not.toContain(chatId);
+  });
+
+  it('queued prompts survive a backend restart (#37)', async () => {
+    const t = await setup();
+    await t.vaults.lock(t.id).acquireExclusive(); // never released: the old process never dispatches
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    await t.api.post(`/vaults/${t.id}/chats/${chatId}/prompt`, { text: 'survive me' });
+    t.chat.close();
+    // "Restart": fresh Vaults (fresh locks) + ChatService on the same config and clones.
+    const t2 = await makeApp(t.remote.remoteBase, {}, t.dirs);
+    await t2.store.update((c) => { c.settings.model = DEAD_MODEL; });
+    const chat2 = new ChatService(t2.vaults, t2.store, t.harness, '/vaults');
+    await chat2.init();
+    const end = Date.now() + 30_000;
+    while ((await userAgents(t.raw, t.dir, chatId)).length === 0) {
+      if (Date.now() > end) throw new Error('queued prompt was lost');
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    chat2.close();
+    await t2.vaults.close();
+  });
+
   it('opens the event subscription when a vault is added (onReady hook)', async () => {
     const t = await setup();
     const opened: string[] = [];

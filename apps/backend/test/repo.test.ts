@@ -126,6 +126,35 @@ describe('Repo pull', () => {
   });
 });
 
+describe('Repo pull after a history rewrite (#36)', () => {
+  it('remote replaced by an unrelated history: local state becomes uncommitted changes on top of it, nothing lost', async () => {
+    const { remote, repo, write, read } = await setup();
+    const moved = `${remote.bare}.away`;
+    await rename(remote.bare, moved);
+    await write('a.md', 'unpushed\n');
+    await repo.commit('local only', false);
+    await rename(moved, remote.bare);
+    await write('b.md', 'uncommitted\n');
+    // Orphan history, force-pushed.
+    const { mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const orphan = await mkdtemp(join(tmpdir(), 'orphan-'));
+    sh(orphan, 'init', '-q', '-b', 'main');
+    await writeFiles(orphan, { 'new.md': 'fresh\n' });
+    sh(orphan, 'add', '-A');
+    sh(orphan, 'commit', '-q', '-m', 'orphan');
+    sh(orphan, 'push', '-q', '-f', remote.bare, 'main');
+    const r = await repo.pull();
+    expect(r.kind).toBe('ok');
+    expect(await read('a.md')).toBe('unpushed\n');
+    expect(await read('b.md')).toBe('uncommitted\n');
+    expect(await read('new.md')).toBe('fresh\n');
+    expect(await repo.unpushedCount()).toBe(0);
+    expect(sh(repo.dir, 'rev-parse', 'HEAD').trim()).toBe(sh(remote.bare, 'rev-parse', 'main').trim());
+    expect((await repo.changes()).map((c) => c.path).sort()).toEqual(expect.arrayContaining(['a.md', 'b.md', 'k.md']));
+  });
+});
+
 describe('Repo conflict', () => {
   async function conflicted() {
     const s = await setup();

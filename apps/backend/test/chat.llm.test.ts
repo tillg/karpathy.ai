@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ToolCall } from '@karpathy/shared';
+import type { ChatEvent, ToolCall } from '@karpathy/shared';
 import { createApp } from '../src/app.js';
 import { ChatService } from '../src/chat.js';
 import { OpencodeCommitMessages } from '../src/commit-message.js';
@@ -177,4 +177,29 @@ describe('@llm AI reads and writes', () => {
     expect(r.message.length).toBeGreaterThan(0);
     expect(await t.chat.list(t.id)).toEqual(before);
   });
+  // Last: restarting the container may change its port and wipes its tmpfs session store.
+  it('an opencode restart mid-turn ends the turn with a visible error (#28)', async () => {
+    const t = await setup();
+    const { chatId } = await t.chat.create(t.id);
+    const events: ChatEvent[] = [];
+    await t.chat.prompt(t.id, chatId, 'Write a very long essay (at least 3000 words) about the history of maps.');
+    let done = false;
+    t.chat.stream(t.id, chatId, (e) => events.push(e), () => { done = true; });
+    const end = Date.now() + 180_000;
+    while (!(await t.harness.busySessions(t.chat.dir(t.id)).catch((): string[] => [])).includes(chatId)) {
+      if (Date.now() > end) throw new Error('turn never became busy');
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+    oc.pause();
+    oc.resume();
+    const end2 = Date.now() + 120_000;
+    while (!done) {
+      if (Date.now() > end2) throw new Error('turn never ended after the restart');
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    expect(events.some((e) => e.type === 'error' && /restarted/.test(e.message))).toBe(true);
+    expect(t.vaults.lock(t.id).isFree).toBe(true);
+  });
+
 });

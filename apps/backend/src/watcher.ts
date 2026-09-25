@@ -11,7 +11,6 @@ export class VaultWatcher {
   private w: FSWatcher;
   private pending = new Set<string>();
   private timer?: NodeJS.Timeout;
-  readonly ready: Promise<void>;
 
   constructor(
     private readonly root: string,
@@ -24,7 +23,6 @@ export class VaultWatcher {
         return rel === '.git' || rel.startsWith(`.git${sep}`) || rel.includes(`${sep}.git${sep}`) || rel.endsWith(`${sep}.git`);
       },
     });
-    this.ready = new Promise((resolve) => this.w.once('ready', () => resolve()));
     this.w.on('all', (event, p) => {
       if (event === 'addDir' || event === 'unlinkDir') return;
       this.pending.add(relative(this.root, p).split(sep).join('/'));

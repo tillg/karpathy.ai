@@ -5,6 +5,8 @@ import type { Vaults } from './vaults.js';
 const MAX_DIFF = 32 * 1024;
 const TIMEOUT_MS = 15_000;
 
+export const fallbackMessage = (n: number) => `Update ${n} file${n === 1 ? '' : 's'}`;
+
 export interface CommitMessages {
   propose(vaultId: string): Promise<{ message: string; fallback: boolean }>;
 }
@@ -25,7 +27,7 @@ export class OpencodeCommitMessages implements CommitMessages {
 
   async propose(vaultId: string) {
     const { files, stat, diff } = await this.vaults.fullDiff(vaultId);
-    const fallback = { message: `Update ${files.length} file${files.length === 1 ? '' : 's'}`, fallback: true };
+    const fallback = { message: fallbackMessage(files.length), fallback: true };
     if (files.length === 0) return fallback;
     const dir = this.dirOf(vaultId);
     const text = [

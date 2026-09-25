@@ -87,6 +87,15 @@ describe('vault admin', () => {
     expect((await t.api.get(`/vaults/${t.id}/files`)).body).toEqual([{ path: 'n1.md', type: 'file' }]);
   });
 
+  it('PATCH branch + missing root together → 400 and nothing changed', async () => {
+    const t = await vaultApp();
+    sh(t.remote.obsidian, 'checkout', '-q', '-b', 'other');
+    sh(t.remote.obsidian, 'push', '-q', '-u', 'origin', 'other');
+    expect((await t.api.patch(`/vaults/${t.id}`, { branch: 'other', root: 'nope' })).status).toBe(400);
+    expect((await t.api.get(`/vaults/${t.id}`)).body).toMatchObject({ branch: 'main', root: '' });
+    expect(sh(t.vaults.vaultRootDir(t.id), 'branch', '--show-current').trim()).toBe('main');
+  });
+
   it('PATCH repo re-clones', async () => {
     const t = await vaultApp();
     const other = await makeRemote({ 'x.md': 'x' }, { name: 'second' });

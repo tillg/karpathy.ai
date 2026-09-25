@@ -123,10 +123,14 @@ export class Vaults {
         }
         if (branchChange) next.branch = input.branch!;
         next.root = newRoot;
-        if (!repoChange && branchChange && r.state === 'ready') await this.repo(next).checkoutBranch(next.branch);
-        if (!repoChange && rootChange) {
-          const st = await stat(join(this.cloneDir(id), newRoot)).catch(() => null);
-          if (!st?.isDirectory()) throw new HttpError(400, `folder ${newRoot} does not exist in the repo`);
+        if (!repoChange && r.state === 'ready') {
+          const repo = this.repo(v);
+          // Check the new root against the target branch before switching anything.
+          if (branchChange) await repo.git.run(['fetch', 'origin', next.branch]);
+          const ref = branchChange ? `origin/${next.branch}` : 'HEAD';
+          if (newRoot && (await repo.git.run(['cat-file', '-t', `${ref}:${newRoot}`], { allowFail: true })).stdout.trim() !== 'tree')
+            throw new HttpError(400, `folder ${newRoot} does not exist in the repo`);
+          if (branchChange) await repo.checkoutBranch(next.branch);
         }
       });
       await this.store.update((c) => {
@@ -347,7 +351,7 @@ export class Vaults {
       const commit = await repo.commit(message, withAi);
       if (commit) await this.store.update((c) => { delete c.aiTouched[id]; });
       const unpushed = await repo.unpushedCount();
-      const push = unpushed > 0 ? await repo.push() : { pushed: commit !== null };
+      const push = unpushed > 0 ? await repo.push() : { pushed: false };
       this.emitStatusSoon(id);
       return { commit, pushed: push.pushed, ...(push.error ? { pushError: push.error } : {}) };
     });
@@ -417,7 +421,8 @@ export class Vaults {
     if (!this.store.get().vaults.some((v) => v.id === id)) return;
     const cur = new Set(this.store.get().aiTouched[id] ?? []);
     const before = cur.size;
-    for (const p of paths) cur.add(p);
+    // Absolute = outside the vault root; it can never be committed from here.
+    for (const p of paths) if (!p.startsWith('/')) cur.add(p);
     if (cur.size !== before) await this.store.update((c) => { c.aiTouched[id] = [...cur]; });
   }
 

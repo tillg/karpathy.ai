@@ -43,4 +43,16 @@ describe('ConfigStore', () => {
     await s.update((c) => { c.settings.model = 'x/y'; });
     expect((await ConfigStore.open(d, { model: 'openai/gpt-5-mini' })).get().settings.model).toBe('x/y');
   });
+
+  it('one failed write does not poison later updates', async () => {
+    const { chmod } = await import('node:fs/promises');
+    const d = await dir();
+    const s = await ConfigStore.open(d);
+    await s.update((c) => { c.settings.commitReminderThreshold = 5; });
+    await chmod(d, 0o500); // temp file can't be created
+    await expect(s.update((c) => { c.settings.commitReminderThreshold = 6; })).rejects.toThrow();
+    await chmod(d, 0o700);
+    await s.update((c) => { c.settings.commitReminderThreshold = 7; });
+    expect((await ConfigStore.open(d)).get().settings.commitReminderThreshold).toBe(7);
+  });
 });

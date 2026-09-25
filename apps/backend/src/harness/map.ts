@@ -12,8 +12,7 @@ export type HarnessEvent =
   | { type: 'part'; sessionId: string; messageId: string; part: ChatPart }
   | { type: 'text-delta'; sessionId: string; messageId: string; partId: string; delta: string }
   | { type: 'error'; sessionId: string; message: string; aborted: boolean }
-  | { type: 'file-edited'; path: string }
-  | { type: 'session-created'; sessionId: string; parentId?: string };
+  | { type: 'file-edited'; path: string };
 
 const DENIED_PREFIX = 'The user has specified a rule which prevents you from using this specific tool call';
 const WRITE_TOOLS = new Set(['edit', 'write', 'apply_patch', 'patch', 'multiedit']);
@@ -134,10 +133,6 @@ export function mapEvent(raw: unknown, root: string): HarnessEvent | null {
     }
     case 'file.edited':
       return str(p.file) ? { type: 'file-edited', path: toVaultPath(str(p.file)!, root) } : null;
-    case 'session.created': {
-      const info = obj(p.info);
-      return { type: 'session-created', sessionId: str(info.id) ?? '', ...(str(info.parentID) ? { parentId: str(info.parentID) } : {}) };
-    }
     default:
       return null;
   }

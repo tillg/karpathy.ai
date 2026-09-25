@@ -11,7 +11,7 @@ export interface StoredVault extends VaultConfig {
 export interface ConfigData {
   vaults: StoredVault[];
   settings: Settings;
-  /** Per-vault AI-touched set (repo-relative paths), mvp §2.4. */
+  /** Per-vault AI-touched set (vault-relative paths), mvp §2.4. */
   aiTouched: Record<string, string[]>;
   /** Per-vault unresolved Conflict paths (repo-relative), kept while the pull stash exists. */
   conflicts: Record<string, string[]>;
@@ -57,10 +57,13 @@ export class ConfigStore {
   async update(fn: (d: ConfigData) => void): Promise<void> {
     const next = structuredClone(this.data);
     fn(next);
+    // Applied in memory right away so concurrent updates build on each other.
     this.data = next;
     const snapshot = JSON.stringify(next, null, 2);
-    this.writing = this.writing.then(() => this.write(snapshot));
-    await this.writing;
+    // Serialize writes; a failed one must not reject every later update.
+    const write = this.writing.catch(() => undefined).then(() => this.write(snapshot));
+    this.writing = write;
+    await write;
   }
 
   private async write(json: string) {

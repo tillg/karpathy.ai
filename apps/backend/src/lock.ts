@@ -5,7 +5,6 @@
  * starved by a stream of saves.
  */
 export type Release = () => void;
-export type ExclusiveLabel = 'sync';
 export type SharedLabel = 'save' | 'turn';
 
 interface Waiter {

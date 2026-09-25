@@ -27,6 +27,8 @@ export async function request(method: string, path: string, body?: unknown, sign
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
+    // The offline cache holds note contents; drop it together with the token.
+    void globalThis.caches?.delete('vault-api');
     onUnauthorized();
   }
   throw new ApiError(res.status, typeof data.error === 'string' ? data.error : `${res.status} ${res.statusText}`, data.code as string | undefined, data);

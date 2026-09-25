@@ -1,4 +1,4 @@
-import { join, posix } from 'node:path';
+import { posix } from 'node:path';
 import type { ChatDetail, ChatEvent, ChatSummary, TurnState } from '@karpathy/shared';
 import type { ConfigStore } from './config-store.js';
 import type { Harness } from './harness/opencode.js';
@@ -69,7 +69,7 @@ export class ChatService {
 
   dir(vaultId: string): string {
     const vault = this.vaults.getVault(vaultId);
-    return vault.root ? posix.join(this.harnessVaultsDir, vaultId, vault.root) : join(this.harnessVaultsDir, vaultId);
+    return posix.join(this.harnessVaultsDir, vaultId, vault.root);
   }
 
   private async attach(vaultId: string): Promise<VaultChats> {
@@ -297,8 +297,6 @@ export class ChatService {
         return this.emit(vaultId, e.sessionId, { type: 'text-delta', messageId: e.messageId, partId: e.partId, delta: e.delta });
       case 'error':
         if (!e.aborted) this.emit(vaultId, e.sessionId, { type: 'error', message: e.message });
-        return;
-      case 'session-created':
         return;
     }
   }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Settings } from '@karpathy/shared';
 import { bearerAuth } from './auth.js';
 import type { ChatService } from './chat.js';
-import type { CommitMessages } from './commit-message.js';
+import { fallbackMessage, type CommitMessages } from './commit-message.js';
 import type { ConfigStore } from './config-store.js';
 import { PathError } from './paths.js';
 import { HttpError, type Vaults } from './vaults.js';
@@ -158,8 +158,7 @@ export function createApp(d: AppDeps) {
   api.post('/vaults/:id/commit-message', async (req, res) => {
     const id = req.params.id!;
     if (!d.commitMessages) {
-      const n = (await d.vaults.changes(id)).length;
-      return void res.json({ message: `Update ${n} file${n === 1 ? '' : 's'}`, fallback: true });
+      return void res.json({ message: fallbackMessage((await d.vaults.changes(id)).length), fallback: true });
     }
     res.json(await d.commitMessages.propose(id));
   });

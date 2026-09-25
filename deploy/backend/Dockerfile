@@ -17,7 +17,8 @@ RUN npm ci --workspace apps/backend --include-workspace-root=false && npm cache 
 USER ${APP_UID}:${APP_GID}
 WORKDIR /app/apps/backend
 ENV PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config
-CMD ["npx", "tsx", "watch", "--clear-screen=false", "src/main.ts"]
+# Polling: inotify events from macOS bind mounts don't reach the VM (Rancher Desktop).
+CMD ["npx", "nodemon", "--legacy-watch", "--watch", "src", "--watch", "../../packages/shared/src", "--ext", "ts", "--exec", "tsx src/main.ts"]
 
 FROM base AS prod
 RUN npm ci --workspace apps/backend --include-workspace-root=false --omit=dev && npm cache clean --force

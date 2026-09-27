@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { frontmatterProps, splitFrontmatter, toHtml } from './markdown';
+import { frontmatterFields, splitFrontmatter, toHtml } from './markdown';
 
 describe('splitFrontmatter', () => {
   it('splits a leading block', () => {
@@ -9,7 +9,66 @@ describe('splitFrontmatter', () => {
     expect(splitFrontmatter('# T\n---\n').frontmatter).toBeNull();
   });
   it('reads key/value pairs', () => {
-    expect(frontmatterProps('type: x\ntags: [a, b]')).toEqual([['type', 'x'], ['tags', '[a, b]']]);
+    expect(frontmatterFields('type: x\ntags: [a, b]')).toEqual([['type', 'x'], ['tags', ['a', 'b']]]);
+  });
+});
+
+describe('frontmatterFields (#58: readable values)', () => {
+  it('reads block lists, inline lists and quoted scalars without YAML syntax', () => {
+    const fm = [
+      'tags:',
+      '  - concept',
+      '  - llm',
+      '  - "meta"',
+      'sources: [karpathy-llm-wiki-gist.md, source-05.md]',
+      'related: ["[[entities/andrej-karpathy]]", "[[zettelkasten]]"]',
+      'aliases: [LLM-Wiki, "Compiled wiki", \'it\'\'s\']',
+      'title: "Hello: world"',
+      "note: 'single'",
+      'flush:',
+      '- a',
+      '- b',
+      'empty:',
+      'none: []',
+      'commas: ["a, b", c]',
+    ].join('\n');
+    expect(frontmatterFields(fm)).toEqual([
+      ['tags', ['concept', 'llm', 'meta']],
+      ['sources', ['karpathy-llm-wiki-gist.md', 'source-05.md']],
+      ['related', ['[[entities/andrej-karpathy]]', '[[zettelkasten]]']],
+      ['aliases', ['LLM-Wiki', 'Compiled wiki', "it's"]],
+      ['title', 'Hello: world'],
+      ['note', 'single'],
+      ['flush', ['a', 'b']],
+      ['empty', ''],
+      ['none', []],
+      ['commas', ['a, b', 'c']],
+    ]);
+  });
+
+  it('joins continued plain scalars and keeps unknown shapes as raw text', () => {
+    const fm = [
+      'summary: first',
+      '  second',
+      'nested:',
+      '  a: 1',
+      '  b: [x]',
+      'block: |',
+      '  line one',
+      '  line two',
+      'broken: [a, b',
+      'map: {a: 1}',
+      '# a comment',
+      'last: x # not a comment in this parser',
+    ].join('\n');
+    expect(frontmatterFields(fm)).toEqual([
+      ['summary', 'first second'],
+      ['nested', 'a: 1\nb: [x]'],
+      ['block', 'line one\nline two'],
+      ['broken', '[a, b'],
+      ['map', '{a: 1}'],
+      ['last', 'x # not a comment in this parser'],
+    ]);
   });
 });
 

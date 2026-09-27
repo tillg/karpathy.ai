@@ -44,6 +44,8 @@ edits the vault through opencode. Spec: [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp
 [`specs/01_mvp/plan.md`](specs/01_mvp/plan.md), opencode findings:
 [`specs/01_mvp/spike-opencode.md`](specs/01_mvp/spike-opencode.md), decisions taken while
 implementing: [`specs/01_mvp/implementation-decisions.md`](specs/01_mvp/implementation-decisions.md).
+Feature ideas from similar projects (30, ranked, filed as issues #64–#93):
+[`specs/02_features/feature-report.md`](specs/02_features/feature-report.md).
 UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
 

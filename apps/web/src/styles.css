@@ -213,6 +213,9 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .prop + .prop { border-top: .5px solid var(--sep); }
 .prop > span:first-child { width: 92px; color: var(--label2); flex: none; }
 .prop > span:last-child { min-width: 0; word-break: break-word; }
+.pv { white-space: pre-wrap; }
+.pv.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; white-space: normal; }
+.chip { background: var(--fill); border-radius: 6px; padding: 1px 8px; line-height: 1.5; }
 .rd, .atext { font-size: 17px; line-height: 1.62; word-break: break-word; }
 .rd h1 { font-size: 31px; letter-spacing: -.3px; margin: .2em 0 .3em; line-height: 1.2; }
 .rd h2 { font-size: 22px; margin: 1.1em 0 .3em; } .rd h3 { font-size: 18px; margin: .9em 0 .2em; }
@@ -245,7 +248,10 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .tc .ok { color: var(--green); } .tc .err { color: var(--red); }
 .tc.ed { background: var(--add); color: var(--label); cursor: pointer; }
 .tc.ed .f7-icons { color: var(--green); }
-.tc.denied, .tc.error { background: var(--del); color: var(--red-ink); }
+.tc.denied, .tc.error { background: var(--del); color: var(--red-ink); cursor: pointer; }
+.tc-msg { flex-basis: 100%; font: 12.5px var(--mono); color: var(--red-ink); background: var(--del); border-radius: 10px; padding: 6px 10px; white-space: pre-wrap; word-break: break-word; }
+.changed { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 8px; padding-top: 6px; border-top: .5px solid var(--sep); font-size: 13px; color: var(--label2); }
+.changed .link { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 13.5px; }
 .reason { font-size: 13.5px; color: var(--label2); margin: 4px 0; }
 .reason summary { cursor: pointer; }
 .turn-state { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--label2); }

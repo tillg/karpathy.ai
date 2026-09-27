@@ -1,14 +1,19 @@
 import type { SearchHit } from '@karpathy/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, errorText } from '../lib/api';
+import { snippet } from '../lib/snippet';
 import { useApp } from '../store';
 import { Icon } from './Icon';
 
-function highlight(text: string, q: string) {
-  const i = text.toLowerCase().indexOf(q.toLowerCase());
-  if (!q || i < 0) return text;
-  const start = Math.max(0, i - 40);
-  return <>{start ? '…' : ''}{text.slice(start, i)}<mark>{text.slice(i, i + q.length)}</mark>{text.slice(i + q.length)}</>;
+// ~0.5em per character at the 14px snippet size (the `L12` label takes ~40px). Wider text only
+// overflows the end of the row (CSS ellipsis): the centered match stays visible.
+const budgetFor = (width: number) => Math.max(12, Math.floor((width - 23 - 40) / (14 * 0.5)));
+
+/** The line with the match centered in the row's width (#54), so the highlight is never cut off. */
+function highlight(text: string, q: string, budget: number) {
+  const s = snippet(text, q, budget);
+  if (!s) return text;
+  return <>{s.pre}<mark>{s.hit}</mark>{s.post}</>;
 }
 
 export function SearchPanel() {
@@ -17,6 +22,15 @@ export function SearchPanel() {
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(320);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth - 40)); // .hit padding
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const text = q.trim();
@@ -35,7 +49,7 @@ export function SearchPanel() {
   }, [hits]);
 
   return (
-    <div className="search">
+    <div className="search" ref={box}>
       <div className="sinput">
         <Icon n="search" size={18} />
         <input data-testid="search-input" type="search" placeholder={online ? 'Search vault' : 'Search needs a connection'}
@@ -53,7 +67,7 @@ export function SearchPanel() {
           <div className="p">{path}</div>
           {hs.filter((h) => h.line).slice(0, 4).map((h) => (
             <button key={h.line} className="sn" onClick={() => void openNote(path, h.line)}>
-              <em>L{h.line}</em>{highlight(h.text.trim(), q.trim())}
+              <em>L{h.line}</em>{highlight(h.text.trim(), q.trim(), budgetFor(width))}
             </button>
           ))}
         </div>

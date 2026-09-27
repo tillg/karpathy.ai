@@ -1,17 +1,28 @@
-import { useMemo, useState } from 'react';
-import { buildTree, type TreeNode } from '../lib/tree';
+import { useEffect, useMemo, useState } from 'react';
+import { ancestors, buildTree, loadExpanded, saveExpanded, type TreeNode } from '../lib/tree';
 import { useApp } from '../store';
 import { Icon } from './Icon';
 
 export function FileTree() {
-  const { files, note, openNote, newNote, readOnly, usable, online } = useApp();
+  const { files, note, openNote, newNote, readOnly, usable, online, activeId } = useApp();
   const tree = useMemo(() => buildTree(files), [files]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (p: string) => setCollapsed((c) => {
-    const n = new Set(c);
-    if (n.has(p)) n.delete(p); else n.add(p);
-    return n;
+  // Folders start collapsed; what the user opens is kept per vault (#53).
+  const [exp, setExp] = useState(() => ({ vault: activeId, set: activeId ? loadExpanded(localStorage, activeId) : new Set<string>() }));
+  if (exp.vault !== activeId) setExp({ vault: activeId, set: activeId ? loadExpanded(localStorage, activeId) : new Set() });
+  const expanded = exp.set;
+  const update = (fn: (s: Set<string>) => void) => setExp((e) => {
+    const set = new Set(e.set);
+    fn(set);
+    if (e.vault) saveExpanded(localStorage, e.vault, set);
+    return { vault: e.vault, set };
   });
+  const toggle = (p: string) => update((s) => { if (s.has(p)) s.delete(p); else s.add(p); });
+  // The open note's folders open with it.
+  const notePath = note?.path;
+  useEffect(() => {
+    if (notePath && ancestors(notePath).some((a) => !exp.set.has(a))) update((s) => ancestors(notePath).forEach((a) => s.add(a)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notePath, exp.vault]);
 
   const create = () => {
     const dir = note?.path.includes('/') ? note.path.slice(0, note.path.lastIndexOf('/') + 1) : '';
@@ -28,16 +39,16 @@ export function FileTree() {
         className={`trow${n.dir ? ' dir' : ''}${note?.path === n.path ? ' sel' : ''}`}
         style={{ paddingLeft: 10 + depth * 16 }}
         data-testid="tree-item" data-path={n.path} data-type={n.dir ? 'dir' : 'file'}
-        aria-expanded={n.dir ? !collapsed.has(n.path) : undefined} aria-current={note?.path === n.path ? 'page' : undefined}
+        aria-expanded={n.dir ? expanded.has(n.path) : undefined} aria-current={note?.path === n.path ? 'page' : undefined}
         onClick={() => (n.dir ? toggle(n.path) : void openNote(n.path))}
       >
         {n.dir
-          ? <span className="tw"><Icon n={collapsed.has(n.path) ? 'chevron_right' : 'chevron_down'} size={12} /></span>
+          ? <span className="tw"><Icon n={expanded.has(n.path) ? 'chevron_down' : 'chevron_right'} size={12} /></span>
           : <span className="tw" />}
         <span className="ic"><Icon n={n.dir ? 'folder' : /\.md$/i.test(n.name) ? 'doc_text' : 'doc'} size={18} /></span>
         <span className="nm">{n.dir ? n.name : n.name.replace(/\.md$/i, '')}</span>
       </button>
-      {n.dir && !collapsed.has(n.path) && render(n.children, depth + 1)}
+      {n.dir && expanded.has(n.path) && render(n.children, depth + 1)}
     </div>
   ));
 

@@ -1,4 +1,4 @@
-import type { ChatDetail, ChatEvent, ChatPart } from '@karpathy/shared';
+import type { ChatDetail, ChatEvent, ChatMessage, ChatPart } from '@karpathy/shared';
 
 export interface ChatView extends ChatDetail {
   readonly?: boolean;
@@ -59,6 +59,28 @@ export function changedPaths(parts: ChatPart[]): string[] {
   const out: string[] = [];
   for (const p of parts) {
     if (p.type === 'tool' && p.call.writes && p.call.status === 'completed' && p.call.path && !out.includes(p.call.path)) out.push(p.call.path);
+  }
+  return out;
+}
+
+export type Turn =
+  | { role: 'user'; id: string; message: ChatMessage }
+  | { role: 'assistant'; id: string; model?: string; parts: ChatPart[]; errors: string[] };
+
+/**
+ * The chat as the user reads it (#63, pure): the harness makes one assistant message per tool
+ * step, so consecutive assistant messages merge into one turn with one header.
+ */
+export function turns(messages: ChatMessage[]): Turn[] {
+  const out: Turn[] = [];
+  for (const m of messages) {
+    const last = out.at(-1);
+    if (m.role === 'user') out.push({ role: 'user', id: m.id, message: m });
+    else if (last?.role === 'assistant') {
+      last.parts = [...last.parts, ...m.parts];
+      last.model ??= m.model;
+      if (m.error) last.errors.push(m.error);
+    } else out.push({ role: 'assistant', id: m.id, model: m.model, parts: m.parts, errors: m.error ? [m.error] : [] });
   }
   return out;
 }

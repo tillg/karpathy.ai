@@ -1,10 +1,14 @@
-import { expect, openApp, openNote, test, treeItem } from './helpers';
+import { expect, openApp, openNote, revealInTree, test, treeItem } from './helpers';
 
 test.describe('file tree and notes', () => {
   test('file tree lists the vault, folders collapse, a note opens in Write mode', async ({ page, api, vault }) => {
     await openApp(page, vault.id);
     const files = (await api.files(vault.id)).filter((f) => f.type === 'file' && f.path.endsWith('.md'));
-    for (const f of files) await expect(treeItem(page, f.path)).toBeAttached();
+    // Folders start collapsed (#53): expand each one to see every note.
+    for (const f of files) {
+      await revealInTree(page, f.path);
+      await expect(treeItem(page, f.path)).toBeAttached();
+    }
     const dir = (await api.files(vault.id)).find((f) => f.type === 'dir')!;
     const child = files.find((f) => f.path.startsWith(`${dir.path}/`))!;
     await expect(treeItem(page, child.path)).toBeVisible();

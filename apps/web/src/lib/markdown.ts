@@ -10,13 +10,57 @@ export function splitFrontmatter(md: string): { frontmatter: string | null; body
   return m ? { frontmatter: m[1]!, body: md.slice(m[0].length) } : { frontmatter: null, body: md };
 }
 
-/** Top-level `key: value` pairs of a frontmatter block (display only; not a YAML parser). */
-export function frontmatterProps(fm: string): [string, string][] {
-  const out: [string, string][] = [];
-  for (const line of fm.split(/\r?\n/)) {
-    const m = /^([\w][\w -]*):\s?(.*)$/.exec(line);
-    if (m) out.push([m[1]!, m[2]!]);
-    else if (out.length && line.trim()) out[out.length - 1]![1] += ` ${line.trim()}`;
+/** A display value: a scalar (quotes removed), a list, or raw text for shapes this reader doesn't know. */
+export type FieldValue = string | string[];
+
+/** Strips matching YAML quotes from a scalar (`''` is an escaped `'` in single quotes). */
+function unquote(s: string): string {
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1).replace(/\\"/g, '"');
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) return s.slice(1, -1).replace(/''/g, "'");
+  return s;
+}
+
+/** `[a, "b, c"]` → items; null when it isn't a well-formed flat inline list. */
+function inlineList(v: string): string[] | null {
+  if (!v.startsWith('[') || !v.endsWith(']')) return null;
+  const body = v.slice(1, -1);
+  const items: string[] = [];
+  let cur = '';
+  let quote: string | null = null;
+  for (const ch of body) {
+    if (quote) { cur += ch; if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
+    if (ch === '[' || ch === ']' || ch === '{' || ch === '}') return null;
+    if (ch === ',') { items.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (quote) return null;
+  if (cur.trim() || items.length) items.push(cur.trim());
+  return items.map(unquote);
+}
+
+/**
+ * Top-level frontmatter fields for Read mode (#58; display only, not a YAML parser): flat
+ * `key: value`, inline `[a, b]` and block `- a` lists; anything else is shown as raw text.
+ */
+export function frontmatterFields(fm: string): [string, FieldValue][] {
+  const out: [string, FieldValue][] = [];
+  const lines = fm.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^([\w][\w -]*):(?:\s+(.*))?$/.exec(lines[i]!);
+    if (!m) continue;
+    const head = (m[2] ?? '').trim();
+    // Following lines that belong to this key: indented, or `- ` items flush with it.
+    const rest: string[] = [];
+    while (i + 1 < lines.length && (/^\s/.test(lines[i + 1]!) || /^- /.test(lines[i + 1]!) || !lines[i + 1]!.trim())) rest.push(lines[++i]!);
+    const more = rest.map((l) => l.trim()).filter(Boolean);
+    let value: FieldValue;
+    if (!head && more.length && more.every((l) => /^- /.test(l) || l === '-')) value = more.map((l) => unquote(l.slice(1).trim()));
+    else if (!head) value = more.join('\n');
+    else if (/^[|>][+-]?$/.test(head)) value = more.join('\n');
+    else if (!more.length) value = inlineList(head) ?? unquote(head);
+    else value = [head, ...more].join(' ');
+    out.push([m[1]!, value]);
   }
   return out;
 }

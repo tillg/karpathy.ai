@@ -395,7 +395,8 @@ function useAppState() {
     else toast(`No page “${l.target}” yet`);
   }, [openNote, toast]);
 
-  const exists = useCallback((target: string) => resolveWikilink(target, pathsRef.current) !== null, []);
+  // Changes with the file list, so rendered links re-check which pages exist (#55).
+  const exists = useCallback((target: string) => resolveWikilink(target, paths) !== null, [paths]);
 
   /** Stale dialog: drop my edits of the stale note (and show the server version if it is open). */
   const reloadNote = useCallback(async () => {

@@ -3,7 +3,7 @@ import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
 import { Annotation, Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { liveMarkdown } from '../lib/cm';
+import { liveMarkdown, refreshLinks } from '../lib/cm';
 import { minimalChange } from '../lib/diff';
 import { editorText, eolExtension } from '../lib/eol';
 
@@ -69,6 +69,9 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
   useEffect(() => {
     view.current?.dispatch({ effects: ro.current.reconfigure([EditorState.readOnly.of(props.readOnly), EditorView.editable.of(!props.readOnly)]) });
   }, [props.readOnly]);
+
+  // A new file list: missing-link marks follow (#55).
+  useEffect(() => { view.current?.dispatch({ effects: refreshLinks.of(null) }); }, [props.exists]);
 
   useImperativeHandle(ref, () => ({
     openSearch: () => { if (view.current) openSearchPanel(view.current); },

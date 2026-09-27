@@ -34,3 +34,27 @@ export function buildTree(entries: FileEntry[]): TreeNode[] {
   sort(root);
   return root.children;
 }
+
+/** The folders above a path, outermost first (`a/b/c.md` → `a`, `a/b`). */
+export function ancestors(path: string): string[] {
+  const parts = path.split('/').slice(0, -1);
+  return parts.map((_, i) => parts.slice(0, i + 1).join('/'));
+}
+
+// Expanded folders per vault (#53): everything starts collapsed; the user's choice survives
+// tab switches and reloads.
+type Store = Pick<Storage, 'getItem' | 'setItem'>;
+const expandedKey = (vault: string) => `karpathy.tree:${vault}`;
+
+export function loadExpanded(s: Store, vault: string): Set<string> {
+  try {
+    const v = JSON.parse(s.getItem(expandedKey(vault)) ?? '[]') as unknown;
+    return new Set(Array.isArray(v) ? v.filter((p): p is string => typeof p === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveExpanded(s: Store, vault: string, expanded: Set<string>) {
+  try { s.setItem(expandedKey(vault), JSON.stringify([...expanded])); } catch { /* quota / private mode: best effort */ }
+}

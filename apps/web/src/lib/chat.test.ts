@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, type ChatView, type PendingPrompt } from './chat';
+import type { ChatMessage } from '@karpathy/shared';
+import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, turns, type ChatView, type PendingPrompt } from './chat';
 
 const empty: ChatView = { id: 'c1', title: 'T', messages: [], turn: 'idle' };
 
@@ -104,5 +105,28 @@ describe('turnAnnouncement (issue #45)', () => {
     expect(turnAnnouncement('idle', { ...empty, turn: 'queued', waiting: 'sync' })).toBe('Waiting for sync…');
     expect(turnAnnouncement('running', reply('', 'model down'))).toBe('Reply failed: model down');
     expect(turnAnnouncement('running', { ...reply('ok'), error: 'stream broke' })).toBe('Reply failed: stream broke');
+  });
+});
+
+describe('turns (#63: one assistant block per turn)', () => {
+  const tool = (id: string, path: string, writes = false) => ({ type: 'tool' as const, id, call: { id, tool: writes ? 'write' : 'read', status: 'completed' as const, path, writes } });
+  const a = (id: string, parts: ChatMessage['parts'], extra: Partial<ChatMessage> = {}): ChatMessage => ({ id, role: 'assistant', createdAt: 1, parts, ...extra });
+  const u = (id: string, text: string): ChatMessage => ({ id, role: 'user', createdAt: 1, parts: [{ type: 'text', id: `${id}p`, text }] });
+
+  it('merges consecutive assistant messages between user messages', () => {
+    const t = turns([
+      u('u1', 'hi'),
+      a('a1', [tool('t1', 'x.md')], { model: 'ollama/qwen' }),
+      a('a2', [tool('t2', 'y.md', true)], { error: 'boom' }),
+      a('a3', [{ type: 'text', id: 'p3', text: 'done' }]),
+      u('u2', 'again'),
+      a('a4', [tool('t4', 'z.md', true)]),
+    ]);
+    expect(t.map((x) => x.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    const first = t[1]!;
+    expect(first).toMatchObject({ role: 'assistant', id: 'a1', model: 'ollama/qwen', errors: ['boom'] });
+    expect(first.role === 'assistant' && first.parts.map((p) => p.id)).toEqual(['t1', 't2', 'p3']);
+    expect(first.role === 'assistant' && changedPaths(first.parts)).toEqual(['y.md']);
+    expect(t[3]).toMatchObject({ role: 'assistant', id: 'a4', errors: [] });
   });
 });

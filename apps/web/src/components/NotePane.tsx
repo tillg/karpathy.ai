@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { frontmatterProps, renderMarkdown, splitFrontmatter } from '../lib/markdown';
+import { frontmatterFields, renderMarkdown, splitFrontmatter, type FieldValue } from '../lib/markdown';
+import { parseWikilink, wikilinkLabel, WIKILINK_RE } from '../lib/wikilink';
 import { useApp } from '../store';
 import { Editor, type EditorHandle } from './Editor';
 import { GitPill } from './GitPill';
@@ -20,13 +21,37 @@ export function Markdown({ text, className }: { text: string; className?: string
   );
 }
 
+/** Text with its `[[wikilinks]]` as links, resolved like the body's (#58). */
+function Linked({ text }: { text: string }) {
+  const { exists, followLink } = useApp();
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(WIKILINK_RE)) {
+    const inner = m[1]!;
+    const l = parseWikilink(inner);
+    out.push(text.slice(last, m.index));
+    out.push(
+      <a key={m.index} href="#" className={!l.target || exists(l.target) ? 'wl' : 'wl miss'} data-target={inner}
+        onClick={(e) => { e.preventDefault(); followLink(inner); }}>{wikilinkLabel(l)}</a>,
+    );
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return <>{out}</>;
+}
+
+function PropValue({ v }: { v: FieldValue }) {
+  if (typeof v === 'string') return <span className="pv"><Linked text={v} /></span>;
+  return <span className="pv chips">{v.map((item, i) => <span className="chip" key={i}><Linked text={item} /></span>)}</span>;
+}
+
 function ReadView({ text }: { text: string }) {
   const { frontmatter, body } = splitFrontmatter(text);
   return (
     <div className="read" data-testid="read-view">
       {frontmatter !== null && (
         <div className="props">
-          {frontmatterProps(frontmatter).map(([k, v]) => <div className="prop" key={k}><span>{k}</span><span>{v}</span></div>)}
+          {frontmatterFields(frontmatter).map(([k, v], i) => <div className="prop" key={`${k}${i}`}><span>{k}</span><PropValue v={v} /></div>)}
         </div>
       )}
       <Markdown text={body} className="rd" />

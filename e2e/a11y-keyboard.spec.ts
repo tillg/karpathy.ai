@@ -120,9 +120,9 @@ test.describe('keyboard and screen readers', () => {
   test('file tree exposes folder state and the open note; landmarks and heading (#44, #47)', async ({ page, vault }) => {
     await openApp(page, vault.id);
     const folder = treeItem(page, 'wiki');
-    await expect(folder).toHaveAttribute('aria-expanded', 'true');
+    await expect(folder).toHaveAttribute('aria-expanded', 'false'); // collapsed by default (#53)
     await folder.click();
-    await expect(folder).toHaveAttribute('aria-expanded', 'false');
+    await expect(folder).toHaveAttribute('aria-expanded', 'true');
     await folder.click();
     await openNote(page, 'Home.md');
     await expect(treeItem(page, 'Home.md')).toHaveAttribute('aria-current', 'page');

@@ -1,7 +1,7 @@
-import type { ChatEvent, ChatMessage, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
+import type { ChatEvent, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
-import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, userCount, type ChatView, type PendingPrompt } from '../lib/chat';
+import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, turns, userCount, type ChatView, type PendingPrompt, type Turn } from '../lib/chat';
 import { readNdjson } from '../lib/ndjson';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -60,23 +60,42 @@ function useChat(vaultId: string, chatId: string) {
   return { chat, setChat, error, attach };
 }
 
-function ToolChip({ call }: { call: ToolCall }) {
+function ToolChip({ call, open, onToggle }: { call: ToolCall; open: boolean; onToggle(): void }) {
   const { openNote } = useApp();
   const target = call.path ?? call.title ?? '';
-  if (call.status === 'denied')
-    return <span className="tc denied" data-testid="tool-chip" data-status="denied" data-path={call.path} title={call.error}><Icon n="nosign" size={14} />denied · {call.tool} {target}</span>;
+  // Failed and denied steps open their error on tap: touch devices can't show a tooltip (#63).
+  if (call.status === 'denied' || call.status === 'error') {
+    const icon = call.status === 'denied' ? <Icon n="nosign" size={14} /> : <span className="err"><Icon n="xmark" size={14} /></span>;
+    return (
+      <button className={`tc ${call.status}`} data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path}
+        aria-expanded={open} onClick={onToggle}>
+        {icon}{call.status === 'denied' ? 'denied · ' : ''}{call.tool} {target}
+      </button>
+    );
+  }
   if (call.writes && call.status === 'completed' && call.path)
     return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="true" data-path={call.path} onClick={() => void openNote(call.path!)}><Icon n="pencil" size={14} />changed {call.path}</button>;
-  const icon = call.status === 'completed' ? <span className="ok"><Icon n="checkmark" size={14} /></span>
-    : call.status === 'error' ? <span className="err"><Icon n="xmark" size={14} /></span> : <span className="spin" />;
-  return <span className={`tc${call.status === 'error' ? ' error' : ''}`} data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path} title={call.error}>{icon}{call.writes ? 'changing' : call.tool} {target}</span>;
+  const icon = call.status === 'completed' ? <span className="ok"><Icon n="checkmark" size={14} /></span> : <span className="spin" />;
+  return <span className="tc" data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path}>{icon}{call.writes ? 'changing' : call.tool} {target}</span>;
+}
+
+/** One row of chips; a tapped failed chip shows its error under the row. */
+function ToolRow({ tools }: { tools: ToolCall[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const shown = tools.find((t) => t.id === open);
+  return (
+    <div className="tcs">
+      {tools.map((t) => <ToolChip key={t.id} call={t} open={open === t.id} onToggle={() => setOpen(open === t.id ? null : t.id)} />)}
+      {shown && <div className="tc-msg" data-testid="tool-error" role="status">{shown.error || 'No error details.'}</div>}
+    </div>
+  );
 }
 
 function Parts({ parts }: { parts: ChatPart[] }) {
   const out: React.ReactNode[] = [];
   let tools: ToolCall[] = [];
   const flushTools = (key: string) => {
-    if (tools.length) out.push(<div className="tcs" key={key}>{tools.map((t) => <ToolChip key={t.id} call={t} />)}</div>);
+    if (tools.length) out.push(<ToolRow key={key} tools={tools} />);
     tools = [];
   };
   parts.forEach((p, i) => {
@@ -89,20 +108,22 @@ function Parts({ parts }: { parts: ChatPart[] }) {
   return <>{out}</>;
 }
 
-function Message({ m, model }: { m: ChatMessage; model: string }) {
+/** A user prompt, or one assistant turn: all its steps under one header (#63). */
+function Message({ t, model }: { t: Turn; model: string }) {
   const { openNote } = useApp();
-  if (m.role === 'user') return <div className="u">{m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')}</div>;
-  const changed = changedPaths(m.parts);
+  if (t.role === 'user') return <div className="u">{t.message.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')}</div>;
+  const changed = changedPaths(t.parts);
   return (
     <div className="a" data-testid="assistant-message">
-      <div className="who"><img src="/icon-192.png" alt="" />karpathy.ai · {m.model?.split('/').pop() ?? model}</div>
-      <Parts parts={m.parts} />
-      {m.error && <div className="form-error">{m.error}</div>}
+      <div className="who"><img src="/icon-192.png" alt="" />karpathy.ai · {t.model?.split('/').pop() ?? model}</div>
+      <Parts parts={t.parts} />
+      {t.errors.map((e, i) => <div className="form-error" key={i}>{e}</div>)}
       {changed.length > 0 && (
-        <div className="acts">
+        <div className="changed" data-testid="turn-changed">
+          <span>{changed.length === 1 ? 'Changed' : `${changed.length} pages changed`}</span>
           {changed.map((p) => (
-            <button key={p} className="btn" data-testid="open-changed" data-path={p} onClick={() => void openNote(p)}>
-              <Icon n="arrow_up_right_square" size={16} />Open {changed.length > 1 ? p.split('/').pop() : 'changed page'}
+            <button key={p} className="link" data-testid="open-changed" data-path={p} title={p} onClick={() => void openNote(p)}>
+              <Icon n="arrow_up_right_square" size={14} />{p.split('/').pop()}
             </button>
           ))}
         </div>
@@ -174,7 +195,7 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
           {!chat && !error && <div className="day">Loading…</div>}
           {error && <div className="form-error">{error}</div>}
           {chat && !chat.messages.length && !pending && <div className="day">New chat · ask about this vault</div>}
-          {chat?.messages.map((m) => <Message key={m.id} m={m} model={model} />)}
+          {chat && turns(chat.messages).map((t) => <Message key={t.id} t={t} model={model} />)}
           {pending && <div className="u pending" data-testid="chat-pending">{pending.text}</div>}
           {chat?.turn === 'queued' && <div className="turn-state" data-testid="chat-queued"><span className="spin" />{chat.waiting === 'sync' ? 'Waiting for sync…' : 'Waiting for other chat…'}</div>}
           {chat?.turn === 'running' && <div className="turn-state"><span className="spin" />Working…</div>}
@@ -240,35 +261,67 @@ function ChatList({ vaultId }: { vaultId: string }) {
   );
 }
 
+/** Shown while a new chat is being created: nothing typed here can reach the chat just left (#62). */
+function Starting() {
+  return (
+    <>
+      <div className="scroll"><div className="msgs" data-testid="chat-messages"><div className="day">Starting new chat…</div></div></div>
+      <div className="comp">
+        <div className="inrow">
+          <textarea data-testid="chat-composer" rows={1} placeholder="Starting new chat…" disabled />
+          <button className="send" data-testid="chat-send" aria-label="Send" disabled><Icon n="arrow_up" size={20} /></button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function ChatPane({ inert }: { inert?: boolean }) {
   const { activeId, chatId, setChatId, usable, settings, phone, setChatOpen, toast } = useApp();
-  /** Leaves the open chat; a chat that never got a message (e.g. its only prompt was stopped while queued) is deleted. */
-  const leave = async (next: string | null) => {
-    if (chatId && activeId) {
-      try {
-        const d = await api.chat(activeId, chatId);
-        if (!d.messages.length && d.turn === 'idle') await api.deleteChat(activeId, chatId);
-      } catch { /* best effort */ }
-    }
-    setChatId(next);
+  const [starting, setStarting] = useState(false);
+  const vault = useRef(activeId);
+  vault.current = activeId;
+  /** Cleanup of the chat left for a new one; the chat list waits for it. */
+  const cleaning = useRef<Promise<void>>(Promise.resolve());
+  /** A chat that never got a message (e.g. its only prompt was stopped while queued) is deleted. */
+  const dropIfEmpty = async (vaultId: string, id: string) => {
+    try {
+      const d = await api.chat(vaultId, id);
+      if (!d.messages.length && d.turn === 'idle') await api.deleteChat(vaultId, id);
+    } catch { /* best effort */ }
   };
+  const leave = async () => {
+    await cleaning.current;
+    if (chatId && activeId) await dropIfEmpty(activeId, chatId);
+    setChatId(null);
+  };
+  // The new chat replaces the old one at once; the old one is cleaned up behind it.
   const newChat = async () => {
-    if (!activeId) return;
-    try { await leave((await api.newChat(activeId)).chatId); } catch (e) { toast(errorText(e)); }
+    const v = activeId;
+    if (!v || starting) return;
+    const prev = chatId;
+    setStarting(true);
+    try {
+      const { chatId: id } = await api.newChat(v);
+      if (vault.current !== v) return;
+      setChatId(id);
+      if (prev) cleaning.current = dropIfEmpty(v, prev);
+    } catch (e) { toast(errorText(e)); } finally { setStarting(false); }
   };
   return (
     <aside className="pane always" id="chat" inert={inert} aria-label="AI chat">
       <header className="bar">
-        {chatId
-          ? <button className="ib back" data-testid="chat-back" onClick={() => void leave(null)}><Icon n="chevron_left" size={24} /><span>Chats</span></button>
+        {chatId || starting
+          ? <button className="ib back" data-testid="chat-back" disabled={starting} onClick={() => void leave()}><Icon n="chevron_left" size={24} /><span>Chats</span></button>
           : <span className="bar-title">Chats</span>}
-        <div className="ctitle">{chatId && <span className="model">{(settings?.model ?? '').split('/').pop()}</span>}</div>
+        <div className="ctitle">{(chatId || starting) && <span className="model">{(settings?.model ?? '').split('/').pop()}</span>}</div>
         <span className="sp" />
-        <button className="ib" title="New chat" data-testid="new-chat" disabled={!usable} onClick={() => void newChat()}><Icon n="square_pencil" /></button>
+        <button className="ib" title="New chat" data-testid="new-chat" disabled={!usable || starting} onClick={() => void newChat()}><Icon n="square_pencil" /></button>
         {!phone && <button className="ib" title="Close chat" onClick={() => setChatOpen(false)}><Icon n="xmark" /></button>}
       </header>
       {!usable || !activeId ? <div className="scroll"><div className="empty">Open a vault to chat about it.</div></div>
-        : chatId ? <Conversation key={chatId} vaultId={activeId} chatId={chatId} /> : <ChatList vaultId={activeId} />}
+        : starting ? <Starting />
+          : chatId ? <Conversation key={chatId} vaultId={activeId} chatId={chatId} /> : <ChatList vaultId={activeId} />}
     </aside>
   );
 }

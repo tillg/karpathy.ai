@@ -160,7 +160,18 @@ export async function openApp(page: Page, vaultId?: string) {
 
 export const treeItem = (page: Page, path: string) => page.locator(`[data-testid="tree-item"][data-path="${path}"]`);
 
+/** Expands the (collapsed by default, #53) folders above `path` in the file tree. */
+export async function revealInTree(page: Page, path: string) {
+  const parts = path.split('/').slice(0, -1);
+  for (let i = 1; i <= parts.length; i++) {
+    const dir = treeItem(page, parts.slice(0, i).join('/'));
+    if ((await dir.getAttribute('aria-expanded')) === 'false') await dir.click();
+    await expect(dir).toHaveAttribute('aria-expanded', 'true');
+  }
+}
+
 export async function openNote(page: Page, path: string) {
+  await revealInTree(page, path);
   await treeItem(page, path).click();
   await expect(page.locator('.note-title')).toHaveText(path.split('/').pop()!.replace(/\.md$/, ''));
   await expect(page.locator('.cm-content')).toBeVisible();

@@ -2,7 +2,7 @@
 // document itself is never rewritten (lossless round-trip, mvp §2.2).
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
-import { type Extension, RangeSetBuilder } from '@codemirror/state';
+import { type Extension, RangeSetBuilder, StateEffect } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { splitFrontmatter } from './markdown';
@@ -63,12 +63,17 @@ const lines = ViewPlugin.fromClass(class {
   }
 }, { decorations: (v) => v.decorations });
 
+/** Re-evaluates which link targets exist (the file list changed, #55). */
+export const refreshLinks = StateEffect.define<null>();
+
 /** `[[wikilink]]` marks; click navigates unless the cursor is already inside the link. */
 function wikilinks(exists: (target: string) => boolean, open: (inner: string) => void): Extension {
   const plugin = ViewPlugin.fromClass(class {
     decorations: DecorationSet;
     constructor(view: EditorView) { this.decorations = this.build(view); }
-    update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view); }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged || u.transactions.some((t) => t.effects.some((e) => e.is(refreshLinks)))) this.decorations = this.build(u.view);
+    }
     build(view: EditorView): DecorationSet {
       const b = new RangeSetBuilder<Decoration>();
       for (const { from, to } of view.visibleRanges) {

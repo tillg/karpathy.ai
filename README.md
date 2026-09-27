@@ -47,6 +47,9 @@ implementing: [`specs/01_mvp/implementation-decisions.md`](specs/01_mvp/implemen
 Feature ideas from similar projects (30, ranked, filed as issues #64–#93):
 [`specs/02_features/feature-report.md`](specs/02_features/feature-report.md) (interactive version:
 `feature-report.html`, rebuilt with `node specs/02_features/build-report-html.mjs`).
+Browser-only (serverless) architecture research with spikes:
+[`specs/03_browser_only/browser-only-report.html`](specs/03_browser_only/browser-only-report.html).
+V1 plan draft: [`specs/04_v1/v1-plan.md`](specs/04_v1/v1-plan.md).
 UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
 

@@ -1,0 +1,10 @@
+{
+  "chromium": {
+    "http://localhost:11435/api/tags": "response 200",
+    "http://127.0.0.1:11435/api/tags": "response 200"
+  },
+  "webkit": {
+    "http://localhost:11435/api/tags": "blocked TypeError: Load failed",
+    "http://127.0.0.1:11435/api/tags": "blocked TypeError: Load failed"
+  }
+}

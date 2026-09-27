@@ -1,0 +1,400 @@
+{
+ "engine": "chromium",
+ "version": "153.0.8010.12",
+ "runs": [
+  {
+   "label": "S1 OPFS in ephemeral context",
+   "result": {
+    "opfs": "ok",
+    "estimate": {
+     "usageMB": 0,
+     "quotaMB": 10737.42
+    }
+   }
+  },
+  {
+   "label": "S5 feature detection",
+   "wallMs": 2,
+   "result": {
+    "showDirectoryPicker": true,
+    "showOpenFilePicker": true,
+    "opfsGetDirectory": true,
+    "createWritable": true,
+    "createSyncAccessHandle": false,
+    "FileSystemObserver": true,
+    "webkitdirectoryInput": true,
+    "crossOriginIsolated": false,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36"
+   }
+  },
+  {
+   "label": "S1 OPFS vault write/read",
+   "wallMs": 25613,
+   "result": {
+    "files": 3100,
+    "sizeMB": 5.49,
+    "before": {
+     "usageMB": 0,
+     "quotaMB": 10737.42
+    },
+    "mainWriteMs": 5954,
+    "mainReadMs": 3306,
+    "mainReadOk": true,
+    "tree": {
+     "files": 3100,
+     "dirs": 1729
+    },
+    "listTreeMs": 191,
+    "workerWriteMs": 10492,
+    "workerReadMs": 4511,
+    "idbWriteMs": 659,
+    "idbReadMs": 225,
+    "after": {
+     "usageMB": 17.5,
+     "quotaMB": 10754.91
+    },
+    "persistedBefore": false,
+    "persistResult": false
+   }
+  },
+  {
+   "label": "S2 clone github.com direct (no proxy)",
+   "wallMs": 450,
+   "result": {
+    "fetchError": {
+     "name": "TypeError",
+     "message": "Failed to fetch",
+     "stack": "    at Object.s2GithubDirect (http://localhost:8787/assets/index-C_CD3Bb8.js:29110:9) |     at eval (eval at evaluate (:311:30), <anonymous>:1:34) |     at UtilityScript.evaluate (<anonymous>:313:16) |     at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    },
+    "cloneError": {
+     "name": "TypeError",
+     "message": "Failed to fetch",
+     "stack": "    at Object.request (http://localhost:8787/assets/index-C_CD3Bb8.js:21544:20) |     at GitRemoteHTTP.discover (http://localhost:8787/assets/index-C_CD3Bb8.js:14494:21) |     at _fetch (http://localhost:8787/assets/index-C_CD3Bb8.js:14957:41) |     at async _clone (http://localhost:8787/assets/index-C_CD3Bb8.js:15254:40)"
+    }
+   }
+  },
+  {
+   "label": "S2 clone public via cors-proxy, depth 1",
+   "wallMs": 3212,
+   "result": {
+    "url": "https://github.com/isomorphic-git/lightning-fs",
+    "fsKind": "idb",
+    "depth": 1,
+    "cloneMs": 631,
+    "objectsReceived": 58,
+    "status1Ms": 2,
+    "files": 52,
+    "status2Ms": 4,
+    "statusAfterEditMs": 3,
+    "changedDetected": [
+     "README.md"
+    ],
+    "logMs": 2,
+    "duMB": 1.05,
+    "duMs": 0,
+    "estimateAfter": {
+     "usageMB": 3.91,
+     "quotaMB": 10741.33
+    }
+   }
+  },
+  {
+   "label": "S2 clone private test vault via cors-proxy + token",
+   "wallMs": 1213,
+   "result": {
+    "url": "https://github.com/tillg/karpathy-ai-test-vault",
+    "fsKind": "idb",
+    "depth": 1,
+    "cloneMs": 1205,
+    "objectsReceived": 7,
+    "status1Ms": 1,
+    "files": 5,
+    "status2Ms": 1,
+    "statusAfterEditMs": 1,
+    "changedDetected": [
+     "Note A.md"
+    ],
+    "logMs": 1,
+    "duMB": 0,
+    "duMs": 0,
+    "estimateAfter": {
+     "usageMB": 0.02,
+     "quotaMB": 10737.44
+    }
+   }
+  },
+  {
+   "label": "S2 clone mdvault (3100 md) idb depth full",
+   "wallMs": 1963,
+   "result": {
+    "url": "http://localhost:8788/mdvault.git",
+    "fsKind": "idb",
+    "depth": "full",
+    "cloneMs": 1708,
+    "objectsReceived": 4870,
+    "status1Ms": 83,
+    "files": 3100,
+    "status2Ms": 76,
+    "statusAfterEditMs": 76,
+    "changedDetected": [
+     ".claude/skills/archify/SKILL.md"
+    ],
+    "logMs": 6,
+    "duMB": 8.29,
+    "duMs": 10,
+    "estimateAfter": {
+     "usageMB": 7.49,
+     "quotaMB": 10744.91
+    }
+   }
+  },
+  {
+   "label": "S2 clone mdvault (3100 md) idb depth 1",
+   "wallMs": 1938,
+   "result": {
+    "url": "http://localhost:8788/mdvault.git",
+    "fsKind": "idb",
+    "depth": 1,
+    "cloneMs": 1682,
+    "objectsReceived": 4806,
+    "status1Ms": 83,
+    "files": 3100,
+    "status2Ms": 76,
+    "statusAfterEditMs": 75,
+    "changedDetected": [
+     ".claude/skills/archify/SKILL.md"
+    ],
+    "logMs": 6,
+    "duMB": 8.27,
+    "duMs": 11,
+    "estimateAfter": {
+     "usageMB": 7.13,
+     "quotaMB": 10744.55
+    }
+   }
+  },
+  {
+   "label": "S2 clone mdvault (3100 md) opfs-shim depth full",
+   "wallMs": 9720,
+   "result": {
+    "url": "http://localhost:8788/mdvault.git",
+    "fsKind": "opfs-shim",
+    "depth": "full",
+    "cloneMs": 5408,
+    "objectsReceived": 4870,
+    "status1Ms": 1040,
+    "files": 3100,
+    "status2Ms": 922,
+    "statusAfterEditMs": 1162,
+    "changedDetected": [
+     ".claude/skills/archify/SKILL.md"
+    ],
+    "logMs": 12,
+    "duMB": 8.29,
+    "duMs": 1160,
+    "estimateAfter": {
+     "usageMB": 13.97,
+     "quotaMB": 10751.38
+    }
+   }
+  },
+  {
+   "label": "S2 clone mdvault (3100 md) opfs-shim depth 1",
+   "wallMs": 11261,
+   "result": {
+    "url": "http://localhost:8788/mdvault.git",
+    "fsKind": "opfs-shim",
+    "depth": 1,
+    "cloneMs": 5459,
+    "objectsReceived": 4806,
+    "status1Ms": 977,
+    "files": 3100,
+    "status2Ms": 962,
+    "statusAfterEditMs": 1142,
+    "changedDetected": [
+     ".claude/skills/archify/SKILL.md"
+    ],
+    "logMs": 10,
+    "duMB": 8.27,
+    "duMs": 1147,
+    "estimateAfter": {
+     "usageMB": 13.95,
+     "quotaMB": 10751.37
+    }
+   }
+  },
+  {
+   "label": "S2 clone mdvault (3100 md) componentor-hybrid depth full",
+   "wallMs": 4615,
+   "result": {
+    "url": "http://localhost:8788/mdvault.git",
+    "fsKind": "componentor-hybrid",
+    "depth": "full",
+    "cloneMs": 1989,
+    "objectsReceived": 4870,
+    "status1Ms": 282,
+    "files": 3100,
+    "status2Ms": 250,
+    "statusAfterEditMs": 224,
+    "changedDetected": [
+     ".claude/skills/archify/SKILL.md"
+    ],
+    "logMs": 4,
+    "duMB": 8.29,
+    "duMs": 188,
+    "estimateAfter": {
+     "usageMB": 74.36,
+     "quotaMB": 10811.78
+    }
+   }
+  },
+  {
+   "label": "S2 clone mdvault (3100 md) componentor-hybrid depth 1",
+   "wallMs": 270,
+   "result": {
+    "runnerError": "page.evaluate: NoModificationAllowedError: Failed to execute 'removeEntry' on 'FileSystemDirectoryHandle': An attempt was made to modify an object where modifications are not allowed."
+   }
+  },
+  {
+   "label": "S2 clone mdvault componentor-opfs (mode opfs) depth 1",
+   "wallMs": 120124,
+   "result": {
+    "runnerError": "timeout after 120s"
+   }
+  },
+  {
+   "label": "S3 clone push.git",
+   "wallMs": 3031,
+   "result": {
+    "cloneMs": 1145
+   }
+  },
+  {
+   "label": "S3 edit+commit+push",
+   "wallMs": 1430,
+   "result": {
+    "oid": "082a8710bb43afbe3ae4766a08c9c6797c91fc57",
+    "commitMs": 725,
+    "pushMs": 705,
+    "pushOk": true,
+    "pushRefs": {
+     "refs/heads/main": {
+      "ok": true,
+      "error": ""
+     }
+    }
+   }
+  },
+  {
+   "label": "S3 host verify push",
+   "result": {
+    "hostHead": "082a8710bb43afbe3ae4766a08c9c6797c91fc57 browser: edit .claude/skills/archify/SKILL.md",
+    "matchesBrowser": true
+   }
+  },
+  {
+   "label": "S3 pull non-conflicting concurrent change (merge) + push",
+   "wallMs": 2311,
+   "result": {
+    "localCommit": "a76c9ad2fa6337e02ab401e515bc35f3ef4f80fc",
+    "pullMs": 1217,
+    "headParents": 2,
+    "pushMs": 809,
+    "pushOk": true,
+    "head": "832da932ec22fb90bd7d11bb3318d5f828df0091"
+   }
+  },
+  {
+   "label": "S3 host verify merge",
+   "result": {
+    "hostLog": [
+     "832da93 a76c9ad 518043c Merge branch 'main' of http://localhost:8788/push.git",
+     "a76c9ad 082a871 browser: local change .claude/skills/archify/references/authoring-contract.md",
+     "518043c 082a871 host: concurrent non-conflicting change"
+    ]
+   }
+  },
+  {
+   "label": "S3 pull conflicting change",
+   "wallMs": 2834,
+   "result": {
+    "localCommit": "0d224b9d41a92218daf8167644b666cd8b982e3c",
+    "pullError": {
+     "name": "MergeConflictError",
+     "code": "MergeConflictError",
+     "message": "Automatic merge failed with one or more merge conflicts in the following files: .claude/skills/archify/SKILL.md. Fix conflicts then commit the result.",
+     "data": {
+      "filepaths": [
+       ".claude/skills/archify/SKILL.md"
+      ],
+      "bothModified": [
+       ".claude/skills/archify/SKILL.md"
+      ],
+      "deleteByUs": [],
+      "deleteByTheirs": []
+     },
+     "stack": "    at mergeTree (http://localhost:8787/assets/index-C_CD3Bb8.js:13691:10) |     at async http://localhost:8787/assets/index-C_CD3Bb8.js:8369:13"
+    },
+    "mergeNoAbortError": {
+     "name": "MergeConflictError",
+     "code": "MergeConflictError",
+     "message": "Automatic merge failed with one or more merge conflicts in the following files: .claude/skills/archify/SKILL.md. Fix conflicts then commit the result.",
+     "data": {
+      "filepaths": [
+       ".claude/skills/archify/SKILL.md"
+      ],
+      "bothModified": [
+       ".claude/skills/archify/SKILL.md"
+      ],
+      "deleteByUs": [],
+      "deleteByTheirs": []
+     },
+     "stack": "    at mergeTree (http://localhost:8787/assets/index-C_CD3Bb8.js:13691:10) |     at async http://localhost:8787/assets/index-C_CD3Bb8.js:8369:13"
+    },
+    "markersInWorktree": true,
+    "fileHead": "<<<<<<< main\nBROWSER VERSION OF LINE 1\n=======\nHOST VERSION OF LINE 1\n>>>>>>> origin/main\nname: archify\ndescription: Create polished, validated architecture, workflow, sequence, data-flow, and lifecycle/state diagrams as explorable standalone HTML with inline SVG, dark/light themes, optional trace motion, and PNG/JPEG/WebP/SVG/WebM export. Accept plain-language requirements or pasted Mermaid flowchart, sequenceDiagram, and stateDiagram input; inspect repository evidence when the diagram must reflect real code. Use when the user asks to visualize system architecture, infrastructure, cloud/security/network topology, technical workflows, API call sequences, request lifecycles, data pipelines, ETL/ELT, data lineage, state machines, or to convert/beautify Mermaid.",
+    "statusOfFile": "*modified"
+   }
+  },
+  {
+   "label": "S4 REST read public repo, unauthenticated",
+   "wallMs": 834,
+   "result": {
+    "repo": "octocat/Hello-World",
+    "authenticated": false,
+    "cors": "ok",
+    "treeEntries": 1,
+    "truncated": false,
+    "treeMs": 187,
+    "blobMs": 192,
+    "blobBytes": 13,
+    "rateRemaining": "56"
+   }
+  },
+  {
+   "label": "S4 REST read private test vault, token",
+   "wallMs": 1620,
+   "result": {
+    "repo": "tillg/karpathy-ai-test-vault",
+    "authenticated": true,
+    "cors": "ok",
+    "treeEntries": 6,
+    "truncated": false,
+    "treeMs": 403,
+    "blobMs": 405,
+    "blobBytes": 30,
+    "rateRemaining": "4996"
+   }
+  },
+  {
+   "label": "S4 REST write 1 commit to test vault",
+   "wallMs": 2519,
+   "result": {
+    "path": "spike-browser-only/2026-09-27T22-10-25-859Z.md",
+    "commit": "1f73b972a5cc9001d926630c95eb5ea9625fb391",
+    "totalMs": 2517,
+    "calls": 7
+   }
+  }
+ ]
+}

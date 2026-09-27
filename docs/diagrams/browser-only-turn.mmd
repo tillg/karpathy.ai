@@ -1,0 +1,24 @@
+sequenceDiagram
+  autonumber
+  participant U as User (iPad)
+  participant UI as UI thread
+  participant W as Worker (agent loop)
+  participant FS as Browser vault fs
+  participant L as LLM API
+  U->>UI: prompt "add Seen: yes to the Dune note"
+  UI->>W: runTurn(prompt, chatId)
+  W->>FS: load chat history + skills catalog
+  loop until the model stops calling tools
+    W->>L: streamText(messages, tools)
+    L-->>W: tool call search("Dune")
+    W->>FS: scan / index query
+    W-->>UI: chip "search Dune"
+    W->>L: tool result
+    L-->>W: tool call write_file(path, text)
+    W->>FS: write (version check vs. editor)
+    W-->>UI: chip "changed Wiki/dune.md"
+  end
+  L-->>W: final text (streamed)
+  W->>FS: checkpoint chat (resume if iOS kills the tab)
+  W-->>UI: answer · changes badge +1
+  Note over U,W: Commit & Push later = git commit in the browser + push (proxy) or one API commit

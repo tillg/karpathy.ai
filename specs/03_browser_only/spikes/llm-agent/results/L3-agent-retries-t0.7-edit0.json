@@ -1,0 +1,337 @@
+{
+  "chromium": [
+    {
+      "impl": "sdk",
+      "ms": 20038,
+      "steps": 2,
+      "tools": [
+        "search"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 1794,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 3477,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2611,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2899,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 2503,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 6171,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 2174,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 2676,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 3010,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    }
+  ],
+  "webkit": [
+    {
+      "impl": "sdk",
+      "ms": 2465,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2634,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2546,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 3164,
+      "steps": 5,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 3595,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 4716,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 2629,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 2729,
+      "steps": 3,
+      "tools": [
+        "search",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 3878,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 4659,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "write_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    }
+  ]
+}

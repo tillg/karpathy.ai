@@ -1,0 +1,79 @@
+{
+  "engine": "webkit",
+  "version": "26.6",
+  "runs": [
+    {
+      "label": "S2 clone mylife.git (1.7 GB pack, 5604 files) idb depth 1",
+      "wallMs": 32566,
+      "result": {
+        "url": "http://localhost:8788/mylife.git",
+        "fsKind": "idb",
+        "depth": 1,
+        "cloneMs": 27750,
+        "objectsReceived": 7210,
+        "status1Ms": 110,
+        "files": 5604,
+        "status2Ms": 2192,
+        "statusAfterEditMs": 1375,
+        "changedDetected": [
+          ".claude/skills/archify/SKILL.md"
+        ],
+        "logMs": 1098,
+        "duMB": 2405.73,
+        "duMs": 15,
+        "estimateAfter": {
+          "usageMB": 2409.34,
+          "quotaMB": 20615.84
+        }
+      }
+    },
+    {
+      "label": "S2 clone mylife.git (1.7 GB pack, 5604 files) opfs-shim depth 1",
+      "wallMs": 66749,
+      "result": {
+        "url": "http://localhost:8788/mylife.git",
+        "fsKind": "opfs-shim",
+        "depth": 1,
+        "cloneMs": 66745,
+        "cloneError": {
+          "name": "MultipleGitError",
+          "code": "MultipleGitError",
+          "message": "There are multiple errors that were thrown by the method. Please refer to the \"errors\" property to see more",
+          "data": {
+            "errors": [
+              {
+                "name": "Error"
+              }
+            ]
+          },
+          "stack": "@http://localhost:8787/assets/index-C_CD3Bb8.js"
+        }
+      }
+    },
+    {
+      "label": "S2 clone mylife.git (1.7 GB pack, 5604 files) idb depth full",
+      "wallMs": 45304,
+      "result": {
+        "url": "http://localhost:8788/mylife.git",
+        "fsKind": "idb",
+        "depth": "full",
+        "cloneMs": 38173,
+        "objectsReceived": 11013,
+        "status1Ms": 109,
+        "files": 5604,
+        "status2Ms": 2063,
+        "statusAfterEditMs": 1723,
+        "changedDetected": [
+          ".claude/skills/archify/SKILL.md"
+        ],
+        "logMs": 1641,
+        "duMB": 3062.45,
+        "duMs": 16,
+        "estimateAfter": {
+          "usageMB": 7882.95,
+          "quotaMB": 20615.84
+        }
+      }
+    }
+  ]
+}

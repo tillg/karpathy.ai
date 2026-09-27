@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph Browser["Browser — the app"]
+    UI["UI"]
+    WK["Worker: IndexedDB vault · isomorphic-git ·<br/>search · agent loop"]
+  end
+  subgraph Edge["One tiny stateless edge function<br/>(Cloudflare Worker / Deno Deploy)"]
+    CP["CORS proxy<br/>/github.com/*"]
+    TX["OAuth code → token<br/>(holds client_secret)"]
+  end
+  GHGIT["github.com<br/>git smart-HTTP"]
+  GHO["github.com/login/oauth"]
+  LLM["LLM API (direct, BYOK)"]
+  UI <--> WK
+  WK -- "git clone / fetch / push" --> CP --> GHGIT
+  UI -- "sign in" --> TX --> GHO
+  WK -- "streamText + tools" --> LLM

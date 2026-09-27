@@ -1,0 +1,23 @@
+flowchart LR
+  subgraph Browser["iPad Safari / home-screen PWA — the whole app"]
+    UI["UI thread<br/>CodeMirror · tree · chat"]
+    subgraph W["Worker"]
+      FS[("IndexedDB (lightning-fs)<br/>or OPFS: vault + .git")]
+      G["git layer<br/>isomorphic-git<br/>or GitHub API client"]
+      IDX["search index<br/>MiniSearch / SQLite FTS5"]
+      AG["agent loop<br/>AI SDK · tools over the vault fs<br/>skills catalog + activate_skill"]
+    end
+    SEC[("IndexedDB<br/>PAT · API key")]
+  end
+  GHAPI["api.github.com<br/>(CORS *)"]
+  GHGIT["github.com smart-HTTP<br/>(no CORS)"]
+  LLM["LLM provider API<br/>(CORS, BYOK)"]
+  MCP["remote MCP servers<br/>(only if CORS)"]
+  UI <-- "postMessage / Comlink" --> W
+  G -- "trees · blobs · commits" --> GHAPI
+  G -. "blocked by CORS" .-x GHGIT
+  AG -- "streamText + tools" --> LLM
+  AG -.-> MCP
+  AG --> FS
+  G --> FS
+  IDX --> FS

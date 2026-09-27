@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph Browser["Browser — local-first app"]
+    UI["UI"]
+    WK["Worker: browser vault clone · git ·<br/>search · light agent loop"]
+  end
+  subgraph Host["Optional home server (today's stack)"]
+    B["Backend"]
+    OC["opencode<br/>full skills · scripts · stdio MCP"]
+  end
+  GH[("GitHub")]
+  LLM["LLM API"]
+  UI <--> WK
+  WK -- "sync (git)" --> GH
+  WK -- "quick questions & edits" --> LLM
+  UI -- "heavy turn: ingest skill,<br/>Python scripts, scrapers" --> B --> OC --> LLM
+  B -- "git" --> GH

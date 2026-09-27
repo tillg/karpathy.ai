@@ -1,0 +1,63 @@
+[
+  {
+    "name": "anthropic (no direct header)",
+    "outcome": "blocked",
+    "error": "TypeError: Failed to fetch",
+    "ms": 525
+  },
+  {
+    "name": "anthropic + dangerous-direct-browser-access",
+    "outcome": "response",
+    "status": 401,
+    "body": "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"API key is invalid.\"},\"r",
+    "ms": 379
+  },
+  {
+    "name": "openai",
+    "outcome": "blocked",
+    "error": "TypeError: Failed to fetch",
+    "ms": 1352
+  },
+  {
+    "name": "openrouter",
+    "outcome": "response",
+    "status": 401,
+    "body": "{\"error\":{\"message\":\"Missing Authentication header\",\"code\":401}}",
+    "ms": 224
+  },
+  {
+    "name": "gemini (native, x-goog-api-key)",
+    "outcome": "response",
+    "status": 400,
+    "body": "{ \"error\": { \"code\": 400, \"message\": \"API key not valid. Please pass a valid API",
+    "ms": 259
+  },
+  {
+    "name": "gemini (openai-compat)",
+    "outcome": "response",
+    "status": 400,
+    "body": "[{ \"error\": { \"code\": 400, \"message\": \"Please pass a valid API key\", \"status",
+    "ms": 186
+  },
+  {
+    "name": "mistral",
+    "outcome": "response",
+    "status": 401,
+    "body": "{\"detail\":\"Invalid API Key\"} ",
+    "ms": 193
+  },
+  {
+    "name": "groq",
+    "outcome": "response",
+    "status": 401,
+    "body": "{\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_k",
+    "ms": 151
+  },
+  {
+    "name": "ollama via forwarder (localhost:11435)",
+    "outcome": "response",
+    "status": 404,
+    "body": "{\"error\":{\"message\":\"model 'x' not found\",\"type\":\"not_found_error\",\"param\":null,\"code\":nul",
+    "ms": 42
+  }
+]

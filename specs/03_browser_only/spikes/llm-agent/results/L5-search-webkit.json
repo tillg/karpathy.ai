@@ -1,0 +1,132 @@
+{
+  "load": {
+    "files": 3337,
+    "chars": 5632421,
+    "fetchParseMs": 41
+  },
+  "naive": [
+    {
+      "q": "karpathy",
+      "hits": 33,
+      "ms": 1.2
+    },
+    {
+      "q": "brest",
+      "hits": 2,
+      "ms": 2.4
+    },
+    {
+      "q": "schauspieler",
+      "hits": 243,
+      "ms": 2.6
+    },
+    {
+      "q": "obsidian",
+      "hits": 24,
+      "ms": 1.6
+    },
+    {
+      "q": "wikilink",
+      "hits": 5,
+      "ms": 1
+    },
+    {
+      "q": "the",
+      "hits": 1248,
+      "ms": 0.8
+    }
+  ],
+  "opfsWriteAll_createWritable": {
+    "ms": 18207,
+    "fails": 0,
+    "firstErr": null
+  },
+  "opfsWriteAll_workerSyncHandle": {
+    "ms": 6912,
+    "fails": 0,
+    "firstErr": null
+  },
+  "opfsListMs": 7935,
+  "opfsReadAllMs": 3424,
+  "opfsReadAndScanOnce": {
+    "files": 3337,
+    "hits": 33,
+    "scanMs": 2
+  },
+  "minisearch": {
+    "buildMs": 376,
+    "serializedMB": 5.3,
+    "serializeMs": 98,
+    "loadJSONMs": 360,
+    "queries": [
+      {
+        "q": "karpathy",
+        "hits": 33,
+        "ms": 1.2
+      },
+      {
+        "q": "brest",
+        "hits": 134,
+        "ms": 0.2
+      },
+      {
+        "q": "schauspieler",
+        "hits": 243,
+        "ms": 0.8
+      },
+      {
+        "q": "obsidian",
+        "hits": 24,
+        "ms": 0.6
+      },
+      {
+        "q": "wikilink",
+        "hits": 5,
+        "ms": 0.6
+      },
+      {
+        "q": "the",
+        "hits": 1144,
+        "ms": 0.8
+      }
+    ]
+  },
+  "flexsearch": {
+    "buildMs": 558,
+    "exportMB": 13.7,
+    "exportMs": 82,
+    "queries": [
+      {
+        "q": "karpathy",
+        "hits": 33,
+        "ms": 0
+      },
+      {
+        "q": "brest",
+        "hits": 2,
+        "ms": 0
+      },
+      {
+        "q": "schauspieler",
+        "hits": 243,
+        "ms": 0
+      },
+      {
+        "q": "obsidian",
+        "hits": 24,
+        "ms": 0
+      },
+      {
+        "q": "wikilink",
+        "hits": 5,
+        "ms": 0
+      },
+      {
+        "q": "the",
+        "hits": 1112,
+        "ms": 0
+      }
+    ]
+  },
+  "heapMB": null
+}

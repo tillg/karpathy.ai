@@ -1,0 +1,79 @@
+{
+  "engine": "chromium",
+  "version": "153.0.8010.12",
+  "runs": [
+    {
+      "label": "S2 clone mylife.git (1.7 GB pack, 5604 files) idb depth 1",
+      "wallMs": 43078,
+      "result": {
+        "url": "http://localhost:8788/mylife.git",
+        "fsKind": "idb",
+        "depth": 1,
+        "cloneMs": 39056,
+        "objectsReceived": 7210,
+        "status1Ms": 98,
+        "files": 5604,
+        "status2Ms": 1082,
+        "statusAfterEditMs": 1168,
+        "changedDetected": [
+          ".claude/skills/archify/SKILL.md"
+        ],
+        "logMs": 1553,
+        "duMB": 2405.73,
+        "duMs": 16,
+        "estimateAfter": {
+          "usageMB": 2390.35,
+          "quotaMB": 13127.77
+        }
+      }
+    },
+    {
+      "label": "S2 clone mylife.git (1.7 GB pack, 5604 files) opfs-shim depth 1",
+      "wallMs": 42132,
+      "result": {
+        "url": "http://localhost:8788/mylife.git",
+        "fsKind": "opfs-shim",
+        "depth": 1,
+        "cloneMs": 42128,
+        "cloneError": {
+          "name": "MultipleGitError",
+          "code": "MultipleGitError",
+          "message": "There are multiple errors that were thrown by the method. Please refer to the \"errors\" property to see more",
+          "data": {
+            "errors": [
+              {
+                "name": "Error"
+              }
+            ]
+          },
+          "stack": "    at http://localhost:8787/assets/index-C_CD3Bb8.js:13118:37 |     at async http://localhost:8787/assets/index-C_CD3Bb8.js:8369:13"
+        }
+      }
+    },
+    {
+      "label": "S2 clone mylife.git (1.7 GB pack, 5604 files) idb depth full",
+      "wallMs": 52854,
+      "result": {
+        "url": "http://localhost:8788/mylife.git",
+        "fsKind": "idb",
+        "depth": "full",
+        "cloneMs": 45145,
+        "objectsReceived": 11013,
+        "status1Ms": 99,
+        "files": 5604,
+        "status2Ms": 2157,
+        "statusAfterEditMs": 1462,
+        "changedDetected": [
+          ".claude/skills/archify/SKILL.md"
+        ],
+        "logMs": 1298,
+        "duMB": 3062.45,
+        "duMs": 15,
+        "estimateAfter": {
+          "usageMB": 3047.06,
+          "quotaMB": 13784.48
+        }
+      }
+    }
+  ]
+}

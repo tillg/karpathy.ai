@@ -1,0 +1,132 @@
+{
+  "load": {
+    "files": 3337,
+    "chars": 5632421,
+    "fetchParseMs": 462.3
+  },
+  "naive": [
+    {
+      "q": "karpathy",
+      "hits": 33,
+      "ms": 1.7
+    },
+    {
+      "q": "brest",
+      "hits": 2,
+      "ms": 48.9
+    },
+    {
+      "q": "schauspieler",
+      "hits": 243,
+      "ms": 1.8
+    },
+    {
+      "q": "obsidian",
+      "hits": 24,
+      "ms": 2.7
+    },
+    {
+      "q": "wikilink",
+      "hits": 5,
+      "ms": 2.6
+    },
+    {
+      "q": "the",
+      "hits": 1248,
+      "ms": 9.6
+    }
+  ],
+  "opfsWriteAll_createWritable": {
+    "ms": 102497.8,
+    "fails": 0,
+    "firstErr": null
+  },
+  "opfsWriteAll_workerSyncHandle": {
+    "ms": 21654.1,
+    "fails": 0,
+    "firstErr": null
+  },
+  "opfsListMs": 2046.7,
+  "opfsReadAllMs": 11134.4,
+  "opfsReadAndScanOnce": {
+    "files": 3337,
+    "hits": 33,
+    "scanMs": 1.9
+  },
+  "minisearch": {
+    "buildMs": 822.3,
+    "serializedMB": 5.3,
+    "serializeMs": 327.8,
+    "loadJSONMs": 252.1,
+    "queries": [
+      {
+        "q": "karpathy",
+        "hits": 33,
+        "ms": 2.1
+      },
+      {
+        "q": "brest",
+        "hits": 134,
+        "ms": 1.4
+      },
+      {
+        "q": "schauspieler",
+        "hits": 243,
+        "ms": 1.6
+      },
+      {
+        "q": "obsidian",
+        "hits": 24,
+        "ms": 0.8
+      },
+      {
+        "q": "wikilink",
+        "hits": 5,
+        "ms": 0.8
+      },
+      {
+        "q": "the",
+        "hits": 1144,
+        "ms": 1.7
+      }
+    ]
+  },
+  "flexsearch": {
+    "buildMs": 1075.3,
+    "exportMB": 13.7,
+    "exportMs": 55.8,
+    "queries": [
+      {
+        "q": "karpathy",
+        "hits": 33,
+        "ms": 0
+      },
+      {
+        "q": "brest",
+        "hits": 2,
+        "ms": 0
+      },
+      {
+        "q": "schauspieler",
+        "hits": 243,
+        "ms": 0
+      },
+      {
+        "q": "obsidian",
+        "hits": 24,
+        "ms": 0
+      },
+      {
+        "q": "wikilink",
+        "hits": 5,
+        "ms": 0
+      },
+      {
+        "q": "the",
+        "hits": 1112,
+        "ms": 0
+      }
+    ]
+  },
+  "heapMB": 304
+}

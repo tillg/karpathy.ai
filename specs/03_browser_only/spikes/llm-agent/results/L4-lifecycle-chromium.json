@@ -1,0 +1,16 @@
+{
+  "method": "CDP Page.setWebLifecycleState frozen 8s",
+  "baseline": {
+    "chunks": 336,
+    "totalMs": 4918,
+    "maxGapMs": 315,
+    "error": null
+  },
+  "interrupted": {
+    "chunks": 401,
+    "totalMs": 5814,
+    "maxGapMs": 197,
+    "error": null,
+    "events": []
+  }
+}

@@ -1,0 +1,33 @@
+# Decisions & assumptions — autonomous run (2026-09-27)
+
+Tasks: (1) implement spec #03 (browser-only research report), (2) ingest `/Users/tgartner/git/mylife_wiki`
+as demo vault, (3) look at the state of features in gh and make a plan for V1.
+
+| # | Decision / assumption | Why |
+|---|---|---|
+| 1 | Spec #03 says "research project only, we don't build it yet" → deliverable is an **HTML architecture report + runnable spikes**, no app code changes. | Spec text. |
+| 2 | Report + spikes live in `specs/03_browser_only/` (`browser-only-report.html`, `spikes/`, `research-notes.md`); Mermaid sources/SVGs in `docs/diagrams/browser-only-*.{mmd,svg}`. | Matches `specs/02_features/` + global diagram policy. |
+| 3 | Work split into 3 parallel agents: desk research (tools/packages/platform limits), spikes storage+git, spikes LLM+agent loop+search. Report assembled afterwards. | Independent sub-tasks. |
+| 4 | Spikes run in real browsers via the repo's Playwright: **Chromium and WebKit** (WebKit ≈ Safari/iPad, the target device). | iPad/phone is the point of the app. |
+| 5 | Demo vault = `tillg/mylife_wiki` added as a **new** vault "My Life Wiki" (id `my-life-wiki`) next to the existing "Demo"; not replacing it. | Non-destructive; existing e2e/dev data keep working. |
+| 6 | Source: local bare copy `tmp/dev/remotes/tillg/mylife_wiki.git` (dev uses `GIT_REMOTE_BASE=file:///remotes/`, `github_token` is empty). Commits/pushes from the app land in that local bare repo, **never on GitHub**. | Safe for testing a private, real vault; no token needed. |
+| 7 | Only mylife_wiki's **committed** HEAD (`223e9cf`) is in the demo vault; its 275 uncommitted working-tree edits are not copied, and the repo itself is untouched. | Don't touch the user's repo. |
+| 8 | Vault is large (5604 files, 1.2 GB tree, 3.5 GB history) — kept as-is: realistic stress test. Clone took <1 min locally; ripgrep search 0.16 s. | Real data beats synthetic. |
+| 9 | All testing uses Playwright (MCP + repo suite) and the local Ollama model `qwen2.5:3b`; no cloud LLM. | User instruction mid-run. |
+| 10 | Playwright **MCP** browser was locked by another session (Chrome holding the MCP profile since 23:00); not killed. All UI testing runs through the repo's Playwright (`@playwright/test`, Chromium + WebKit + WebKit-iPhone) instead; screenshots read by eye. | Don't disrupt another session. |
+| 11 | Exploratory tests for the demo vault live in `tmp/explore/` (gitignored), not in `e2e/`: they depend on a local, private vault. | Repo suite must stay self-contained. |
+| 12 | Baseline before any change: full e2e suite **193 passed, 1 skipped** (8.1 min). | Regression reference. |
+| 13 | **Bug found + fixed:** deleting the last note of a folder left the empty folder in the tree forever (git can't track it, so it survives "All committed"). Fix: `deleteFile` removes the folders it emptied, like `git rm` (`apps/backend/src/vaults.ts`); test-first in `apps/backend/test/api.test.ts`. | Found while bulk-testing the demo vault. |
+| 14 | Demo-vault exploratory results (Chromium, WebKit, WebKit-iPhone): tree load, deep note, Read mode + frontmatter, wikilink nav + Back, search (names/umlauts/no-hit), 20 notes bulk create (5 via UI, 15 via API) → wikilinks between them → edit+diff+discard of a real note → delete via UI → Commit & Push → cleanup commit, 1.2k-entry folder expand (~0.5 s), binary placeholders (jpg/pdf), Obsidian-push conflict → keep mine, Ollama chat read + write. All pass. | Evidence for task 2. |
+| 15 | Ollama chat write on the demo vault is flaky by **model** (qwen2.5:3b sometimes writes `/ai-demo.md` → correctly denied by vault confinement); passes with a relative-path nudge. Not an app bug; not filed. | Same known small-model behaviour as the repo chat tests. |
+| 16 | Every exploratory run cleans up after itself (delete + commit), so the local demo remote has e2e commits but the vault content equals mylife_wiki `223e9cf`. | Demo vault stays demo-ready. |
+| 17 | V1 plan (task 3) goes to `specs/04_v1/v1-plan.md`; gathered by a background agent from `gh issue list --state all` + feature report while spikes finish; no issues created/edited. | Parallel; plan is a proposal for review. |
+| 18 | After the fix: unit/integration **196 passed**, typecheck + lint clean, e2e **193 passed, 1 skipped** (= baseline). | Regression check. |
+| 19 | **Report verdict:** browser-only is technically feasible (every building block worked in Chromium + WebKit) but **not recommended for V1**. It forces replacing opencode, loses skills with scripts and stdio MCP, and turns die when iOS backgrounds the app. Options: A pure (GitHub API + PAT + BYOK), B edge function (CORS proxy + OAuth), C local-first hybrid (recommended if offline is wanted later). | Evidence in the report §5–§6. |
+| 20 | Diagrams show IndexedDB (`lightning-fs`) as the primary browser vault store, OPFS as an alternative, because the spikes measured IndexedDB 5–30× faster, and WebKit's OPFS has NFD filenames, no symlinks, and no private mode. | Spike S1/S2d. |
+| 21 | **Privacy:** `tillg/karpathy.ai` is **public** and `mylife_wiki` is **private**. Spike fixtures made from the vault are gitignored, and the private file paths in `spikes/storage-git/results/*.json` were replaced with counts. Only aggregate numbers (file counts, sizes, timings) and public names appear in the committed docs. | Don't leak private vault content. |
+| 22 | The storage spike pushed **one** commit to the throwaway test repo `tillg/karpathy-ai-test-vault` (`1f73b97`, file `spike-browser-only/<timestamp>.md`) to prove API writes work. It was left in place. | The test suite already pushes there. |
+| 23 | Spike S4 found that the test vault is private, so the unauthenticated REST reads used `octocat/Hello-World` and `isomorphic-git/lightning-fs`. | Public repos needed for the no-token case. |
+| 24 | The report is a static HTML file in the repo (`specs/03_browser_only/browser-only-report.html`) with pre-rendered SVGs, checked in Chromium + WebKit, light + dark, 1100 px + 390 px: all images load, no dead anchors, no page overflow (tables scroll inside their frame). It is not published as an Artifact. | Spec asks for HTML in the repo. |
+| 25 | V1 plan: the agent's draft is kept, and its big-vault risk (R5) is updated with the demo-vault measurements. §6 now states the browser-only verdict. README links both. | Task 3. |
+| 26 | Commit to `main` (the `/implement` skill says "commit your work to the current branch"). It includes the user's own edit of `browser_only.md`, since that edit is spec #03. Not pushed. | Skill instruction; pushing is outward-facing. |

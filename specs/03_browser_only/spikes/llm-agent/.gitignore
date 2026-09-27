@@ -1,0 +1,4 @@
+node_modules/
+public/fixture/
+public/vault-small/
+dist/

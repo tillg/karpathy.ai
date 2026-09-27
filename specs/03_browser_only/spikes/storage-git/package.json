@@ -1,0 +1,19 @@
+{
+  "name": "spike-storage-git",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup-fixtures.mjs",
+    "spike": "node scripts/run.mjs",
+    "spike:big": "node scripts/run.mjs --big",
+    "probe": "node scripts/probe.mjs"
+  },
+  "dependencies": {
+    "@componentor/fs": "^4.3.1",
+    "@isomorphic-git/cors-proxy": "^3.0.2",
+    "@isomorphic-git/lightning-fs": "^4.10.3",
+    "buffer": "^6.0.3",
+    "isomorphic-git": "^1.42.3",
+    "vite": "^8.3.1"
+  }
+}

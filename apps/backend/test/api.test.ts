@@ -278,6 +278,20 @@ describe('files', () => {
     expect((await t.api.get(`/vaults/${t.id}/changes`)).body).toEqual([{ path: 'Other.md', kind: 'deleted', version: null }]);
   });
 
+  it('DELETE of the last file in a folder removes the emptied folders, like git rm', async () => {
+    const t = await vaultApp({ 'Home.md': '# Home\n', 'a/b/c.md': 'c\n', 'a/keep.md': 'k\n' });
+    const del = async (p: string) => {
+      const f = (await t.api.get(`/vaults/${t.id}/file?path=${p}`)).body;
+      expect((await t.api.delete(`/vaults/${t.id}/file?path=${p}&version=${f.version}`)).status).toBe(204);
+    };
+    const paths = async () => ((await t.api.get(`/vaults/${t.id}/files`)).body as { path: string }[]).map((f) => f.path);
+    await del('a/b/c.md');
+    expect(await paths()).toEqual(expect.arrayContaining(['a', 'a/keep.md']));
+    expect(await paths()).not.toContain('a/b');
+    await del('a/keep.md');
+    expect(await paths()).toEqual(['Home.md']);
+  });
+
   it('search finds content and file names', async () => {
     const t = await vaultApp();
     const hits = (await t.api.get(`/vaults/${t.id}/search?q=ALPHA`)).body;

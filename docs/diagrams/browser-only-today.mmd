@@ -1,0 +1,18 @@
+flowchart LR
+  subgraph Device["iPad / phone"]
+    UI["PWA<br/>editor · tree · chat"]
+  end
+  subgraph Host["Home server (docker compose)"]
+    P["Caddy<br/>TLS"]
+    B["Backend<br/>file · git · search API"]
+    OC["opencode serve<br/>agent loop · tools · skills · MCP"]
+    V[("/vaults/&lt;id&gt;<br/>git clones")]
+  end
+  GH[("GitHub<br/>vault repos")]
+  LLM["LLM provider<br/>Anthropic · OpenAI · Ollama …"]
+  UI -- "HTTPS + bearer<br/>REST / NDJSON" --> P --> B
+  B -- "SDK (ACP-shaped)" --> OC
+  B -- "git / ripgrep" --> V
+  OC -- "file tools" --> V
+  OC -- "API key (server-side)" --> LLM
+  B -- "clone · pull · push<br/>(token server-side)" --> GH

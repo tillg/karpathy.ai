@@ -1,0 +1,432 @@
+{
+  "chromium": [
+    {
+      "impl": "sdk",
+      "ms": 10133,
+      "steps": 10,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 6286,
+      "steps": 7,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": true,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": true
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2810,
+      "steps": 5,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 6647,
+      "steps": 10,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2831,
+      "steps": 5,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 9400,
+      "steps": 10,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 9439,
+      "steps": 10,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 6494,
+      "steps": 10,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 3984,
+      "steps": 4,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 4642,
+      "steps": 7,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "read_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    }
+  ],
+  "webkit": [
+    {
+      "impl": "sdk",
+      "ms": 2960,
+      "steps": 5,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 7802,
+      "steps": 10,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 2788,
+      "steps": 5,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 1514,
+      "steps": 3,
+      "tools": [
+        "search",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "sdk",
+      "ms": 5959,
+      "steps": 10,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 9330,
+      "steps": 10,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 5470,
+      "steps": 7,
+      "tools": [
+        "search",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "edit_file",
+        "read_file",
+        "read_file"
+      ],
+      "verify": {
+        "changed": false,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 3532,
+      "steps": 5,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 5409,
+      "steps": 8,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file",
+        "read_file",
+        "edit_file",
+        "read_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": false,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    },
+    {
+      "impl": "fetch",
+      "ms": 2286,
+      "steps": 4,
+      "tools": [
+        "search",
+        "read_file",
+        "edit_file"
+      ],
+      "verify": {
+        "changed": true,
+        "seen": false,
+        "frontmatterKept": true,
+        "updated": "2026-09-01",
+        "ok": false
+      }
+    }
+  ]
+}

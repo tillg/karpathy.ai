@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type {
   Change,
@@ -324,6 +324,9 @@ export class Vaults {
       if (current === null) throw new HttpError(404, `not found: ${path}`);
       if (current !== version) throw new HttpError(409, 'file changed since it was loaded', 'stale', { currentVersion: current });
       await rm(abs);
+      // Like `git rm`: drop the folders this emptied (git can't hold them, other clones won't have them).
+      const root = this.vaultRootDir(id);
+      for (let dir = dirname(abs); dir.startsWith(`${root}/`) && (await readdir(dir)).length === 0; dir = dirname(dir)) await rmdir(dir);
       this.emitStatusSoon(id);
     });
   }

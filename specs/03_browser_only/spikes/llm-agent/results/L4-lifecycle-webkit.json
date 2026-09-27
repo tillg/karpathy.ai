@@ -1,0 +1,25 @@
+{
+  "method": "no freeze API in WebKit: fake visibilitychange(hidden) event only, 8s",
+  "baseline": {
+    "chunks": 392,
+    "totalMs": 5316,
+    "maxGapMs": 291,
+    "error": null
+  },
+  "interrupted": {
+    "chunks": 374,
+    "totalMs": 5348,
+    "maxGapMs": 206,
+    "error": null,
+    "events": [
+      {
+        "t": 1506,
+        "vis": "hidden"
+      },
+      {
+        "t": 1506,
+        "vis": "hidden"
+      }
+    ]
+  }
+}

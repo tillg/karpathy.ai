@@ -341,6 +341,14 @@ describe('git API', () => {
     expect((await t.api.get(`/vaults/${t.id}/status`)).body).toMatchObject({ state: 'ready', changedCount: 1, unpushedCount: 0, busy: 'none' });
   });
 
+  it('discard of the last new file in a new folder removes the emptied folders', async () => {
+    const t = await vaultApp();
+    await t.api.put(`/vaults/${t.id}/file?path=${encodeURIComponent('new/deep/x.md')}`, { content: 'x\n', version: null });
+    await t.api.post(`/vaults/${t.id}/discard?path=${encodeURIComponent('new/deep/x.md')}`);
+    const paths = ((await t.api.get(`/vaults/${t.id}/files`)).body as { path: string }[]).map((f) => f.path);
+    expect(paths.filter((p) => p.startsWith('new'))).toEqual([]);
+  });
+
   it('commit = pull → commit all → push; the remote has one new commit, tree clean', async () => {
     const t = await vaultApp();
     const f = (await t.api.get(`/vaults/${t.id}/file?path=Home.md`)).body;

@@ -314,6 +314,12 @@ export class Vaults {
     }
   }
 
+  /** Like `git rm`: drops the folders that removing `abs` emptied (git can't hold them, other clones won't have them). */
+  private async removeEmptiedFolders(id: string, abs: string): Promise<void> {
+    const root = this.vaultRootDir(id);
+    for (let dir = dirname(abs); dir.startsWith(`${root}/`) && existsSync(dir) && (await readdir(dir)).length === 0; dir = dirname(dir)) await rmdir(dir);
+  }
+
   async deleteFile(id: string, path: string, version: string): Promise<void> {
     this.requireReady(id);
     const r = this.runtime(id);
@@ -324,9 +330,7 @@ export class Vaults {
       if (current === null) throw new HttpError(404, `not found: ${path}`);
       if (current !== version) throw new HttpError(409, 'file changed since it was loaded', 'stale', { currentVersion: current });
       await rm(abs);
-      // Like `git rm`: drop the folders this emptied (git can't hold them, other clones won't have them).
-      const root = this.vaultRootDir(id);
-      for (let dir = dirname(abs); dir.startsWith(`${root}/`) && (await readdir(dir)).length === 0; dir = dirname(dir)) await rmdir(dir);
+      await this.removeEmptiedFolders(id, abs);
       this.emitStatusSoon(id);
     });
   }
@@ -441,6 +445,7 @@ export class Vaults {
         if (current !== version) throw new HttpError(409, `${rel} changed since you looked at it; review it again`, 'stale', { currentVersion: current });
       }
       await this.repo(this.config(id)).discard(rel);
+      await this.removeEmptiedFolders(id, join(this.vaultRootDir(id), rel));
       await this.store.update((c) => {
         const set = c.aiTouched[id];
         if (set) c.aiTouched[id] = set.filter((p) => p !== rel);

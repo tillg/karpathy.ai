@@ -115,7 +115,7 @@ export function NotePane({ inert }: { inert?: boolean }) {
           <div className="doc">
             <h2 className="note-title">{title}</h2>
             {mode === 'write'
-              ? <Editor key={note.path} ref={editor} doc={note.loaded} readOnly={readOnly || !!note.deleted}
+              ? <Editor key={note.path} ref={editor} doc={note.loaded} docNonce={note.loadNonce} readOnly={readOnly || !!note.deleted}
                   onChange={(t) => { draft.current = t; s.editDraft(t); }} exists={s.exists} onWikilink={s.followLink} />
               : <ReadView text={note.dirty ? draft.current : note.loaded} />}
             <div className="dfoot" data-testid="save-state">

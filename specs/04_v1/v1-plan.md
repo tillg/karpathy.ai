@@ -92,6 +92,7 @@ real devices before any feature work. Ranking/effort from the feature report (#R
 | Model switcher / cost meter | #84, #85 | 21, 22 / S | Useful while choosing the prod model (§5) |
 | Outline / note info | #79 | 16 / S | Long German source pages |
 | Plan mode | #71 | 8 / M | Overlaps with #66; decide after using #66 for a week |
+| Reopen the last note per vault after switching | (new, from demo-vault testing 2026-09-27) | — / S | Switching vaults and back currently lands on the empty state |
 
 ### OUT (V2 or later)
 

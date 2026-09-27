@@ -14,6 +14,8 @@ export interface EditorHandle {
 
 interface Props {
   doc: string;
+  /** Changes on every (re)load, so a reload back to the same `doc` still replaces edited text. */
+  docNonce?: number;
   readOnly: boolean;
   onChange(text: string): void;
   exists(target: string): boolean;
@@ -64,7 +66,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
     // With a CRLF separator a line break is one position in CM but two chars in the string.
     const pos = (s: string, i: number) => (v.state.lineBreak === '\r\n' ? i - (s.slice(0, i).match(/\r\n/g)?.length ?? 0) : i);
     v.dispatch({ changes: { from: pos(cur, c.from), to: pos(cur, c.to), insert: c.insert }, annotations: External.of(true) });
-  }, [props.doc]);
+  }, [props.doc, props.docNonce]);
 
   useEffect(() => {
     view.current?.dispatch({ effects: ro.current.reconfigure([EditorState.readOnly.of(props.readOnly), EditorView.editable.of(!props.readOnly)]) });

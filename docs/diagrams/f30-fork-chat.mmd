@@ -1,0 +1,13 @@
+sequenceDiagram
+  actor U as User
+  participant W as ChatPane
+  participant B as Backend
+  participant O as opencode
+  U->>W: long-press message, Fork from here
+  W->>B: POST /vaults/:id/chats/:chatId/fork with messageID
+  B->>O: POST /session/:id/fork with messageID
+  O-->>B: new session id
+  B-->>W: new chatId
+  W->>B: GET /vaults/:id/chats/:newChatId
+  B-->>W: history up to that message
+  W->>W: open fork, show shared working tree hint

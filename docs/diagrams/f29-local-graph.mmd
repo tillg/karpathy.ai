@@ -1,0 +1,9 @@
+flowchart TD
+  A["Open note wiki/entities/andrej-karpathy.md"] --> B["GET /vaults/:id/graph?path=...,depth=2"]
+  B --> C["Link and backlink index"]
+  C --> D["Nodes and edges within depth 1 or 2"]
+  D --> E["d3-force layout on canvas"]
+  E --> F["Colour by type: entity, concept, source, synthesis"]
+  F --> G{"User taps a node"}
+  G --> H["openNote of the target"]
+  H --> A

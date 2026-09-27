@@ -1,0 +1,12 @@
+flowchart TD
+    A["Editor gets focus on touch device"] --> B{"Hardware keyboard"}
+    B -->|yes| X["Hide toolbar"]
+    B -->|no| C["Show toolbar"]
+    C --> D["visualViewport resize and scroll"]
+    D --> E["Pin toolbar to top of keyboard"]
+    E --> F{"Button tapped"}
+    F -->|B, list, checkbox| G["Dispatch CM6 transaction"]
+    F -->|link| H["Quick switcher list"]
+    H --> I["Insert wikilink via CM6"]
+    G --> J["Normal autosave PUT /vaults/:id/file"]
+    I --> J

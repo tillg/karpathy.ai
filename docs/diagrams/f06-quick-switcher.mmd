@@ -1,0 +1,11 @@
+flowchart TD
+    A["Cmd-K or phone button"] --> B["Quick switcher opens"]
+    B --> C{"Query empty"}
+    C -->|yes| D["Pinned and recent from vault settings"]
+    C -->|no| E["Fuzzy match file list and aliases"]
+    E --> F{"Exact note exists"}
+    F -->|yes| G["openNote path"]
+    F -->|no| H["PUT /vaults/:id/file creates note"]
+    D --> G
+    H --> G
+    G --> I["Update recent list on backend"]

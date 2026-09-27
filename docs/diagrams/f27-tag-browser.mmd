@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph Backend
+    R["ripgrep inline #tags"] --> I["Tag index cache"]
+    F["Parse frontmatter tags"] --> I
+    X["File change on event stream"] -- invalidate --> I
+    I --> T["GET /vaults/:id/tags"]
+    I --> N["GET /vaults/:id/tags/notes?tag=topic/llm"]
+  end
+  T --> P["Tags panel, counts, nested or flat"]
+  P -- "tap tag" --> N
+  N --> L["Note list"]
+  L -- tap --> O["NotePane opens the note"]

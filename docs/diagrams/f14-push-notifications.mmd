@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant B as PWA
+  participant SW as Service worker
+  participant API as Backend
+  participant O as opencode
+  participant P as Push service
+  B->>SW: pushManager.subscribe with VAPID public key
+  B->>API: POST /push/subscriptions
+  API->>API: store subscription on config volume
+  O-->>API: session.idle event
+  API->>API: app not visible, build payload
+  API->>P: Web Push signed with VAPID private key
+  P-->>SW: push event
+  SW->>SW: showNotification and setAppBadge
+  SW->>B: notificationclick opens the app at vault and chat

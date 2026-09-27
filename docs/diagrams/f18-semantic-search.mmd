@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant B as Browser
+  participant API as Backend
+  participant IX as Embedding index
+  participant EP as Embedding provider
+  participant O as opencode
+  API->>IX: file changed event, re-chunk by heading
+  IX->>EP: embed changed chunks
+  B->>API: GET /vaults/:id/search?q=...&mode=meaning
+  API->>EP: embed query
+  API->>IX: top-k nearest chunks
+  API->>API: fuse with ripgrep hits
+  API-->>B: ranked results with snippets
+  B->>API: GET /vaults/:id/related?path=...
+  API-->>B: top-k related notes
+  O->>API: MCP tool vault_semantic_search
+  API-->>O: matching pages for ingest or query

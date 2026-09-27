@@ -1,0 +1,12 @@
+flowchart TD
+  A["Note open in NotePane"] --> B{"Mode"}
+  B -->|Write| C["CM6 syntax tree: ATXHeading and SetextHeading nodes"]
+  B -->|Read| D["Rendered h1 to h6 elements"]
+  C --> E["Heading list: level, text, position"]
+  D --> E
+  E --> F["Outline sheet or side panel"]
+  F -->|tap| G["Scroll to heading"]
+  A --> H["Text minus frontmatter, or the selection"]
+  H --> I["Count words and characters"]
+  I --> J["Reading time at about 220 words per minute"]
+  J --> K["Info footer"]

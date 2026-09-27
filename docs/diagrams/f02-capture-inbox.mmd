@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant P as Phone share sheet
+    participant W as Capture screen
+    participant B as Backend
+    participant N as Web
+    participant V as Vault clone
+    participant O as opencode
+    P->>W: share URL via share_target or iOS Shortcut
+    W->>B: POST /vaults/:id/capture with url
+    B->>B: SSRF guard, no private IP ranges
+    B->>N: fetch article
+    B->>B: Readability then Turndown to Markdown
+    B->>V: write raw/articles/2026-09-26-llm-wiki.md
+    B-->>W: path, shows up in Inbox
+    W->>B: Ingest tapped, run /ingest on that path
+    B->>O: POST /session/:id/command
+    O->>V: writes wiki pages, index.md, log.md

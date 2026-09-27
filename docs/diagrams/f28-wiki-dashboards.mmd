@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant E as Editor or Read view
+  participant B as Backend
+  participant X as Frontmatter index
+  E->>E: find fenced base block
+  E->>B: POST /vaults/:id/base with block source
+  B->>B: parse Bases subset, filters, sort, table view
+  B->>X: query by folder, tag, frontmatter
+  X-->>B: matching notes and fields
+  B-->>E: rows and columns
+  E->>E: render read-only table widget
+  Note over E: raw block text stays unchanged in the file
+  B-->>E: event stream reports a changed note
+  E->>B: re-run the query

@@ -1,0 +1,18 @@
+sequenceDiagram
+  actor U as User
+  participant W as PWA
+  participant B as Backend
+  participant S as STT backend
+  participant O as opencode
+  U->>W: tap mic, record memo
+  W->>B: POST /vaults/:id/voice audio file
+  B->>S: POST /audio/transcriptions
+  S-->>B: transcript text
+  B->>B: write raw/voice/2026-09-26-0815.md
+  B-->>W: transcript path
+  opt preset chosen
+    W->>B: POST /vaults/:id/chats/:chatId/prompt preset plus path
+    B->>O: prompt meeting debrief or ingest into wiki
+    O-->>B: wiki edits and action items
+    B-->>W: turn with changed files
+  end

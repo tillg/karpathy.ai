@@ -1,0 +1,34 @@
+flowchart LR
+    subgraph CAPTURE["Capture"]
+        C1["2 Clip / share"]
+        C2["15 Quick capture"]
+        C3["24 Photo / PDF"]
+        C4["25 Voice memo"]
+    end
+    RAW[("raw/")]
+    subgraph AGENT["Agent operations"]
+        I["Ingest"]
+        Q["Query"]
+        L["Lint"]
+    end
+    WIKI[("wiki/")]
+    subgraph REVIEW["Review & commit"]
+        R1["8 Plan mode"]
+        R2["3 Turn review"]
+        R3["12 History"]
+        CP["Commit & Push"]
+    end
+    subgraph NAV["Navigate"]
+        N1["6 Switcher"]
+        N2["5 Backlinks"]
+        N3["9 Citations"]
+        N4["18 Semantic search"]
+        N5["29 Graph"]
+    end
+    CAPTURE --> RAW --> I --> WIKI
+    Q -- "4 Save to wiki" --> WIKI
+    L -- "13 nightly job" --> WIKI
+    WIKI --> REVIEW --> CP
+    WIKI --> NAV --> Q
+    SC["1 Slash commands"] -.triggers.-> AGENT
+    SC2["23 Deep research"] -.adds sources.-> RAW

@@ -1,0 +1,13 @@
+flowchart LR
+    LI[("Link & frontmatter index")]
+    FM{{"Fuzzy note matcher"}}
+    OC[["opencode API: command, diff, revert, permissions, fork"]]
+    JR[["Job runner + event triggers"]]
+    CE[["Capture endpoint → raw/"]]
+    LI --> F5["5 Backlinks"] & F9["9 Citations"] & F17["17 Safe rename"] & F26["26 Link preview"] & F27["27 Tags"] & F28["28 Dashboards"] & F29["29 Local graph"]
+    FM --> F6["6 Quick switcher"] & F10["10 @-mentions"] & F7["7 Toolbar link button"]
+    OC --> F1["1 Slash commands"] & F3["3 Turn review"] & F8["8 Plan mode"] & F21["21 Model switcher"] & F22["22 Cost meter"] & F30["30 Fork"]
+    JR --> F13["13 Scheduled jobs"] & F14["14 Push"] & F23["23 Deep research"]
+    CE --> F2["2 Capture inbox"] & F15["15 Daily capture"] & F24["24 Attachments"] & F25["25 Voice memos"]
+    F2 -.feeds.-> F1
+    F13 -.notifies via.-> F14

@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant B as Browser
+  participant API as Backend
+  participant G as Git clone
+  B->>API: GET /vaults/:id/history?path=wiki/entities/andrej-karpathy.md
+  API->>G: git log --follow --format with end-of-options
+  G-->>API: commits with hash, date, author, subject
+  API-->>B: commit list
+  B->>API: GET /vaults/:id/file?path=...&rev=7be0d44
+  API->>API: validate rev as a hex hash from the list
+  API->>G: git show rev colon path
+  API-->>B: old content, read-only
+  B->>B: render diff old vs current
+  B->>API: PUT /vaults/:id/file?path=... with old content
+  API-->>B: saved, uncommitted
+  API-->>B: status event, changedCount plus 1

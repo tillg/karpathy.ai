@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant B as Browser
+  participant API as Backend
+  participant RG as ripgrep
+  participant V as Vault clone
+  B->>API: POST /vaults/:id/rename from, to, dryRun true
+  API->>RG: search for wikilinks to karpathy
+  RG-->>API: candidate lines
+  API->>API: resolve with Obsidian rules, keep alias and heading
+  API-->>B: preview, 5 files and 7 lines
+  B->>API: POST /vaults/:id/rename dryRun false
+  API->>API: take exclusive vault lock
+  API->>V: move the file, git mv semantics
+  API->>V: splice each link, touch nothing else
+  API-->>B: status event, rename plus 5 edits

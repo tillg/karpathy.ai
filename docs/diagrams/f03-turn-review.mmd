@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant W as ChatPane turn card
+    participant B as Backend
+    participant O as opencode
+    participant V as Vault working tree
+    W->>B: turn finished, load its diff
+    B->>O: GET /session/:id/diff?messageID=
+    O-->>B: per-file patches of this turn
+    B-->>W: files and hunks
+    alt Undo one hunk
+        W->>B: undo hunk with file version hash
+        B->>B: take vault lock, check stale-save hash
+        B->>V: apply reverse patch of the hunk
+    else Undo this turn
+        W->>B: undo turn
+        B->>O: POST /session/:id/revert
+        O->>V: restore files of that turn
+    end
+    V-->>W: watcher event, note pane and GitPill refresh

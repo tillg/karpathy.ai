@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant B as Browser
+  participant API as Backend
+  participant V as Vault clone
+  B->>API: POST /vaults/:id/append target inbox, text
+  API->>API: resolve target path from vault settings
+  API->>V: read Inbox.md or create it
+  API->>V: append timestamped line
+  V-->>API: watcher change event
+  API-->>B: status event, changedCount plus 1
+  B->>API: tap Today
+  API->>V: read .obsidian/daily-notes.json
+  API->>V: create daily/2026-09-26.md from template if missing
+  API-->>B: open path in note pane

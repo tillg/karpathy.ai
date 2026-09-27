@@ -1,0 +1,11 @@
+flowchart TD
+    A["AGENTS.md rule, cite with heading anchors"] --> B["Assistant answer text"]
+    B --> C["Chat renderer finds wikilinks with heading"]
+    C --> D{"Page and heading exist"}
+    D -->|yes| E["Citation chip"]
+    D -->|no| F["Dead citation marked"]
+    E --> G["Tap opens note scrolled to heading"]
+    H["Open raw file"] --> I["GET /vaults/:id/backlinks?path= raw file"]
+    I --> J["Reverse lookup of sources frontmatter"]
+    J --> K["Derived pages list"]
+    L["Open wiki page"] --> M["sources frontmatter as links into raw"]

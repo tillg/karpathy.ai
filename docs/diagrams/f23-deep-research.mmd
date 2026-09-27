@@ -1,0 +1,12 @@
+flowchart TD
+  A["/research topic, or a gap from lint"] --> B["Agent proposes sub-questions"]
+  B --> C{"User confirms or edits"}
+  C -- cancel --> Z["Nothing spent"]
+  C -- "confirm with cost cap" --> D["websearch per sub-question"]
+  D --> E["webfetch useful hits"]
+  E --> F["Save raw/articles/slug.md with source URL"]
+  F --> G{"Cap reached or all answered?"}
+  G -- no --> D
+  G -- yes --> H["Ingest new raw sources into wiki pages"]
+  H --> I["Pages cite raw/ sources"]
+  I --> J["Uncommitted edits in Changes panel"]

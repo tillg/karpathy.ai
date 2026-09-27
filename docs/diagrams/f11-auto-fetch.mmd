@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant B as Browser
+  participant API as Backend
+  participant G as Git clone
+  participant GH as GitHub
+  B->>API: POST /vaults/:id/git/fetch on visibilitychange
+  API->>G: git fetch origin branch
+  G->>GH: fetch
+  GH-->>G: new objects
+  API->>G: rev-list --left-right --count
+  API-->>B: event ahead 0 behind 3 via /vaults/:id/events
+  Note over API: interval timer repeats the fetch every N minutes
+  B->>API: POST /vaults/:id/open to pull
+  API->>API: take exclusive vault lock, wait if a turn runs
+  API->>G: fast-forward or stash and merge
+  API-->>B: status event, conflict state if any

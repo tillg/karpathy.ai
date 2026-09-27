@@ -1,0 +1,18 @@
+sequenceDiagram
+  actor U as User
+  participant W as PWA
+  participant B as Backend
+  participant O as opencode
+  U->>W: Attach, take photo or pick PDF
+  W->>B: POST /vaults/:id/attachments multipart
+  B->>B: HEIC to JPEG, resize, size warning
+  B-->>W: path attachments/2026-09-26-whiteboard.jpg
+  alt from the editor
+    W->>W: insert embed at cursor
+  else from the chat composer
+    W->>B: POST /vaults/:id/chats/:chatId/prompt text plus file part
+    B->>O: prompt with base64 file part
+    O->>O: vision model reads it, writes raw and wiki
+    O-->>B: tool events
+    B-->>W: changed-file chips
+  end

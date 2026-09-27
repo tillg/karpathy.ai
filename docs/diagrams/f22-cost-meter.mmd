@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant W as ChatPane
+  participant A as Admin
+  participant B as Backend
+  participant O as opencode
+  W->>B: GET /vaults/:id/chats/:chatId/stream
+  O-->>B: message.updated with tokens and cost
+  B-->>W: turn usage input output cache cost
+  W->>W: add to chat total, update context bar
+  Note over W: context above 80 percent shows Compact
+  W->>B: POST /vaults/:id/chats/:chatId/compact
+  B->>O: POST /session/:id/summarize
+  O-->>B: summary message
+  B-->>W: context bar drops
+  A->>B: GET /vaults/:id/usage?month=2026-09
+  B->>O: list sessions, sum assistant cost
+  B-->>A: monthly total per vault

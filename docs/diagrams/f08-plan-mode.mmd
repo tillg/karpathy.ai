@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant W as ChatPane
+    participant B as Backend
+    participant O as opencode
+    W->>B: POST /vaults/:id/chats/:chatId/prompt agent=plan
+    B->>O: prompt with plan agent, edit and bash ask
+    O-->>B: reads and proposed page list
+    B-->>W: NDJSON plan, no writes
+    W->>B: Go, prompt agent=build in same session
+    B->>O: prompt with build agent
+    O-->>B: permission request for edit of wiki/index.md
+    B-->>W: NDJSON permission event with diff
+    W->>B: approve
+    B->>O: POST /session/:id/permissions/:permissionID
+    O-->>B: edit applied, next step
+    B-->>W: NDJSON tool chips as today

@@ -1,0 +1,11 @@
+flowchart TD
+  A["GET /vaults/:id/file"] --> B["Split frontmatter and body"]
+  B --> C["yaml parseDocument keeps CST"]
+  S["Schema: .karpathy/schema.json or default LLM-wiki schema"] --> D
+  C --> D["Typed form fields and validation"]
+  D -->|user edits one field| E["doc.setIn on that node only"]
+  E --> F["doc.toString, splice changed range"]
+  F --> G["Single CM6 transaction"]
+  G --> H["Autosave via PUT /vaults/:id/file"]
+  D -->|YAML toggle| I["Raw YAML in the editor"]
+  I --> C

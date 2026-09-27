@@ -1,0 +1,17 @@
+sequenceDiagram
+  actor U as User
+  participant R as Read view
+  participant C as File cache
+  participant B as Backend
+  U->>R: hover or long-press a wikilink
+  R->>C: look up target path
+  alt cached
+    C-->>R: note text
+  else not cached
+    R->>B: GET /vaults/:id/file?path=wiki/entities/andrej-karpathy.md
+    B-->>R: content and version
+  end
+  R->>R: renderMarkdown into popover
+  Note over R: missing target shows Create instead
+  U->>R: tap Open
+  R->>R: followLink navigates

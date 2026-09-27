@@ -1,0 +1,12 @@
+flowchart TD
+    A["Finished assistant answer"] --> B{"Which action"}
+    B -->|Save to wiki| C["POST /vaults/:id/chats/:chatId/prompt with canned text"]
+    C --> D["opencode runs query skill in same session"]
+    D --> E["writes wiki/synthesis/slug.md with frontmatter"]
+    D --> F["links it from related pages"]
+    D --> G["appends index.md and log.md"]
+    B -->|Append or Insert| H["CM6 transaction in open note"]
+    H --> I["PUT /vaults/:id/file with version hash"]
+    E --> J["Uncommitted, shown in Changes"]
+    G --> J
+    I --> J

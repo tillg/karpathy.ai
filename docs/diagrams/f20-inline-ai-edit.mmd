@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant E as Editor
+  participant API as Backend
+  participant O as opencode
+  E->>E: select range, open prompt
+  E->>API: POST /vaults/:id/inline-edit selection, context, instruction
+  API->>O: session.create throwaway, all tools denied
+  API->>O: prompt, return replacement text only
+  O-->>API: replacement text
+  API->>O: session.delete
+  API-->>E: replacement
+  E->>E: check selection unchanged, else mark stale
+  E->>E: show proposed diff decoration
+  E->>E: Accept dispatches one CM6 transaction
+  E->>API: autosave PUT /vaults/:id/file

@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant C as Backend cron
+  participant L as Vault lock
+  participant G as Git clone
+  participant O as opencode
+  participant B as Browser
+  C->>C: tick matches 0 3 * * *
+  C->>G: git status, is the tree dirty
+  C->>L: acquire like any turn
+  C->>O: session.create in vault dir, tagged job
+  C->>O: prompt /lint with read-only agent
+  O->>G: read wiki pages, write report
+  O-->>C: session.idle
+  C->>L: release
+  C->>C: store run status, tokens, chatId
+  B->>C: GET /vaults/:id/chats
+  C-->>B: job run listed with job tag

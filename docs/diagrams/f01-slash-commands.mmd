@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant U as User
+    participant W as ChatPane
+    participant B as Backend
+    participant O as opencode
+    U->>W: types / in composer
+    W->>B: GET /vaults/:id/commands
+    B->>O: GET /command
+    O-->>B: commands and skills of this vault
+    B-->>W: names, descriptions, argument hints
+    U->>W: picks /ingest raw/articles/2026-09-20-llm-wiki.md
+    W->>W: fill activeNote and selection variables
+    W->>B: POST /vaults/:id/chats/:chatId/command
+    B->>O: POST /session/:id/command with $ARGUMENTS
+    O-->>B: tool calls and text events
+    B-->>W: NDJSON stream as today

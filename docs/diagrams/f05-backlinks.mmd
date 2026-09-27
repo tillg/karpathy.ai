@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant N as NotePane
+    participant B as Backend
+    participant R as ripgrep
+    participant V as Vault clone
+    N->>B: GET /vaults/:id/backlinks?path=wiki/entities/andrej-karpathy.md
+    B->>R: wikilinks to name with optional alias
+    B->>R: title and aliases as plain text
+    R-->>B: hits with line context
+    B-->>N: linked and unlinked mentions with snippets
+    N->>N: user taps Link on one unlinked hit
+    N->>B: GET /vaults/:id/file?path=concepts/software-3-0.md
+    N->>N: splice one occurrence, no re-serialize
+    N->>B: PUT /vaults/:id/file with version hash
+    B->>V: write file
+    B-->>N: event, backlinks list refreshes

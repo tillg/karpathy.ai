@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant U as User
+    participant W as ChatPane composer
+    participant B as Backend
+    participant O as opencode
+    U->>W: types @conc
+    W->>W: quick-switcher matcher over file list
+    W-->>U: picker with notes and folders
+    U->>W: picks items, chips shown
+    W->>B: POST /vaults/:id/chats/:chatId/prompt with text and paths
+    B->>B: check paths stay inside the vault
+    B->>O: prompt with file parts
+    O-->>B: read events for mentioned files
+    B-->>W: NDJSON, read chips list the mentioned files

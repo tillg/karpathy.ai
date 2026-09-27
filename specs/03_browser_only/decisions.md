@@ -2,6 +2,20 @@
 
 Tasks: (1) implement spec #03 (browser-only research report), (2) ingest `/Users/tgartner/git/mylife_wiki`
 as demo vault, (3) look at the state of features in gh and make a plan for V1.
+Everything tested with Playwright (Chromium + WebKit) and the local Ollama model `qwen2.5:3b`.
+
+## Outcome
+
+| Task | Result |
+|---|---|
+| 1. Spec #03 | [`browser-only-report.html`](browser-only-report.html). Verdict: **feasible, but not for V1**, because it would replace opencode. Options A/B/C; C (local-first hybrid) is the recommended path if offline matters later. Backed by 11 spikes in `spikes/` + [`research-notes.md`](research-notes.md) + 5 diagrams in `docs/diagrams/browser-only-*`. |
+| 2. Demo vault | `mylife_wiki` HEAD is vault **"My Life Wiki"** (`my-life-wiki`) in the dev stack, from a local bare copy (never pushes to GitHub). Exploratory suites in `tmp/explore/` (5 rounds) found **3 bugs, all fixed test-first**: emptied folders after delete (#13), emptied folders after discard (#28), and the editor keeping discarded text, which the next keystroke saved back (#31). |
+| 3. V1 plan | [`../04_v1/v1-plan.md`](../04_v1/v1-plan.md): 0 open bugs, 35 open enhancements. Proposed milestones: V1.0 ship & harden → V1.1 skills → V1.2 query / V1.3 capture+ingest / V1.4 trust & sync → V1.5 dogfood week. |
+| Gates | unit 197/197, e2e 197 passed / 1 skipped, typecheck + lint clean. Commits `0e5a3a0`, `3b14826` on `main`, **not pushed**. |
+
+**Open questions for you:** see the V1 plan §5 (server/access model, prod model, mail/Instagram ingest in V1?, plan mode). Also: should I push? Should I file issues for the 3 fixed bugs (so far they only exist as commits)?
+
+## Log
 
 | # | Decision / assumption | Why |
 |---|---|---|
@@ -40,3 +54,6 @@ as demo vault, (3) look at the state of features in gh and make a plan for V1.
 | 33 | One-off unit flake: `api.test.ts › DELETE is blocked while uncommitted changes exist` got 404 instead of 409 once. It passed in 5 reruns (alone and full suite). Not related to my changes (that test discards a root-level file). Not filed. | Noted for the user. |
 | 34 | Round 3 on the demo vault passed (Chromium + WebKit): film frontmatter chips with alias links → actor page; body `[[target\|Label]]` links in Write and Read mode; byte-exact frontmatter round-trip; watcher reload on the demo vault and on "Big". | Evidence. |
 | 35 | After fixes 2+3: unit **197 passed**, e2e **197 passed, 1 skipped** (4 new tests), typecheck + lint clean. Round 4 (phone, WebKit iPhone) passed: create a note in `Wiki/` → type → commit from the Changes tab (Ollama-proposed message) → cleanup; deep folder navigation with Back keeping expansion. | Evidence. |
+| 36 | First soak run: 8–9 failures per iteration, all from **one cascade in my tests**. The Obsidian push happened before the app opened, the app's pull-on-open detected the conflict right away (correct behaviour), so Commit was disabled and the test failed; the conflict stayed and broke everything after it. Fix: the conflict test accepts either detection point, and every exploratory spec starts with `ensureClean()` (`tmp/explore/lib.ts`). The demo remote was restored to `223e9cf` content. Re-run: **40/40**. | Test isolation, not an app bug. |
+| 37 | Soak after the isolation fix: 3 iterations × 40 tests = **119/120**. The only failure: qwen2.5:3b answered the grep prompt without calling a tool (model flakiness). | Evidence. |
+| 38 | `--repeat-each 2` run of the repo suite: Chromium was all green. Mid-run, the **Rancher port forwarder died a second time** (61 × `socket disconnected before secure TLS connection`, all WebKit, all after the outage). After a Rancher restart, the failed tests and then all WebKit projects re-ran green (98 passed). **Recommendation:** Rancher's port forwarding is fragile under sustained parallel HTTPS load. Worth a look before relying on long CI-style runs on this Mac (e.g. `workers: 2`, or a different port-forwarding mode). | Environment finding. |

@@ -49,7 +49,7 @@ Feature ideas from similar projects (30, ranked, filed as issues #64–#93):
 `feature-report.html`, rebuilt with `node specs/02_features/build-report-html.mjs`).
 Browser-only (serverless) architecture research with spikes:
 [`specs/03_browser_only/browser-only-report.html`](specs/03_browser_only/browser-only-report.html).
-V1 plan draft: [`specs/04_v1/v1-plan.md`](specs/04_v1/v1-plan.md).
+V1 plan draft: [`specs/04_v1/v1-plan.html`](specs/04_v1/v1-plan.html).
 UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
 

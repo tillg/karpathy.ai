@@ -38,7 +38,7 @@ code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size:
 .sub { color: var(--muted); margin: 0 0 24px; }
 .tldr { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
 .tldr p:first-child { margin-top: 0; }
-nav.toc { columns: 2; column-gap: 32px; font-size: .95rem; }
+nav.toc { columns: 2; column-gap: 32px; font-size: .95rem; margin-top: 20px; }
 nav.toc a { display: block; padding: 2px 0; }
 @media (max-width: 640px) { nav.toc { columns: 1; } }
 .tbl { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
@@ -233,7 +233,7 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 
 <h2 id="reco">8. Recommendation and next steps</h2>
 <ol>
-<li><b>V1 stays on the server architecture.</b> None of the browser-only blockers are about features. They're about losing opencode, skills with scripts, and turns that survive backgrounding. Those are exactly what the <a href="../04_v1/v1-plan.md">V1 plan</a> is built on (skills, ingest).</li>
+<li><b>V1 stays on the server architecture.</b> None of the browser-only blockers are about features. They're about losing opencode, skills with scripts, and turns that survive backgrounding. Those are exactly what the <a href="../04_v1/v1-plan.html">V1 plan</a> is built on (skills, ingest).</li>
 <li><b>If offline matters later, go Option C, step by step:</b>
 <ol>
 <li>a read-only browser clone (<code>isomorphic-git</code> on <code>lightning-fs</code>, Markdown only, through the server as a same-origin git proxy, so no CORS proxy is needed) plus in-browser search;</li>

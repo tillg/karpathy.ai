@@ -27,8 +27,16 @@ option, not prod. Backed by 4 desk-research notes (`notes-*.md`, primary sources
 | D11 | Add-vault diagram simplified to one decision node. | The detailed version was unreadable at 1× (checked in Playwright). |
 | D12 | README links the report. | User-visible doc. |
 | D13 | (Follow-up, on request) Report §4.1 "Oracle as a €0 prod": 4 GB shape so memory stays above 20 %, plus a `Nice=19` stress-ng timer, 1 h every 6 h, as a CPU safety net. On the VM, not a GitHub Action. | Oracle reclaims only if CPU, network and memory are all below 20 %. 1 h per 6 h keeps the CPU 95th percentile above 20 % even if Oracle samples hourly averages. A GitHub Action would need a Tailscale key in GitHub, and GitHub turns off schedules in public repos after 60 days without activity. Timer syntax, stress-ng flags and `systemd-analyze verify` were checked in an Ubuntu 24.04 arm64 container. Not verified: how Oracle's memory metric counts page cache, and whether gaming the rule breaks Oracle's terms. |
-
+| D14 | **User decision (2026-09-28): Hetzner CX23** is prod. | Asked "why not IONOS/OVH, they're ~€5?", then chose Hetzner. IONOS S+ is €5 but has only 2 GB (M+ with 4 GB is €12). OVH is really cheaper; see D15. |
+| D15 | Correction: OVH "VPS-1 €4.53, backup included" was wrong. Verified from OVH's public order catalog API (`eu.api.ovh.com/1.0/order/catalog/public/vps?ovhSubsidiary=DE`, plan `vps-2027-model1`): 2 vCore / 4 GB / 40 GB, no setup fee, €5.34 incl. VAT monthly (€5.07 on 6 months, €4.53 on 12), plus a **required** daily-backup add-on at €0.42. | The product page shows only the 12-month price and "backup". OVH stays in the report as the cheapest alternative (€5.76 vs €8.44 with backups). |
+| D16 | Report §8 "Guide: book, install and set up Hetzner", for today's repo with no code changes: Cloudflare DNS (the proxy image is built with that module; a token can be limited to one zone); a temporary SSH firewall rule until Tailscale is up, then no inbound rules at all; a server-only `deploy/compose.hetzner.yml` that publishes 443 on the tailnet IP only, drops port 80, rotates logs and bind-mounts `vaults` to `/srv/vaults`; a Docker drop-in that starts Docker after Tailscale; images built on the server. | The override was validated with `docker compose config` against `compose.yml`, and the hcloud flags against hetznercloud/cli docs. `DNS_PROVIDER` is a build arg the compose file doesn't pass, so Hetzner DNS would need `build.args`. The Hetzner DNS token controls the whole project, so it would need its own project. |
+| D17 | `/vaults` on a **20 GB loop-mounted ext4 file on the server disk** instead of a Hetzner Volume. | Keeps the fixed-size filesystem from the disk research, costs nothing, and Hetzner server backups include it. They don't include Volumes, which would make restic mandatory. Total drops to €8.44 incl. VAT. |
 ## Assumptions / open for the user
+
+- Guide not run end to end against a real Hetzner account (no account or credentials here). The risky
+  steps were checked offline: the compose override, the hcloud flags and the systemd syntax. Not checked:
+  whether Hetzner's Ubuntu image gives the first added user uid 1000 (the guide checks it and has a
+  fallback), and the exact Caddy log wording when it gets the certificate.
 
 - Prices are from vendor pages on 2026-09-28; Hetzner changed prices twice in 2026. Hetzner volume price
   (≈ €0.057/GB) is from a third-party list.

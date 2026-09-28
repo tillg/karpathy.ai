@@ -148,6 +148,12 @@ IONOS sells two unrelated products: **VPS+** (hosting-style, fixed plans) and **
 - Gotcha: no 99.9 % SLA / dedicated cores on VPS (only root servers) [N1].
 
 ### OVHcloud (FR; DE DC)
+- **Correction 2026-09-28 (from OVH's public order catalog API,
+  `https://eu.api.ovh.com/1.0/order/catalog/public/vps?ovhSubsidiary=DE`, plan `vps-2027-model1`):**
+  €5.34 incl. VAT on **monthly, no commitment** (€4.49 net), €5.07 on 6 months, €4.53 on 12 months;
+  installation fee €0; the daily **automated backup is a required add-on at €0.42/mo** (7-day
+  "Premium" €1.31); snapshot €0.36; datacenter option `DE` available. The claims below that backup is
+  "included" and that the monthly price is unknown are superseded.
 - **VPS 2027 range (launched 2026-06-17)** [V2]: **VPS-1 2 vCores / 4 GB / 40 GB NVMe,
   500 Mbit/s, unlimited traffic, daily automated backup included — from €4.53/mo incl. MwSt**
   (€3.81 excl.) [V1][V2]. VPS-2 4/8/75 €8.58; VPS-3 6/12/100 €12.38 [V1].

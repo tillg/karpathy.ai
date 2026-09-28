@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Production Environment</title>
-<meta name="description" content="Where and how to host karpathy.app in production: hosters and free tiers, Hetzner vs IONOS, security, disk space; with spike results (2026-09-28).">
+<meta name="description" content="Where and how to host karpathy.app in production: hosters and free tiers, OVH vs Hetzner vs IONOS (decided: Hetzner), security, disk space, Hetzner setup guide; with spike results (2026-09-28).">
 <style>
 :root {
   --bg: #fbfbfa; --fg: #1d1d1f; --muted: #5f6368; --line: #e3e3e0; --card: #ffffff;
@@ -62,6 +62,7 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 .small { font-size: .88rem; color: var(--muted); }
 pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: .82rem; line-height: 1.45; max-width: 100%; }
 pre code { background: none; padding: 0; font-size: inherit; }
+p code, li code { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -70,26 +71,27 @@ pre code { background: none; padding: 0; font-size: inherit; }
 <p class="sub">Research report for <a href="prod_env.md">spec #05</a>. Research only; nothing gets built. Written 2026-09-28. Evidence: primary-source desk research on about 35 hosters (<a href="notes-hosters-eu.md">EU notes</a>, <a href="notes-hosters-global.md">global notes</a>), <a href="notes-security.md">security notes</a> and <a href="notes-disk.md">disk notes</a>, plus <b>six spikes</b> against the prod images and the real demo vault (<code>mylife_wiki</code>: 5,604 files, 2.9 GB as a clone). Prices were checked on the vendor pages on 2026-09-28 and change often (Hetzner changed prices in April and June 2026).</p>
 
 <div class="tldr">
-<p><b>Short answer: rent a small EU VPS (Hetzner CX23 or CAX11, about €8–9 a month with backups). Put it behind Tailscale so no port is open to the internet. Check disk space before each new vault is cloned.</b></p>
+<p><b>Decided (2026-09-28): a Hetzner CX23 in Germany, about €8.40 a month with backups. Put it behind Tailscale so no port is open to the internet. Check disk space before each new vault is cloned.</b></p>
 <ol>
 <li><b>No free tier really fits.</b> The only permanently free offer big enough is <b>Oracle Always Free</b> (ARM, 2 OCPU, 12 GB RAM, 200 GB disk). But Oracle reclaims free VMs that stay idle for 7 days, and a single-user app is idle almost all the time. Oracle is also a US company, so the CLOUD Act applies. Every free PaaS tier either sleeps or has no persistent disk, and we need both an always-on server and a disk.</li>
 <li><b>We need about 1 GB of RAM, so 2 GB is the floor and 4 GB is comfortable</b> (<a href="#need">§1</a>). The prod stack uses about 350 MB idle and about 600 MB during a chat turn. On the dev stack, which ran 2 h with 14 vaults, opencode grew to 1 GB. The images take 0.7 GB of disk. The demo vault takes 2.9 GB as a full clone, but only 5 MB of that is Markdown.</li>
-<li><b>Hetzner beats IONOS for this</b> (<a href="#hetzner-ionos">§3</a>). Hetzner has 4 GB for €5.49 net, billed hourly with no minimum term, plus an API, a free firewall and ISO 27001. IONOS VPS S+ is €5 incl. VAT, but it has only 2 GB, a €10 setup fee and a 12-month term, and it has no API. The old €1 IONOS VPS is gone.</li>
+<li><b>OVH is cheapest, Hetzner the most flexible, IONOS third</b> (<a href="#hetzner-ionos">§3</a>). All three have EU data centres. OVH VPS-1 has 2 vCore / 4 GB / 40 GB for €5.34 incl. VAT on monthly terms, with no setup fee, plus €0.42 for the required daily backup (prices from OVH's own order catalog). Hetzner CX23 has the same size for €7.13 with IPv4, or €8.44 with backups, billed by the hour with a free firewall and full API. IONOS VPS S+ costs €5 but has only 2 GB, a €10 setup fee and a 12-month term. The old €1 IONOS VPS is gone. <b>You chose Hetzner</b>.</li>
 <li><b>Security is mostly about the network, not the app</b> (<a href="#security">§5</a>). The app layer is already hardened: bearer token, strict CSP, and opencode reachable only inside compose. What changes is the MVP's assumption of a <i>home server behind a VPN</i>. With <b>Tailscale</b> (free) the VPS keeps that property: zero open ports, and the installed iPad app works unchanged. Tailscale is the "install something on each device" step the spec is willing to accept, and it works. Cloudflare Access is a poor fit: Cloudflare would see every note in plain text, and installed PWAs get stuck when the Access login expires.</li>
 <li><b>Disk: check before adding a vault, and cap the clone itself</b> (<a href="#disk">§6</a>). Two GitHub API calls predict the clone size within about 1 %. If the estimate exceeds free space minus a reserve, refuse the vault. Otherwise clone onto its own filesystem, with a file-size limit and a timeout as a hard stop. Switching to a partial clone (<code>--filter=blob:none</code>) cuts 21 % and breaks nothing. Sparse checkout would cut the demo vault from 2.9 GB to 324 MB, which makes it a good per-vault option.</li>
 </ol>
-<p><b>Recommendation:</b> Hetzner <b>CX23</b> (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, a 20 GB volume for <code>/vaults</code>, Tailscale with Tailnet Lock, the existing Caddy DNS-01 certificate for <code>app.karpathy.app</code>, and a fine-grained GitHub token. That comes to <b>about €10 a month incl. VAT</b>. Oracle Always Free is the €0 alternative (<a href="#oracle">§4.1</a>): a 4 GB VM plus a low-priority CPU job keeps it out of Oracle's idle rule, if you accept that the account might still vanish. <a href="#reco">§7</a> lists the work items and the decisions you need to make.</p>
+<p><b>Decision:</b> <b>Hetzner CX23</b> (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, <code>/vaults</code> on a 20 GB loop-mounted filesystem that the backups include, Tailscale with Tailnet Lock, a Let's Encrypt certificate for <code>app.karpathy.app</code> via Cloudflare DNS, and a fine-grained GitHub token: <b>about €8.44 a month incl. VAT</b>. <a href="#guide">§8</a> is the step-by-step guide. The runner-ups: OVH VPS-1, about €2.70 a month cheaper with daily backup, and Oracle Always Free at €0 (<a href="#oracle">§4.1</a>), which works if you accept that the account might vanish. <a href="#reco">§7</a> lists the work items.</p>
 </div>
 
 <nav class="toc" aria-label="Contents">
 <a href="#need">1. What we have to host (measured)</a>
 <a href="#landscape">2. Hoster landscape</a>
-<a href="#hetzner-ionos">3. Hetzner vs IONOS</a>
+<a href="#hetzner-ionos">3. OVH vs Hetzner vs IONOS</a>
 <a href="#free">4. Free tiers: the honest picture (4.1 Oracle as €0 prod)</a>
 <a href="#security">5. Security</a>
 <a href="#disk">6. Disk space</a>
 <a href="#reco">7. Recommendation and next steps</a>
-<a href="#appendix">8. Sources and re-running the spikes</a>
+<a href="#guide">8. Guide: book, install and set up Hetzner</a>
+<a href="#appendix">9. Sources and re-running the spikes</a>
 </nav>
 
 <h2 id="need">1. What we have to host (measured)</h2>
@@ -115,8 +117,8 @@ pre code { background: none; padding: 0; font-size: inherit; }
 <div class="tbl"><table>
 <thead><tr><th>Option</th><th>Plan that fits</th><th>≈ €/month</th><th>Free tier</th><th>Verdict</th></tr></thead>
 <tbody>
-<tr><td><b>Hetzner</b> (DE/FI)</td><td>CX23 x86 or CAX11 ARM: 2 vCPU / 4 GB / 40 GB, 20 TB traffic</td><td>7.13–7.72 incl. VAT (+20 % backups)</td><td>none</td><td><span class="v go">best fit</span></td></tr>
-<tr><td><b>OVHcloud</b> (FR, DE DC)</td><td>VPS-1: 2 vCore / 4 GB / 40 GB, <b>daily backup included</b></td><td>4.53 incl. VAT (probably a 12-month price; check the terms)</td><td>€200 Public Cloud trial (not VPS)</td><td><span class="v go">strong runner-up</span></td></tr>
+<tr><td><b>OVHcloud</b> (FR, DE DC)</td><td>VPS-1 2027: 2 vCore / 4 GB / 40 GB NVMe, 500 Mbit/s unlimited, no setup fee</td><td>5.34 incl. VAT monthly, 4.53 with 12 months; + 0.42 required daily backup</td><td>€200 Public Cloud trial (not VPS)</td><td><span class="v go">cheapest</span></td></tr>
+<tr><td><b>Hetzner</b> (DE/FI)</td><td>CX23 x86 or CAX11 ARM: 2 vCPU / 4 GB / 40 GB, 20 TB traffic</td><td>7.13–7.72 incl. VAT (+20 % backups)</td><td>none</td><td><span class="v go">chosen</span></td></tr>
 <tr><td><b>IONOS</b> VPS+ (DE)</td><td>S+ 1 vCPU / 2 GB / 60 GB, or M+ 2 / 4 GB / 120 GB</td><td>5 or 12 incl. VAT + €10 setup</td><td>30-day money-back only</td><td><span class="v partial">works, worse terms</span></td></tr>
 <tr><td>IONOS Cloud (DE)</td><td>Cube XS 1 vCPU / 2 GB / 60 GB</td><td>≈ 5</td><td>€200 credit for 30 days</td><td><span class="v partial">trial only</span></td></tr>
 <tr><td>netcup (DE)</td><td>VPS 500, x86 or ARM: 2 / 4 GB / 64 GB</td><td>8.26 incl. VAT (12 months)</td><td>none</td><td><span class="v go">fits</span></td></tr>
@@ -133,18 +135,24 @@ pre code { background: none; padding: 0; font-size: inherit; }
 <p class="small">AWS and Azure were excluded as the spec asked, because their free tiers are used up.</p>
 <p><b>GitHub for the static part?</b> GitHub Pages could host the app shell (the built PWA), with only the API on the VPS. It saves nothing, though. Caddy already serves the shell for free from the same server. A split puts the app and the API on two origins, which means CORS preflights on API calls and a looser CSP (<code>connect-src</code> to the API host). The server still needs its full size for git, ripgrep and opencode. Keep one origin.</p>
 
-<h2 id="hetzner-ionos">3. Hetzner vs IONOS (the two your friends named)</h2>
+<h2 id="hetzner-ionos">3. OVH vs Hetzner vs IONOS</h2>
+<p>IONOS and Hetzner are the two hosters your friends named. OVH came out cheapest in the research.</p>
 <div class="cards">
-<div class="card"><h4>Hetzner Cloud <span class="v go">recommended</span></h4>
+<div class="card"><h4>OVHcloud VPS-1 <span class="v go">cheapest</span></h4>
+<p><b>VPS-1 2027:</b> 2 vCore / 4 GB / 40 GB NVMe, 500 Mbit/s with unlimited traffic, and a German data centre (the city isn't named). From OVH's public order catalog for Germany (2026-09-28), incl. VAT: <b>€5.34 a month with no commitment</b>, €5.07 on 6 months, €4.53 on 12 months. <b>No setup fee.</b> A daily backup is a required add-on at €0.42; 7 daily backups cost €1.31.</p>
+<p>OVH has an API and a Terraform provider. It is a French company, so the CLOUD Act doesn't apply directly.</p>
+<p><b>Not checked:</b> the DPA, encryption at rest, and whether its network firewall is free. None of these matters much behind Tailscale: the proxy binds to the tailnet IP and nothing else is published.</p></div>
+<div class="card"><h4>Hetzner Cloud <span class="v go">chosen</span></h4>
 <p><b>CX23</b> (x86) €5.49 or <b>CAX11</b> (ARM) €5.99 net, each 2 vCPU / 4 GB / 40 GB NVMe / 20 TB traffic. IPv4 costs €0.50 and backups add 20 % of the server price (7 slots). A 20 GB volume is about €1.14 (third-party price list).</p>
 <p>Billed hourly with <b>no minimum term</b>. The Cloud Firewall is free, and there is a full API, the <code>hcloud</code> CLI and a Terraform provider. Data centres in Falkenstein, Nuremberg and Helsinki; ISO 27001 and BSI C5, and the DPA is signed in the console.</p>
 <p><b>Watch out:</b> Hetzner may ask for an ID copy or a card prepayment at signup. Prices went up in April 2026 (existing servers too) and again in June for new orders. Hetzner states that encryption at rest is the customer's job.</p></div>
-<div class="card"><h4>IONOS VPS+ <span class="v partial">second choice</span></h4>
+<div class="card"><h4>IONOS VPS+ <span class="v partial">third</span></h4>
 <p><b>S+</b> 1 vCPU / 2 GB / 60 GB is €5 incl. VAT (€2 for the first 3 months). <b>M+</b> 2 vCPU / 4 GB / 120 GB is €12. Both have a <b>€10 setup fee</b>, unlimited traffic at 1 Gbit/s and an AVV (German DPA) built into the contract. First-year cost of S+: €61.</p>
 <p>ionos.com states a <b>1-year minimum term</b>. The "30 days free" is a money-back guarantee, not a free tier. VPS+ is x86 only and has no API or Terraform provider. The €1 VPS XS (1 GB) is no longer sold, and it would have been too small anyway.</p>
 <p>The separate <b>IONOS Cloud</b> gives <b>€200 credit for 30 days</b>, a genuinely free way to try the stack for a month.</p></div>
 </div>
-<p><b>Verdict:</b> for about €7 incl. VAT (with IPv4) Hetzner gives twice the RAM of IONOS S+ at €5, with no setup fee, no term and an API. IONOS M+ matches Hetzner's specs but costs about 70 % more (€12 vs €7.13 incl. VAT). IONOS only wins if you already have an account there or want the AVV in the base contract.</p>
+<p><b>Verdict:</b> with backups on monthly terms, OVH comes to €5.76 and Hetzner to €8.44, for the same 4 GB. OVH saves about €32 a year, or €42 with a 12-month commitment. Hetzner is worth the extra only if you value hourly billing (spin up, test, throw away), its free Cloud Firewall and its documented ISO 27001 / BSI C5 certificates and DPA. Against IONOS: for about €7 incl. VAT (with IPv4) Hetzner gives twice the RAM of IONOS S+ at €5, with no setup fee, no term and an API. IONOS M+ matches Hetzner's specs but costs about 70 % more (€12 vs €7.13 incl. VAT). IONOS only wins if you already have an account there or want the AVV in the base contract.</p>
+<p><b>Decision (2026-09-28): Hetzner.</b> It costs about €2.70 a month more than OVH, and buys hourly billing, the free Cloud Firewall and documented certificates.</p>
 
 <h2 id="free">4. Free tiers: the honest picture</h2>
 <p>The spec asks for "a hoster with a significant free tier". <b>Only Oracle Cloud Always Free is both permanent and big enough.</b> Everything else is a trial (IONOS Cloud €200 for 30 days, OVH €200, Infomaniak CHF 300 for 3 months, DigitalOcean and Linode credits), too small (Google e2-micro, 1 GB) or a PaaS that sleeps.</p>
@@ -195,7 +203,7 @@ WantedBy=timers.target
 <li><b>Backups are mandatory:</b> a nightly restic backup to a target <i>outside</i> Oracle, and a runbook to rebuild the server. If the VM or the account vanishes, committed vaults are safe on GitHub. Uncommitted edits and chats come back from the backup.</li>
 </ol>
 <div class="cards">
-<div class="card"><h4>What it gets you</h4><p>€0 a month for the same size as the Hetzner plan (2 vCPU / 4 GB), with 8 GB of the allowance to spare, 200 GB of disk and 10 TB of traffic. The same compose, Tailscale and backups as Hetzner, so moving between the two later is cheap.</p></div>
+<div class="card"><h4>What it gets you</h4><p>€0 a month for the same size as the Hetzner plan (2 vCPU / 4 GB), with 8 GB of the allowance to spare, 200 GB of disk and 10 TB of traffic. The same compose, Tailscale and backups as on OVH or Hetzner, so moving between them later is cheap.</p></div>
 <div class="card"><h4>What stays risky</h4><p>This deliberately games Oracle's idle rule; whether that breaks Oracle's terms is not verified. Oracle can change the rule at any time, and it already halved the free ARM allowance. Beyond that: capacity shortages when creating the VM, reports of unexplained account terminations (not verified), no SLA and no support, and the US CLOUD Act.</p></div>
 </div>
 
@@ -232,7 +240,7 @@ WantedBy=timers.target
 <li><b>OpenRouter</b> with <code>zdr: true</code> is the only self-service way to get zero data retention.</li>
 <li><b>Anthropic</b> and <b>OpenAI</b> directly keep data for up to 30 days and don't train on API data by default.</li>
 </ul>
-<p>opencode keeps this a config choice. Hetzner and IONOS are not directly subject to the CLOUD Act. Oracle, Vultr, DigitalOcean and Linode are, whatever the region.</p>
+<p>opencode keeps this a config choice. OVH, Hetzner and IONOS are not directly subject to the CLOUD Act. Oracle, Vultr, DigitalOcean and Linode are, whatever the region.</p>
 
 <h3>5.5 Setup tiers</h3>
 <div class="cards">
@@ -276,18 +284,18 @@ WantedBy=timers.target
 <li><b>Estimate before cloning:</b> <code>GET repos/:r</code> (<code>size</code> in KB) plus <code>GET git/trees/:branch?recursive=1</code> (exact bytes per path, so the root subfolder can be filtered). They predicted the clone within about 1 %: 1,745 MB vs 1,758 MB for <code>.git</code>, and 1,174 MB vs 1,188 MB for the checked-out files. For a partial clone the estimate is 2 × the tree bytes plus 1 MiB. The cost is two calls to the GitHub API the backend already uses. Caveats: <code>size</code> lags after pushes and excludes LFS, and the tree API truncates at 100k entries.</li>
 <li><b>Reject</b> the vault if the estimate exceeds free space minus a reserve of max(2 GiB, 10 %), exceeds the 5 GiB per-vault cap, or pushes the total over budget. <b>Ask for confirmation</b> above 1 GiB and offer "skip large media".</li>
 <li><b>Hard stop:</b> git has no size limit. <code>ulimit -f</code> (1.5 × the estimate) on the clone process limits <i>each file</i>, which catches the one big pack file a clone downloads: in the spike a 200 MB cap stopped a 1.7 GB clone after 4.2 s, and git removed the partial directory itself. It doesn't sum the checked-out files, so add a clone timeout, and optionally a <code>du</code> watchdog (it stopped the same clone at 241 MB). Both reuse the existing clone-failed and retry flow.</li>
-<li><b>Limit the damage:</b> put <code>/vaults</code> on <b>its own filesystem</b> (a 20 GB Hetzner volume, or a loop-mounted ext4 file). A full vault disk then can't take down Docker or the OS.</li>
+<li><b>Limit the damage:</b> put <code>/vaults</code> on <b>its own filesystem</b> (a loop-mounted ext4 file on the server disk, which the Hetzner backups include, as in <a href="#guide">§8.6</a>; or a Hetzner Volume, which they don't). A full vault disk then can't take down Docker or the OS.</li>
 <li><b>Monitor:</b> <code>fs.statfs</code> takes 0.02 ms and <code>du</code> of the 5.6k-file vault 18 ms, so the admin area can show free space, per-vault size and the quota next to "Add vault". A host cron job sends an <b>ntfy</b> alert at 80 % and 90 %, and it also catches Docker or OS growth. Hetzner's graphs don't show how full the filesystem is.</li>
 <li><b>Other disk users:</b> Docker container logs aren't rotated today (no <code>logging:</code> section in compose), and neither is opencode's log. Set 10 MB × 3 per container. Build the images in CI and pull them, rather than building on the server; on this Mac the Docker build cache is 9.6 GB, shared by all projects.</li>
 </ul>
 
 <h2 id="reco">7. Recommendation and next steps</h2>
-<p><b>Target:</b> Hetzner CX23 (x86, so no multi-arch image build is needed; CAX11 on ARM works too) in Nuremberg or Falkenstein, with backups, a 20 GB volume for <code>/vaults</code>, IPv4, Tailscale and restic. That is about <b>€5.49 + €0.50 IPv4 + €1.10 backups + ≈ €1.14 volume ≈ €8.23 net ≈ €9.80 a month incl. VAT</b>. Try it for a month on IONOS Cloud's €200 credit first, or run staging on Oracle Always Free, if you prefer.</p>
+<p><b>Target (decided):</b> Hetzner CX23 with backups, IPv4, a 20 GB loop-mounted filesystem for <code>/vaults</code> inside the backed-up disk, Tailscale and optionally restic: <b>€5.49 + €0.50 IPv4 + €1.10 backups ≈ €7.09 net ≈ €8.44 a month incl. VAT</b>. A separate Hetzner Volume, at about €1.14 for 20 GB, is only needed once vaults outgrow that; it isn't in the server backups, so restic then becomes mandatory. <a href="#guide">§8</a> has the setup.</p>
 <div class="tbl"><table>
 <thead><tr><th>#</th><th>Work item (for issue <a href="https://github.com/tillg/karpathy.app/issues/94">#94</a>)</th><th>Size</th></tr></thead>
 <tbody>
 <tr><td>1</td><td>Compose: bind the proxy to <code>${BIND_IP}</code>, remove <code>80:80</code>, log rotation, <code>no-new-privileges</code> and <code>cap_drop</code></td><td>S</td></tr>
-<tr><td>2</td><td>Server runbook: Hetzner CX23 + firewall without inbound rules, Tailscale + ACL + Tailnet Lock, SSH through the tailnet, unattended-upgrades, <code>/vaults</code> volume, DNS record → Tailscale IP</td><td>S</td></tr>
+<tr><td>2</td><td>Server runbook (<a href="#guide">§8</a>): Hetzner CX23, firewall without inbound rules, proxy published only on the tailnet IP, Tailscale + ACL + Tailnet Lock, SSH through the tailnet, unattended-upgrades, <code>/vaults</code> volume, DNS record → Tailscale IP</td><td>S</td></tr>
 <tr><td>3</td><td>Images built in CI and pushed to GHCR, pulled on the server (no builds on the server)</td><td>M</td></tr>
 <tr><td>4</td><td>Backend: partial clone (<code>--filter=blob:none</code>); later a sparse cone when a root is set, which needs <code>git add --sparse</code></td><td>S</td></tr>
 <tr><td>5</td><td>Backend: disk check before adding a vault (estimate, reserve, caps, 507/413/409), <code>ulimit -f</code> on the clone, disk stats in the admin area</td><td>M</td></tr>
@@ -296,13 +304,169 @@ WantedBy=timers.target
 </tbody></table></div>
 <p><b>Decisions for you:</b></p>
 <ol>
-<li><b>Hetzner (€10 a month) or Oracle Always Free (€0, set up as in <a href="#oracle">§4.1</a>, might still vanish)?</b> My pick is Hetzner for prod, because it's predictable. Oracle is a reasonable €0 prod if backups and the rebuild runbook are in place from day one.</li>
+<li><s>OVH, Hetzner or Oracle?</s> <b>Decided: Hetzner CX23</b> (2026-09-28). OVH (about €2.70 a month cheaper) and Oracle Always Free (€0, <a href="#oracle">§4.1</a>) stay documented as fallbacks.</li>
 <li><b>Tailscale required on every device?</b> This is the "clumsy install" the spec is willing to accept. The alternative is public 443 with a bearer token and rate limiting. My pick: Tailscale.</li>
 <li><b>Paranoid extras:</b> LUKS with a manual unlock after each reboot, and OpenRouter with zero data retention instead of Anthropic direct?</li>
 <li><b>Media-heavy vaults:</b> keep full media on the server (2.3 GB for the demo vault), or make "skip large media" (324 MB) the default for new vaults?</li>
 </ol>
 
-<h2 id="appendix">8. Sources and re-running the spikes</h2>
+<h2 id="guide">8. Guide: book, install and set up Hetzner</h2>
+<p>This is a runbook for the decided setup: <b>Hetzner CX23</b>, reachable only through <b>Tailscale</b>, a Let's Encrypt certificate via <b>Cloudflare DNS</b> (DNS-01), <code>/vaults</code> on its own filesystem. Plan about 1–2 hours. It uses today's repo as-is: images are built on the server, because the CI image build (work item 3) doesn't exist yet. Replace placeholders in <code>&lt;angle brackets&gt;</code>.</p>
+
+<h3>8.1 Have ready</h3>
+<ul>
+<li>An <b>SSH key</b> on the Mac (<code>~/.ssh/id_ed25519.pub</code>; <code>ssh-keygen -t ed25519</code> if you have none).</li>
+<li>A free <b>Tailscale</b> account (sign in with GitHub, Google, Apple, …).</li>
+<li><b>DNS for karpathy.app at Cloudflare</b> (free plan): add the domain in Cloudflare and point the nameservers at your registrar to the two Cloudflare names it shows. The proxy image is built with the Cloudflare DNS module, and a Cloudflare token can be limited to editing this one zone.<br><span class="small">If you would rather use Hetzner DNS, build the proxy with <code>DNS_PROVIDER=hetzner</code>: it's a build arg, so it needs <code>build.args</code> in the override, as well as <code>DNS_PROVIDER=hetzner</code> in <code>deploy/.env</code>. Put the zone in a <b>separate Hetzner project</b>, because a Hetzner API token controls everything in its project, including the server.</span></li>
+<li>A <b>GitHub fine-grained personal access token</b>: Settings → Developer settings → Fine-grained tokens. Repository access: <i>only select repositories</i> (your vault repos). Permissions: <i>Contents: read and write</i>. Expiry: at most a year.</li>
+<li>An <b>LLM API key</b>, e.g. <code>ANTHROPIC_API_KEY</code>, ideally with a spending limit.</li>
+</ul>
+
+<h3>8.2 Book the server</h3>
+<ol>
+<li>Sign up at <b>accounts.hetzner.com</b>. Hetzner may ask for an ID copy or a card prepayment before your first order. Don't sign up over a VPN.</li>
+<li>In the <b>Cloud Console</b>, create a project <code>karpathy-app</code>. Under <i>Security → SSH keys</i>, add your public key.</li>
+<li>Under <i>Firewalls</i>, create two firewalls:
+<ul>
+<li><code>no-inbound</code>: delete all inbound rules. With no inbound rules, all inbound traffic is blocked; outbound stays allowed.</li>
+<li><code>setup-ssh</code>: one inbound rule, TCP 22 from your current public IP only. It's temporary and gets removed in 8.4.</li>
+</ul></li>
+<li>Under <i>Servers → Add server</i>:
+<ul>
+<li>Location: <b>Nuremberg</b> or <b>Falkenstein</b>.</li>
+<li>Image: <b>Ubuntu 24.04</b>.</li>
+<li>Type: shared vCPU, x86, <b>CX23</b> (2 vCPU / 4 GB / 40 GB).</li>
+<li>Networking: public <b>IPv4 + IPv6</b>. IPv4 is required: github.com has no IPv6.</li>
+<li>Your SSH key, both firewalls, and <b>Backups on</b>.</li>
+<li>Name: <code>karpathy</code>. Cost: about €8.44 a month incl. VAT.</li>
+</ul></li>
+</ol>
+<p class="small">The same with the <code>hcloud</code> CLI (<code>brew install hcloud</code>, then <code>hcloud context create karpathy-app</code> with an API token from the project):</p>
+<pre><code>hcloud ssh-key create --name mac --public-key-from-file ~/.ssh/id_ed25519.pub
+hcloud firewall create --name no-inbound
+echo '[{"direction":"in","protocol":"tcp","port":"22","source_ips":["&lt;your-ip&gt;/32"]}]' \
+  | hcloud firewall create --name setup-ssh --rules-file -
+hcloud server create --name karpathy --type cx23 --image ubuntu-24.04 --location nbg1 \
+  --ssh-key mac --firewall no-inbound --firewall setup-ssh --enable-backup</code></pre>
+
+<h3>8.3 First login and base hardening</h3>
+<pre><code>ssh root@&lt;public-ip&gt;
+apt update &amp;&amp; apt -y full-upgrade
+adduser --disabled-password --gecos "" deploy          # first user → uid 1000 = APP_UID
+usermod -aG sudo deploy
+install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+cp ~/.ssh/authorized_keys /home/deploy/.ssh/ &amp;&amp; chown deploy: /home/deploy/.ssh/authorized_keys
+echo 'deploy ALL=(ALL) NOPASSWD:ALL' &gt; /etc/sudoers.d/deploy     # key-only login, no password
+printf 'PasswordAuthentication no\nPermitRootLogin no\n' &gt; /etc/ssh/sshd_config.d/10-hardening.conf
+systemctl restart ssh
+id deploy                                # must say uid=1000
+systemctl is-enabled unattended-upgrades # security updates: on by default on Ubuntu</code></pre>
+<p>If <code>id deploy</code> shows a uid other than 1000, set <code>APP_UID</code>/<code>APP_GID</code> in <code>deploy/.env</code> (8.8) and the <code>chown</code> in 8.6 to that uid. Before closing the root session, check in a second terminal that <code>ssh deploy@&lt;public-ip&gt;</code> works.</p>
+
+<h3>8.4 Tailscale: close the last open port</h3>
+<pre><code>curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up                 # open the printed URL, log in
+tailscale ip -4                   # note it: 100.x.y.z</code></pre>
+<ol>
+<li>In the Tailscale admin console → <i>Machines</i> → <code>karpathy</code> → <b>Disable key expiry</b>. Otherwise the server drops off the tailnet after 180 days.</li>
+<li>Install Tailscale on the Mac, iPad and iPhone and log in with the same account. On iOS, turn on <b>VPN On Demand</b> in the Tailscale app so the tunnel comes up by itself. Only one VPN app can use On Demand at a time.</li>
+<li>From the Mac, over the tailnet: <code>ssh deploy@karpathy</code> (MagicDNS name) or <code>ssh deploy@100.x.y.z</code>.</li>
+<li>Once that works, <b>detach the <code>setup-ssh</code> firewall</b> in the Cloud Console (or run <code>hcloud firewall remove-from-resource setup-ssh --type server --server karpathy</code>). From now on nothing on the internet can reach the server. Your break-glass access is Hetzner's web console.</li>
+<li>Optional: turn on <b>Tailnet Lock</b> (admin console → Settings → Tailnet Lock, following Tailscale's guide) so that Tailscale's servers can't add machines to your tailnet.</li>
+</ol>
+<p><b>Check:</b> with Tailscale turned off on the Mac, <code>nc -vz -w 5 &lt;public-ip&gt; 22</code> must time out.</p>
+
+<h3>8.5 Docker</h3>
+<pre><code>curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker deploy &amp;&amp; exit        # log in again for the group
+docker compose version                            # needs ≥ 2.24 (for !override)</code></pre>
+<p>Make Docker start after Tailscale, so the proxy can bind the tailnet IP after a reboot:</p>
+<pre><code>sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/after-tailscale.conf &gt;/dev/null &lt;&lt;'EOF'
+[Unit]
+After=tailscaled.service
+Wants=tailscaled.service
+[Service]
+# Wait up to 30 s for the tailnet IP, then start anyway.
+ExecStartPre=/bin/sh -c 'for i in $(seq 30); do /usr/bin/tailscale ip -4 &gt;/dev/null 2&gt;&amp;1 &amp;&amp; exit 0; sleep 1; done; exit 0'
+EOF
+sudo systemctl daemon-reload</code></pre>
+
+<h3>8.6 A fixed-size filesystem for the vaults</h3>
+<p>A 20 GB file on the server disk, mounted as its own ext4 filesystem. A runaway clone then fills this filesystem, not the disk Docker and the OS need. Because the file sits on the server disk, <b>Hetzner's backups include it</b>. They don't include a separate Hetzner Volume, which would then need restic.</p>
+<pre><code>sudo fallocate -l 20G /srv/vaults.img
+sudo mkfs.ext4 -F -m 0 /srv/vaults.img
+sudo mkdir -p /srv/vaults
+echo '/srv/vaults.img /srv/vaults ext4 loop 0 2' | sudo tee -a /etc/fstab
+sudo mount /srv/vaults &amp;&amp; sudo chown 1000:1000 /srv/vaults
+df -h /srv/vaults                 # ~20G</code></pre>
+
+<h3>8.7 DNS record and token (before the first start)</h3>
+<ol>
+<li>In Cloudflare → <code>karpathy.app</code> → DNS, add an <b>A record</b> <code>app</code> → <code>100.x.y.z</code> (the Tailscale IP), <b>Proxy status: DNS only</b> (grey cloud). The address only works inside your tailnet.</li>
+<li>Under My Profile → API Tokens → <i>Create token</i>, pick the template <b>Edit zone DNS</b> with <i>Zone resources: Include → Specific zone → karpathy.app</i>. You'll need the token in the next step.</li>
+</ol>
+
+<h3>8.8 Install the app</h3>
+<pre><code>sudo install -d -o deploy -g deploy /opt/karpathy.app
+git clone https://github.com/tillg/karpathy.app.git /opt/karpathy.app
+cd /opt/karpathy.app/deploy
+install -d -m 700 secrets
+printf %s "$(openssl rand -base64 32)" &gt; secrets/bearer_token     # the app's login token
+printf %s '&lt;github-fine-grained-token&gt;' &gt; secrets/github_token
+printf %s '&lt;cloudflare-dns-token&gt;'      &gt; secrets/dns_api_token
+chmod 600 secrets/*
+cat &gt; .env &lt;&lt;'EOF'
+DOMAIN=app.karpathy.app
+DNS_PROVIDER=cloudflare
+GIT_AUTHOR_NAME=&lt;Your Name&gt;
+GIT_AUTHOR_EMAIL=&lt;you@example.com&gt;
+DEFAULT_MODEL=anthropic/claude-sonnet-5
+APP_UID=1000
+APP_GID=1000
+EOF
+printf 'ANTHROPIC_API_KEY=%s\n' '&lt;key&gt;' &gt; opencode.env &amp;&amp; chmod 600 opencode.env</code></pre>
+<p>Next comes the server-only override, <code>deploy/compose.hetzner.yml</code>. It stays on the server and isn't committed. I checked it with <code>docker compose config</code> against today's <code>compose.yml</code>:</p>
+<pre><code># deploy/compose.hetzner.yml — server-only overrides
+services:
+  proxy:
+    # Only the tailnet IP, and no port 80 (DNS-01 doesn't need it).
+    ports: !override ["100.x.y.z:443:443"]
+    logging: &amp;logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+  backend:
+    logging: *logs
+  opencode:
+    logging: *logs
+volumes:
+  vaults:            # the named volume becomes a bind mount of /srv/vaults
+    driver: local
+    driver_opts: { type: none, o: bind, device: /srv/vaults }</code></pre>
+<p>Write this file <b>before the first <code>up</code></b>. Docker doesn't change an existing named volume, so if <code>vaults</code> was already created, remove it first with <code>docker volume rm karpathy-app_vaults</code>.</p>
+<pre><code>cd /opt/karpathy.app
+docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml up -d --build
+docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml ps       # all healthy
+docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml logs proxy | grep -i certificate</code></pre>
+<p class="small">Tip: <code>echo 'COMPOSE_FILE=deploy/compose.yml:deploy/compose.hetzner.yml' &gt;&gt; ~/.bashrc</code> and run everything from <code>/opt/karpathy.app</code>; then a plain <code>docker compose …</code> uses both files.</p>
+
+<h3>8.9 Verify</h3>
+<ul>
+<li><b>iPad</b> (Tailscale on): open <code>https://app.karpathy.app</code>. The certificate is valid with no warning. Enter the token (<code>cat deploy/secrets/bearer_token</code>), then add a vault and open a note. Install it to the home screen and repeat.</li>
+<li><b>Off the tailnet</b> (iPhone on mobile data, Tailscale off): the page doesn't load. <code>nc -vz -w 5 &lt;public-ip&gt; 443</code> from outside also times out.</li>
+<li><b>Reboot test:</b> <code>sudo reboot</code>. After a minute the app is back, and <code>docker compose ps</code> shows everything healthy. If the proxy is missing because it started before the tailnet IP existed, run <code>docker compose up -d</code>.</li>
+<li><b>Disk:</b> after adding the first vault, <code>df -h /srv/vaults</code> shows its size.</li>
+</ul>
+
+<h3>8.10 Backups, alerts, updates</h3>
+<ul>
+<li><b>Hetzner backups</b> (on since 8.2) take a daily image of the whole server disk, including <code>/srv/vaults.img</code>. They keep 7 slots.</li>
+<li><b>Off-site copy</b> (optional): a nightly <code>restic</code> backup of <code>/srv/vaults</code> and the <code>config</code> and <code>opencode-data</code> volumes to a Hetzner Storage Box or B2. Keep the restic password in your password manager.</li>
+<li><b>Disk alert:</b> a cron job for the <code>deploy</code> user sends an ntfy push at 80 %:
+<pre><code>*/15 * * * * p=$(df --output=pcent /srv/vaults / | tail -n +2 | tr -dc '0-9\n' | sort -n | tail -1); [ "$p" -ge 80 ] &amp;&amp; curl -s -d "karpathy disk ${p}%" https://ntfy.sh/&lt;secret-topic&gt;</code></pre></li>
+<li><b>Update the app:</b> <code>cd /opt/karpathy.app &amp;&amp; git pull &amp;&amp; docker compose up -d --build &amp;&amp; docker image prune -f</code>. Now and then, <code>docker builder prune -f</code> frees the build cache.</li>
+<li><b>OS reboots:</b> unattended-upgrades installs security updates but doesn't reboot. When <code>/var/run/reboot-required</code> exists, reboot at a convenient time.</li>
+</ul>
+
+<h2 id="appendix">9. Sources and re-running the spikes</h2>
 <ul>
 <li>Desk notes, each with primary-source URLs fetched on 2026-09-28 and unconfirmed claims marked <i>[unverified]</i>: <a href="notes-hosters-eu.md">EU hosters</a> (Hetzner, IONOS, OVH, netcup, Contabo, Scaleway, …), <a href="notes-hosters-global.md">global hosters</a> (Oracle, Google, Fly, Render, Railway, Koyeb, Northflank, Cloudflare, DO, Vultr, Linode, …), <a href="notes-security.md">security</a>, <a href="notes-disk.md">disk</a>.</li>
 <li>Spikes in <a href="spikes/"><code>spikes/</code></a>, each script with its raw <code>*.out.txt</code>:

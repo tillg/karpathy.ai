@@ -8,6 +8,15 @@ Document everything in English (code, comments, docs, specs, commit messages). V
 (the user's `.md` notes the app reads/edits) may be in German, French, or any other language —
 don't translate or normalize it.
 
+## Reports
+
+- Reports (research, analyses, plans for the user to read) are **HTML** by default. Use **Markdown**
+  instead when the user is likely to edit the document a lot. If unsure which, ask.
+- HTML reports use an Apple-like design matching the app: system font stack (`-apple-system`,
+  SF), generous whitespace, rounded cards, subtle borders, light + dark mode.
+- Put a small app icon at the top (`assets/icons/icon-192.png`, linked relative to the report).
+- A report longer than one page gets a table of contents.
+
 ## Status
 
 Spec-only — no code, build, lint, or test commands yet. The source of truth is

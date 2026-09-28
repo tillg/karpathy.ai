@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production Environment</title>
+<meta name="description" content="Where and how to host karpathy.app in production: hosters and free tiers, Hetzner vs IONOS, security, disk space; with spike results (2026-09-28).">
+<style>
+:root {
+  --bg: #fbfbfa; --fg: #1d1d1f; --muted: #5f6368; --line: #e3e3e0; --card: #ffffff;
+  --accent: #1f5bd6; --go: #1e7b3a; --go-bg: #e6f4ea; --partial: #8a5a00; --partial-bg: #fdf1d6;
+  --no: #b3261e; --no-bg: #fce8e6; --code: #f2f2ef;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16171a; --fg: #e8e8ea; --muted: #a0a3a8; --line: #2c2e33; --card: #1e2024;
+    --accent: #8ab4ff; --go: #7fd49a; --go-bg: #173524; --partial: #f0c36a; --partial-bg: #3a2e12;
+    --no: #ff9b91; --no-bg: #3d1a17; --code: #26282d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16171a; --fg: #e8e8ea; --muted: #a0a3a8; --line: #2c2e33; --card: #1e2024;
+  --accent: #8ab4ff; --go: #7fd49a; --go-bg: #173524; --partial: #f0c36a; --partial-bg: #3a2e12;
+  --no: #ff9b91; --no-bg: #3d1a17; --code: #26282d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.appicon { flex: none; width: 48px; height: 48px; border-radius: 11px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.4rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+.sub { color: var(--muted); margin: 0 0 24px; }
+.tldr { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+.tldr p:first-child { margin-top: 0; }
+nav.toc { columns: 2; column-gap: 32px; font-size: .95rem; margin-top: 20px; }
+nav.toc a { display: block; padding: 2px 0; }
+@media (max-width: 640px) { nav.toc { columns: 1; } }
+.tbl { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; background: var(--code); }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+td .v { white-space: nowrap; }
+.go { color: var(--go); background: var(--go-bg); }
+.partial { color: var(--partial); background: var(--partial-bg); }
+.no { color: var(--no); background: var(--no-bg); }
+figure { margin: 16px 0; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: center; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+.card h4 { margin: 0 0 6px; font-size: 1rem; }
+.card p { margin: 6px 0; font-size: .93rem; }
+.small { font-size: .88rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<header class="top"><h1>Production environment: where and how to host karpathy.app</h1><img class="appicon" src="../../assets/icons/icon-192.png" alt="karpathy.app" width="48" height="48"></header>
+<p class="sub">Research report for <a href="prod_env.md">spec #05</a>. Research only; nothing gets built. Written 2026-09-28. Evidence: primary-source desk research on about 35 hosters (<a href="notes-hosters-eu.md">EU notes</a>, <a href="notes-hosters-global.md">global notes</a>), <a href="notes-security.md">security notes</a> and <a href="notes-disk.md">disk notes</a>, plus <b>six spikes</b> against the prod images and the real demo vault (<code>mylife_wiki</code>: 5,604 files, 2.9 GB as a clone). Prices were checked on the vendor pages on 2026-09-28 and change often (Hetzner changed prices in April and June 2026).</p>
+
+<div class="tldr">
+<p><b>Short answer: rent a small EU VPS (Hetzner CX23 or CAX11, about €8–9 a month with backups). Put it behind Tailscale so no port is open to the internet. Check disk space before each new vault is cloned.</b></p>
+<ol>
+<li><b>No free tier really fits.</b> The only permanently free offer big enough is <b>Oracle Always Free</b> (ARM, 2 OCPU, 12 GB RAM, 200 GB disk). But Oracle reclaims free VMs that stay idle for 7 days, and a single-user app is idle almost all the time. Oracle is also a US company, so the CLOUD Act applies. Every free PaaS tier either sleeps or has no persistent disk, and we need both an always-on server and a disk.</li>
+<li><b>We need about 1 GB of RAM, so 2 GB is the floor and 4 GB is comfortable</b> (<a href="#need">§1</a>). The prod stack uses about 350 MB idle and about 600 MB during a chat turn. On the dev stack, which ran 2 h with 14 vaults, opencode grew to 1 GB. The images take 0.7 GB of disk. The demo vault takes 2.9 GB as a full clone, but only 5 MB of that is Markdown.</li>
+<li><b>Hetzner beats IONOS for this</b> (<a href="#hetzner-ionos">§3</a>). Hetzner has 4 GB for €5.49 net, billed hourly with no minimum term, plus an API, a free firewall and ISO 27001. IONOS VPS S+ is €5 incl. VAT, but it has only 2 GB, a €10 setup fee and a 12-month term, and it has no API. The old €1 IONOS VPS is gone.</li>
+<li><b>Security is mostly about the network, not the app</b> (<a href="#security">§5</a>). The app layer is already hardened: bearer token, strict CSP, and opencode reachable only inside compose. What changes is the MVP's assumption of a <i>home server behind a VPN</i>. With <b>Tailscale</b> (free) the VPS keeps that property: zero open ports, and the installed iPad app works unchanged. Tailscale is the "install something on each device" step the spec is willing to accept, and it works. Cloudflare Access is a poor fit: Cloudflare would see every note in plain text, and installed PWAs get stuck when the Access login expires.</li>
+<li><b>Disk: check before adding a vault, and cap the clone itself</b> (<a href="#disk">§6</a>). Two GitHub API calls predict the clone size within about 1 %. If the estimate exceeds free space minus a reserve, refuse the vault. Otherwise clone onto its own filesystem, with a file-size limit and a timeout as a hard stop. Switching to a partial clone (<code>--filter=blob:none</code>) cuts 21 % and breaks nothing. Sparse checkout would cut the demo vault from 2.9 GB to 324 MB, which makes it a good per-vault option.</li>
+</ol>
+<p><b>Recommendation:</b> Hetzner <b>CX23</b> (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, a 20 GB volume for <code>/vaults</code>, Tailscale with Tailnet Lock, the existing Caddy DNS-01 certificate for <code>app.karpathy.app</code>, and a fine-grained GitHub token. That comes to <b>about €10 a month incl. VAT</b>. Oracle Always Free is the €0 alternative if you accept that it might vanish, and it makes a good free staging box. <a href="#reco">§7</a> lists the work items and the decisions you need to make.</p>
+</div>
+
+<nav class="toc" aria-label="Contents">
+<a href="#need">1. What we have to host (measured)</a>
+<a href="#landscape">2. Hoster landscape</a>
+<a href="#hetzner-ionos">3. Hetzner vs IONOS</a>
+<a href="#free">4. Free tiers: the honest picture</a>
+<a href="#security">5. Security</a>
+<a href="#disk">6. Disk space</a>
+<a href="#reco">7. Recommendation and next steps</a>
+<a href="#appendix">8. Sources and re-running the spikes</a>
+</nav>
+
+<h2 id="need">1. What we have to host (measured)</h2>
+<p>The stack is three always-on containers: Caddy, the Node backend (git, ripgrep, file watcher) and <code>opencode serve</code>. The backend and opencode share one volume that holds the vault clones. Chat turns stream NDJSON for minutes. The LLM is external, so no GPU is needed. Spike F1 (<a href="spikes/footprint.sh"><code>footprint.sh</code></a>) started the <b>prod images</b> (<code>compose.prodtest.yml</code>), cloned the real demo vault and ran one tool-using chat turn with <code>qwen2.5:3b</code>. For the backend and opencode, memory is the container's cgroup <code>anon</code> figure, the real process memory; Caddy is the plain <code>docker stats</code> figure. <code>docker stats</code> reported 1.9 GB for the backend, but that figure includes 4.6 GB of page cache that the kernel can drop, so it would mislead.</p>
+<div class="tbl"><table>
+<thead><tr><th>Moment</th><th class="num">Caddy</th><th class="num">Backend</th><th class="num">opencode</th><th class="num">Total</th></tr></thead>
+<tbody>
+<tr><td>Cold start, no vault</td><td class="num">17 MB</td><td class="num">71 MB</td><td class="num">250 MB</td><td class="num">≈ 340 MB</td></tr>
+<tr><td>Demo vault cloned (2.9 GB, 21 s from a local remote)</td><td class="num">19 MB</td><td class="num">96 MB</td><td class="num">314 MB</td><td class="num">≈ 430 MB</td></tr>
+<tr><td>During / after one chat turn (30 s)</td><td class="num">19 MB</td><td class="num">100 MB</td><td class="num">480 MB</td><td class="num">≈ 600 MB</td></tr>
+<tr><td>Dev stack after 2 h, 14 vaults, many e2e chat sessions</td><td class="num">–</td><td class="num">179 MB</td><td class="num">1,023 MB</td><td class="num">≈ 1.2 GB</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>RAM:</b> about 1 GB in use, and opencode grows with the number of vaults and sessions. On top come the OS, Docker and page cache for git and ripgrep over gigabytes of files. So <b>2 GB is the floor and 4 GB is the right size</b>. 1 GB machines (Google e2-micro, Oracle E2 micro, the Vultr free plan) are out.</li>
+<li><b>Disk:</b> the prod images take 0.72 GB (proxy 139 MB, backend 295 MB, opencode 288 MB). opencode's data volume is under 20 MB. The vaults dominate: the demo vault is 2.9 GB as a full clone and 2.3 GB as a partial clone, and 89 % of it is <code>.mp4</code> video. <b>40 GB of local disk is enough</b> for several vaults of that size.</li>
+<li><b>CPU:</b> idle apart from short bursts during clones, ripgrep and turns. Two shared vCPUs are plenty.</li>
+<li><b>CPU type:</b> both x86 and ARM work. The stack already runs on arm64 on this Mac. The pinned opencode image <code>ghcr.io/anomalyco/opencode:1.18.25</code> is published for amd64 and arm64, and the releases ship <code>linux-arm64</code> and <code>linux-x64</code> binaries.</li>
+<li><b>Network:</b> little traffic (Markdown plus LLM API calls). The server needs <b>outbound IPv4</b>, because github.com and api.github.com have no AAAA record (checked with <code>dig</code> on 2026-09-28), so an IPv6-only VPS can't clone.</li>
+</ul>
+
+<h2 id="landscape">2. Hoster landscape</h2>
+<p>Two constraints decide most of the field. First, <b>anything that sleeps, scales to zero, loses its disk or caps request time is out</b>. Second, the <b>shared volume</b> between the backend and opencode means compose has to run as-is on a <b>VM</b>. On a PaaS like Fly, Render, Railway or Koyeb, a volume attaches to exactly one service. We would have to merge the backend and opencode into one image, and those platforms still cost 2–3× more than a VM.</p>
+<div class="tbl"><table>
+<thead><tr><th>Option</th><th>Plan that fits</th><th>≈ €/month</th><th>Free tier</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td><b>Hetzner</b> (DE/FI)</td><td>CX23 x86 or CAX11 ARM: 2 vCPU / 4 GB / 40 GB, 20 TB traffic</td><td>7.13–7.72 incl. VAT (+20 % backups)</td><td>none</td><td><span class="v go">best fit</span></td></tr>
+<tr><td><b>OVHcloud</b> (FR, DE DC)</td><td>VPS-1: 2 vCore / 4 GB / 40 GB, <b>daily backup included</b></td><td>4.53 incl. VAT (probably a 12-month price; check the terms)</td><td>€200 Public Cloud trial (not VPS)</td><td><span class="v go">strong runner-up</span></td></tr>
+<tr><td><b>IONOS</b> VPS+ (DE)</td><td>S+ 1 vCPU / 2 GB / 60 GB, or M+ 2 / 4 GB / 120 GB</td><td>5 or 12 incl. VAT + €10 setup</td><td>30-day money-back only</td><td><span class="v partial">works, worse terms</span></td></tr>
+<tr><td>IONOS Cloud (DE)</td><td>Cube XS 1 vCPU / 2 GB / 60 GB</td><td>≈ 5</td><td>€200 credit for 30 days</td><td><span class="v partial">trial only</span></td></tr>
+<tr><td>netcup (DE)</td><td>VPS 500, x86 or ARM: 2 / 4 GB / 64 GB</td><td>8.26 incl. VAT (12 months)</td><td>none</td><td><span class="v go">fits</span></td></tr>
+<tr><td>Contabo (DE)</td><td>Cloud VPS 4: 4 vCPU / 8 GB / 100 GB</td><td>5.50 incl. VAT (12 months)</td><td>none</td><td><span class="v partial">cheap, fair-use traffic, paid backups</span></td></tr>
+<tr><td>Vultr / DigitalOcean / Linode (US, EU regions)</td><td>2 GB VM, 50–55 GB</td><td>≈ 9–11 ($10–12)</td><td>credits only</td><td><span class="v partial">fits, US jurisdiction, pricier</span></td></tr>
+<tr><td><b>Oracle Cloud Always Free</b></td><td>A1 ARM: 2 OCPU / 12 GB / 200 GB, 10 TB egress</td><td><b>0</b></td><td>yes, permanent</td><td><span class="v partial">only real free fit, with risks (§4)</span></td></tr>
+<tr><td>Home server (the MVP plan)</td><td>existing Ubuntu box / mini PC</td><td>≈ 1.3–6.4 in power</td><td>n/a</td><td><span class="v partial">fallback; many German lines have no public IPv4</span></td></tr>
+<tr><td>Fly.io / Koyeb / Northflank / Railway / Render</td><td>2 GB + 10–20 GB volume, merged container</td><td>≈ 13–28</td><td>trials, or sleeping free tiers without a disk</td><td><span class="v no">no: one volume per service, cost</span></td></tr>
+<tr><td>Google e2-micro</td><td>0.25 vCPU / 1 GB / 30 GB, US only</td><td>0</td><td>yes</td><td><span class="v no">too small</span></td></tr>
+<tr><td>Cloudflare Workers / Containers</td><td>–</td><td>–</td><td>yes</td><td><span class="v no">no subprocesses; container disk is wiped on sleep</span></td></tr>
+<tr><td>Heroku, Vercel, Deno Deploy, Codespaces, GitHub Pages</td><td>–</td><td>–</td><td>–</td><td><span class="v no">no: files lost on restart, time limits, static only</span></td></tr>
+<tr><td>Scaleway, Exoscale, STACKIT, UpCloud, Infomaniak, STRATO, Hostinger, Alwyzon, Webdock</td><td colspan="2">details in <a href="notes-hosters-eu.md">EU notes</a> §3–5</td><td>trials: Infomaniak CHF 300 for 3 months, UpCloud 7 days</td><td><span class="v no">pricier, B2B-only, too small or long terms</span></td></tr>
+</tbody></table></div>
+<p class="small">AWS and Azure were excluded as the spec asked, because their free tiers are used up.</p>
+<p><b>GitHub for the static part?</b> GitHub Pages could host the app shell (the built PWA), with only the API on the VPS. It saves nothing, though. Caddy already serves the shell for free from the same server. A split puts the app and the API on two origins, which means CORS preflights on API calls and a looser CSP (<code>connect-src</code> to the API host). The server still needs its full size for git, ripgrep and opencode. Keep one origin.</p>
+
+<h2 id="hetzner-ionos">3. Hetzner vs IONOS (the two your friends named)</h2>
+<div class="cards">
+<div class="card"><h4>Hetzner Cloud <span class="v go">recommended</span></h4>
+<p><b>CX23</b> (x86) €5.49 or <b>CAX11</b> (ARM) €5.99 net, each 2 vCPU / 4 GB / 40 GB NVMe / 20 TB traffic. IPv4 costs €0.50 and backups add 20 % of the server price (7 slots). A 20 GB volume is about €1.14 (third-party price list).</p>
+<p>Billed hourly with <b>no minimum term</b>. The Cloud Firewall is free, and there is a full API, the <code>hcloud</code> CLI and a Terraform provider. Data centres in Falkenstein, Nuremberg and Helsinki; ISO 27001 and BSI C5, and the DPA is signed in the console.</p>
+<p><b>Watch out:</b> Hetzner may ask for an ID copy or a card prepayment at signup. Prices went up in April 2026 (existing servers too) and again in June for new orders. Hetzner states that encryption at rest is the customer's job.</p></div>
+<div class="card"><h4>IONOS VPS+ <span class="v partial">second choice</span></h4>
+<p><b>S+</b> 1 vCPU / 2 GB / 60 GB is €5 incl. VAT (€2 for the first 3 months). <b>M+</b> 2 vCPU / 4 GB / 120 GB is €12. Both have a <b>€10 setup fee</b>, unlimited traffic at 1 Gbit/s and an AVV (German DPA) built into the contract. First-year cost of S+: €61.</p>
+<p>ionos.com states a <b>1-year minimum term</b>. The "30 days free" is a money-back guarantee, not a free tier. VPS+ is x86 only and has no API or Terraform provider. The €1 VPS XS (1 GB) is no longer sold, and it would have been too small anyway.</p>
+<p>The separate <b>IONOS Cloud</b> gives <b>€200 credit for 30 days</b>, a genuinely free way to try the stack for a month.</p></div>
+</div>
+<p><b>Verdict:</b> for about €7 incl. VAT (with IPv4) Hetzner gives twice the RAM of IONOS S+ at €5, with no setup fee, no term and an API. IONOS M+ matches Hetzner's specs but costs about 70 % more (€12 vs €7.13 incl. VAT). IONOS only wins if you already have an account there or want the AVV in the base contract.</p>
+
+<h2 id="free">4. Free tiers: the honest picture</h2>
+<p>The spec asks for "a hoster with a significant free tier". <b>Only Oracle Cloud Always Free is both permanent and big enough.</b> Everything else is a trial (IONOS Cloud €200 for 30 days, OVH €200, Infomaniak CHF 300 for 3 months, DigitalOcean and Linode credits), too small (Google e2-micro, 1 GB) or a PaaS that sleeps.</p>
+<div class="tbl"><table>
+<thead><tr><th>Oracle Always Free, as of 2026-09-28</th><th>What it means for us</th></tr></thead>
+<tbody>
+<tr><td>A1 ARM: <b>1,500 OCPU-h + 9,000 GB-h per month = 2 OCPU / 12 GB</b> (older posts say 4 / 24; Oracle has since cut it), 200 GB block storage, 10 TB egress</td><td>3× what we need. arm64 is fine (§1).</td></tr>
+<tr><td><b>Idle reclamation:</b> a VM is reclaimed if CPU p95, network <i>and</i> memory all stay below 20 % over 7 days</td><td><span class="v no">high risk</span> We use about 1 GB of 12 GB and are idle most of the week. Workarounds: upgrade the account to pay-as-you-go (free resources stay free; the claim that this exempts the VM from reclamation is community lore, not in Oracle's docs) or a CPU-burning keep-alive job (against the spirit of the offer).</td></tr>
+<tr><td>"Out of host capacity" when creating A1 VMs; an account idle for 30 days may be terminated; no SLA or support</td><td>Frankfurt capacity is often exhausted (anecdotal). Keep the setup reproducible: the vaults live on GitHub anyway.</td></tr>
+<tr><td>US company</td><td>The CLOUD Act applies in every region (§5.4).</td></tr>
+</tbody></table></div>
+<p><b>Use it for:</b> a free staging or experiment box, or prod if €10 a month really matters and you accept that a reclaimed VM means re-provisioning. The vaults are safe on GitHub, but uncommitted edits and chats would be lost without the backups from §5.</p>
+
+<h2 id="security">5. Security</h2>
+<p>The server holds three kinds of secrets: <b>clones of private life-wiki vaults</b>, a <b>GitHub token</b> that can push to them, and <b>LLM API keys</b> that cost money. The app layer is already in reasonable shape (<code>mvp.md</code> §3): a constant-time bearer check on every <code>/api</code> route, the token kept out of URLs, DOMPurify with a strict CSP, opencode on the internal network only, vault-borne harness config refused, and the GitHub token passed only as a header. The weak spot is the step from "home server behind the home VPN" to "rented VPS on the internet": taken as-is, the whole pre-auth surface (TLS, HTTP parser, static app) would face every scanner on the internet.</p>
+
+<h3>5.1 Network layer: who can even reach the server</h3>
+<div class="tbl"><table>
+<thead><tr><th>Option</th><th>Protects against</th><th>Installed iPad app works?</th><th>Effort / cost</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Public 443 + bearer token (today's compose as-is)</td><td>token guessing only</td><td>yes</td><td>none / 0</td><td><span class="v no">not enough</span></td></tr>
+<tr><td><b>Tailscale</b>, no Funnel, + Tailnet Lock</td><td>scanning, pre-auth exploits, a stolen token used from off the tailnet, DoS; Tailnet Lock also guards against a hostile Tailscale coordinator</td><td><b>yes</b>: it's normal HTTPS to a normal hostname. iOS allows only one VPN app with On Demand, which clashes with a corporate VPN.</td><td>low / 0 (free Personal plan, up to 6 users)</td><td><span class="v go">recommended</span></td></tr>
+<tr><td>Self-managed WireGuard / Headscale</td><td>the same, without Tailscale Inc.</td><td>yes (unverified)</td><td>medium / 0</td><td><span class="v partial">only if you distrust Tailscale</span></td></tr>
+<tr><td>Cloudflare Tunnel + Access</td><td>open ports, unauthenticated access</td><td><b>partly</b>: when the session expires, the service worker never follows the login redirect (community reports)</td><td>medium / 0 (up to 50 users)</td><td><span class="v no">Cloudflare sees all notes in plain text; US company</span></td></tr>
+<tr><td>mTLS client certificate (the "install a cert on each device" idea)</td><td>unauthenticated access at the TLS level; 443 stays public</td><td><b>unknown</b>: Safari supports it, but no source confirms it inside the installed app; needs a real-iPad spike</td><td>medium / 0</td><td><span class="v partial">not needed once the VPN is in place</span></td></tr>
+<tr><td>Caddy <code>forward_auth</code> + Authelia passkeys</td><td>unauthenticated access, phishing</td><td>partly (same cookie and service-worker issues)</td><td>medium–high / 0</td><td><span class="v no">too much for one user</span></td></tr>
+</tbody></table></div>
+<figure><img src="../../docs/diagrams/prod-env-topology.svg" alt="Recommended topology: devices reach the VPS only through Tailscale; provider firewall has no inbound rules; Caddy binds to the Tailscale IP with a DNS-01 certificate; backend and opencode internal; outbound HTTPS to GitHub and the LLM provider; encrypted off-site backup"><figcaption>Recommended prod topology: no open inbound port (<a href="../../docs/diagrams/prod-env-topology.mmd">source</a>)</figcaption></figure>
+<p><b>How it fits the existing build:</b> keep Caddy's Let's Encrypt <b>DNS-01</b> certificate, which needs no open port. Set the DNS record <code>app.karpathy.app</code> to the server's Tailscale IP (<code>100.x.y.z</code>). To Safari this is a normal public certificate, so no profile needs to be installed. The name is public, but the IP only answers inside your tailnet. Bind the proxy to that IP (<code>ports: ["100.x.y.z:443:443"]</code>) and <b>drop <code>80:80</code></b>, since DNS-01 doesn't need port 80. Also set the Hetzner Cloud Firewall to <b>no inbound rules</b>, because ports that Docker publishes bypass <code>ufw</code>. Some home routers filter DNS answers that point to private or CGNAT addresses; MagicDNS or a split-DNS entry avoids that.</p>
+
+<h3>5.2 App auth and credentials</h3>
+<ul>
+<li><b>Keep the bearer token</b> as a second layer behind the VPN. Use 32 random bytes (<code>openssl rand -base64 32</code>). Rate limiting stays unnecessary while no port is public. Optional: one token per device, so a lost iPad can be revoked without re-keying everything.</li>
+<li><b>GitHub:</b> a <b>fine-grained personal access token</b> limited to the vault repos, with <i>Contents: read &amp; write</i> only and an expiry of a year or less. This needs no code change. Deploy keys or a GitHub App add little, because a compromised server exposes those keys just the same. A stolen token can force-push. Blocking that on private repos needs a paid GitHub plan (rulesets), and your Obsidian clones act as an implicit backup.</li>
+<li><b>LLM keys:</b> today they reach opencode as environment variables (<code>opencode.env</code>). Moving them to compose secrets would be better, if opencode can read a key from a file (its config supports <code>{file:…}</code>; unverified). Use keys with a spending cap.</li>
+</ul>
+
+<h3>5.3 Data at rest</h3>
+<p>Budget VPS providers don't encrypt customer disks; Hetzner's own security documentation says this is the customer's job. Options, in order of effort: <b>(a)</b> nothing extra (baseline); <b>(b)</b> a <b>LUKS-encrypted data volume</b> for <code>/vaults</code>, config and opencode data, unlocked by hand over SSH through the tailnet after each reboot, which protects snapshots, backups, reused disks and a seized powered-off server; <b>(c)</b> full-disk LUKS with an SSH server in the boot image (<code>dropbear-initramfs</code>). Honest limit: <b>no disk encryption protects against the host of a running VM</b>, because the key and the plain text sit in the VM's RAM. Option (b) also means downtime after every reboot, which conflicts with automatic kernel-update reboots.</p>
+
+<h3>5.4 Where the data goes anyway</h3>
+<p>An EU host reduces US copies of the data; it doesn't eliminate them. The vaults already live on <b>GitHub</b> (US), and every chat turn sends vault excerpts to the <b>LLM provider</b>. That makes the provider choice part of the security design:</p>
+<ul>
+<li><b>OpenRouter</b> with <code>zdr: true</code> is the only self-service way to get zero data retention.</li>
+<li><b>Anthropic</b> and <b>OpenAI</b> directly keep data for up to 30 days and don't train on API data by default.</li>
+</ul>
+<p>opencode keeps this a config choice. Hetzner and IONOS are not directly subject to the CLOUD Act. Oracle, Vultr, DigitalOcean and Linode are, whatever the region.</p>
+
+<h3>5.5 Setup tiers</h3>
+<div class="cards">
+<div class="card"><h4>Baseline <span class="v go">do this</span></h4>
+<ol>
+<li>EU VPS; provider firewall with no inbound rules.</li>
+<li>Tailscale on the server, iPad, iPhone and Mac. VPN On Demand on iOS. ACL: your devices → server <code>tcp:443</code> (and <code>22</code>). Tailnet Lock on, Funnel off.</li>
+<li>DNS record → Tailscale IP; Caddy DNS-01 with a DNS token limited to one zone; no port 80.</li>
+<li>Bearer token of 32 bytes; fine-grained GitHub token.</li>
+<li>SSH only through the tailnet, keys only; unattended-upgrades; containers without root, with <code>no-new-privileges</code> and <code>cap_drop: ALL</code>.</li>
+<li>Nightly encrypted <b>restic</b> backup of config, opencode data and the vault clones, which hold uncommitted edits (ADR 0001).</li>
+</ol>
+<p>Resulting internet attack surface: <b>zero open ports</b>.</p></div>
+<div class="card"><h4>Paranoid <span class="v partial">optional</span></h4>
+<ul>
+<li>LUKS data volume, unlocked by hand; automatic reboots off, with a "reboot needed" notification instead.</li>
+<li>Provider keys as file secrets; <code>read_only: true</code> containers.</li>
+<li>One bearer token per device.</li>
+<li>Paid GitHub plan with a ruleset against force-pushes and branch deletion.</li>
+<li>OpenRouter with zero data retention enforced.</li>
+<li>mTLS on top, only if an iPad spike shows it works in the installed app.</li>
+</ul></div>
+</div>
+
+<h2 id="disk">6. Disk space</h2>
+<p>The spec's concern is that many vaults could fill the server, and it suggests checking before a vault is added. The spikes (<a href="notes-disk.md">disk notes</a>) confirm that trigger and add a hard stop during the clone. <b>What we measured</b> on the demo vault (42 commits):</p>
+<div class="tbl"><table>
+<thead><tr><th>Clone mode</th><th class="num">Time</th><th class="num">Size</th><th class="num">vs today</th><th>Backend git operations</th></tr></thead>
+<tbody>
+<tr><td>Full clone (today, <code>repo.ts</code>)</td><td class="num">15.8 s</td><td class="num">2,946 MB</td><td class="num">100 %</td><td><span class="v go">all OK</span></td></tr>
+<tr><td><code>--filter=blob:none</code> (partial)</td><td class="num">11.7 s</td><td class="num">2,325 MB</td><td class="num">79 %</td><td><span class="v go">all OK, no lazy fetches</span></td></tr>
+<tr><td><code>--depth 1</code> (shallow)</td><td class="num">11.5 s</td><td class="num">2,317 MB</td><td class="num">79 %</td><td><span class="v partial">OK, more edge cases</span></td></tr>
+<tr><td>partial + sparse cone on the root subfolder <code>Wiki/</code></td><td class="num">1.1 s</td><td class="num">56 MB</td><td class="num">1.9 %</td><td><span class="v partial">commit fails for new files outside the cone; needs <code>git add --sparse</code></span></td></tr>
+<tr><td>partial + sparse "all but video"</td><td class="num">3.2 s</td><td class="num">324 MB</td><td class="num">11 %</td><td><span class="v partial">all OK, but video is hidden from the tree and the AI</span></td></tr>
+<tr><td>partial + sparse <code>*.md</code> only</td><td class="num">1.4 s</td><td class="num">18 MB</td><td class="num">0.6 %</td><td><span class="v no"><code>add -A</code> fails; drops skill scripts</span></td></tr>
+</tbody></table></div>
+<p>The demo vault is a <b>media vault</b>: its Markdown is 5.2 MB of 1,174 MB, and 89 % is video. That is why filters alone save little, since almost every byte is in HEAD. Sparse checkout is where the savings are.</p>
+
+<figure><img src="../../docs/diagrams/prod-env-add-vault.svg" alt="Add-vault flow: GitHub API size and tree lookup, estimate, compare with free space minus reserve and quota, reject or confirm, then clone partial with a file-size cap and record the real size"><figcaption>Disk check before adding a vault (<a href="../../docs/diagrams/prod-env-add-vault.mmd">source</a>)</figcaption></figure>
+<ul>
+<li><b>Estimate before cloning:</b> <code>GET repos/:r</code> (<code>size</code> in KB) plus <code>GET git/trees/:branch?recursive=1</code> (exact bytes per path, so the root subfolder can be filtered). They predicted the clone within about 1 %: 1,745 MB vs 1,758 MB for <code>.git</code>, and 1,174 MB vs 1,188 MB for the checked-out files. For a partial clone the estimate is 2 × the tree bytes plus 1 MiB. The cost is two calls to the GitHub API the backend already uses. Caveats: <code>size</code> lags after pushes and excludes LFS, and the tree API truncates at 100k entries.</li>
+<li><b>Reject</b> the vault if the estimate exceeds free space minus a reserve of max(2 GiB, 10 %), exceeds the 5 GiB per-vault cap, or pushes the total over budget. <b>Ask for confirmation</b> above 1 GiB and offer "skip large media".</li>
+<li><b>Hard stop:</b> git has no size limit. <code>ulimit -f</code> (1.5 × the estimate) on the clone process limits <i>each file</i>, which catches the one big pack file a clone downloads: in the spike a 200 MB cap stopped a 1.7 GB clone after 4.2 s, and git removed the partial directory itself. It doesn't sum the checked-out files, so add a clone timeout, and optionally a <code>du</code> watchdog (it stopped the same clone at 241 MB). Both reuse the existing clone-failed and retry flow.</li>
+<li><b>Limit the damage:</b> put <code>/vaults</code> on <b>its own filesystem</b> (a 20 GB Hetzner volume, or a loop-mounted ext4 file). A full vault disk then can't take down Docker or the OS.</li>
+<li><b>Monitor:</b> <code>fs.statfs</code> takes 0.02 ms and <code>du</code> of the 5.6k-file vault 18 ms, so the admin area can show free space, per-vault size and the quota next to "Add vault". A host cron job sends an <b>ntfy</b> alert at 80 % and 90 %, and it also catches Docker or OS growth. Hetzner's graphs don't show how full the filesystem is.</li>
+<li><b>Other disk users:</b> Docker container logs aren't rotated today (no <code>logging:</code> section in compose), and neither is opencode's log. Set 10 MB × 3 per container. Build the images in CI and pull them, rather than building on the server; on this Mac the Docker build cache is 9.6 GB, shared by all projects.</li>
+</ul>
+
+<h2 id="reco">7. Recommendation and next steps</h2>
+<p><b>Target:</b> Hetzner CX23 (x86, so no multi-arch image build is needed; CAX11 on ARM works too) in Nuremberg or Falkenstein, with backups, a 20 GB volume for <code>/vaults</code>, IPv4, Tailscale and restic. That is about <b>€5.49 + €0.50 IPv4 + €1.10 backups + ≈ €1.14 volume ≈ €8.23 net ≈ €9.80 a month incl. VAT</b>. Try it for a month on IONOS Cloud's €200 credit first, or run staging on Oracle Always Free, if you prefer.</p>
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Work item (for issue <a href="https://github.com/tillg/karpathy.app/issues/94">#94</a>)</th><th>Size</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Compose: bind the proxy to <code>${BIND_IP}</code>, remove <code>80:80</code>, log rotation, <code>no-new-privileges</code> and <code>cap_drop</code></td><td>S</td></tr>
+<tr><td>2</td><td>Server runbook: Hetzner CX23 + firewall without inbound rules, Tailscale + ACL + Tailnet Lock, SSH through the tailnet, unattended-upgrades, <code>/vaults</code> volume, DNS record → Tailscale IP</td><td>S</td></tr>
+<tr><td>3</td><td>Images built in CI and pushed to GHCR, pulled on the server (no builds on the server)</td><td>M</td></tr>
+<tr><td>4</td><td>Backend: partial clone (<code>--filter=blob:none</code>); later a sparse cone when a root is set, which needs <code>git add --sparse</code></td><td>S</td></tr>
+<tr><td>5</td><td>Backend: disk check before adding a vault (estimate, reserve, caps, 507/413/409), <code>ulimit -f</code> on the clone, disk stats in the admin area</td><td>M</td></tr>
+<tr><td>6</td><td>Host: restic backup of the volumes, cron disk alert → ntfy</td><td>S</td></tr>
+<tr><td>7</td><td>Later / optional: per-vault "skip large media" (sparse + <code>git add --sparse</code>), per-device tokens, LUKS data volume, provider keys as secrets</td><td>M</td></tr>
+</tbody></table></div>
+<p><b>Decisions for you:</b></p>
+<ol>
+<li><b>Hetzner (€10 a month) or Oracle Always Free (€0, might vanish)?</b> My pick is Hetzner for prod and Oracle as optional staging.</li>
+<li><b>Tailscale required on every device?</b> This is the "clumsy install" the spec is willing to accept. The alternative is public 443 with a bearer token and rate limiting. My pick: Tailscale.</li>
+<li><b>Paranoid extras:</b> LUKS with a manual unlock after each reboot, and OpenRouter with zero data retention instead of Anthropic direct?</li>
+<li><b>Media-heavy vaults:</b> keep full media on the server (2.3 GB for the demo vault), or make "skip large media" (324 MB) the default for new vaults?</li>
+</ol>
+
+<h2 id="appendix">8. Sources and re-running the spikes</h2>
+<ul>
+<li>Desk notes, each with primary-source URLs fetched on 2026-09-28 and unconfirmed claims marked <i>[unverified]</i>: <a href="notes-hosters-eu.md">EU hosters</a> (Hetzner, IONOS, OVH, netcup, Contabo, Scaleway, …), <a href="notes-hosters-global.md">global hosters</a> (Oracle, Google, Fly, Render, Railway, Koyeb, Northflank, Cloudflare, DO, Vultr, Linode, …), <a href="notes-security.md">security</a>, <a href="notes-disk.md">disk</a>.</li>
+<li>Spikes in <a href="spikes/"><code>spikes/</code></a>, each script with its raw <code>*.out.txt</code>:
+<ul>
+<li><code>footprint.sh</code>: prod-image RAM and disk. Needs the dev stack for Ollama; <code>KEEP=1</code> leaves the stack up.</li>
+<li><code>01-clone-modes.sh</code>: clone variants plus a replay of the backend's git operations.</li>
+<li><code>02-github-size.sh</code>: size prediction.</li>
+<li><code>03-measure-usage.sh</code>: the cost of <code>statfs</code> and <code>du</code>.</li>
+<li><code>04-docker-footprint.sh</code>.</li>
+<li><code>05-clone-size-cap.sh</code>: <code>ulimit -f</code> and a watchdog.</li>
+</ul></li>
+<li>Decisions and assumptions made during this autonomous run: <a href="decisions.md"><code>decisions.md</code></a>.</li>
+<li>Related: <a href="../01_mvp/mvp.md"><code>mvp.md</code></a> §3 (security, hosting), <a href="../04_v1/v1-plan.html">V1 plan</a> R4 (public exposure) and R5 (large vaults), <a href="../03_browser_only/browser-only-report.html">browser-only report</a>.</li>
+</ul>
+</main>
+</body>
+</html>

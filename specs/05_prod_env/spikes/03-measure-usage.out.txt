@@ -1,0 +1,41 @@
+# spike 03 — 2026-09-28 09:52 — container karpathy-app-backend-1, vault /vaults/my-life-wiki
+files in working tree (excl .git): 5604
+files in .git: 288
+
+## df (whole volume = the VM/host filesystem here)
+Filesystem           1K-blocks      Used Available Use% Mounted on
+/dev/vda1            102625208  76645760  20720236  79% /vaults
+   -> 3.1 ms
+
+## du -sk one vault (page cache warm: the vault was just used; no privilege to drop caches)
+3015672	/vaults/my-life-wiki
+   -> 19.4 ms
+## du -sk one vault (warm, second run)
+3015672	/vaults/my-life-wiki
+   -> 18.0 ms
+## du -sb (apparent bytes) — busybox du may not support -b:
+3072125484	/vaults/my-life-wiki
+   -> 18.5 ms
+## du -sk all vaults
+3039812	/vaults
+   -> 25.9 ms
+## du -sk .git only
+1792008	/vaults/my-life-wiki/.git
+   -> 4.3 ms
+
+## git count-objects -vH
+count: 254
+size: 2.15 MiB
+in-pack: 11014
+packs: 1
+size-pack: 1.70 GiB
+prune-packable: 0
+garbage: 0
+size-garbage: 0 bytes
+   -> 4.8 ms
+
+## node fs.statfs (what a /health endpoint would call)
+{"totalBytes":105088212992,"freeBytes":21217521664,"ms":0.018}
+
+## node recursive size walk (fs.promises.readdir withFileTypes + lstat)
+{"files":5892,"MB":2937,"ms":328}

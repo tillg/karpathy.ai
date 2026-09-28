@@ -1,0 +1,9 @@
+flowchart LR
+  A["Add vault"] --> B["GitHub API<br/>repo size + tree"]
+  B --> C["estimate =<br/>2 × tree bytes + 1 MiB"]
+  C --> D{"fits free − reserve,<br/>per-vault cap,<br/>total budget?"}
+  D -- no --> X["refuse<br/>(507 / 413 / 409)"]
+  D -- "yes, > 1 GiB" --> G["confirm,<br/>offer 'skip media'"]
+  D -- yes --> H["partial clone<br/>ulimit -f = 1.5 × est."]
+  G --> H
+  H --> I["record real size<br/>show in admin"]

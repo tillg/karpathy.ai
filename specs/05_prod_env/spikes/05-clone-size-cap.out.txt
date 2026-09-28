@@ -1,0 +1,13 @@
+# spike 05 — 2026-09-28 09:53 — cap 200 MB — src /Users/tgartner/git/mylife_wiki
+
+## 1. ulimit -f (bash: 1024-byte blocks) around git clone --no-local
+fatal: fetch-pack: invalid index-pack output
+exit=128  after 4.2 s; left on disk:  MB (git removes a failed clone dir: yes)
+
+## 2. du watchdog (poll every 0.5 s, SIGTERM git at the cap)
+watchdog: killed git at 241 MB
+05-clone-size-cap.sh: line 30: 26847 Terminated: 15          git clone -q --no-local "$SRC" c2 2> "$WORK/err2"
+exit=143 after 4.1 s; stderr: fatal: early EOF 
+left on disk:  MB (dir exists: no)
+
+cleaned up /private/tmp/claude-64795839/-Users-tgartner-git-karpathy-app/c74c75ff-9e73-4f61-b012-f9e7bdd3e291/scratchpad/cap

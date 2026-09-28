@@ -1,0 +1,39 @@
+images:
+karpathy-app-prodtest-backend	295MB
+karpathy-app-prodtest-proxy	139MB
+karpathy-app-prodtest-opencode	288MB
+--- cold idle, no vaults (10:02:22)
+karpathy-app-prodtest-proxy-1	16.68MiB / 23.43GiB	0.00%
+karpathy-app-prodtest-backend-1	78.52MiB / 23.43GiB	0.10%
+karpathy-app-prodtest-opencode-1	258MiB / 23.43GiB	4.37%
+karpathy-app-prodtest-ollama-bridge-1	980KiB / 23.43GiB	0.00%
+  backend cgroup: anon=71MiB file=0MiB 
+  opencode cgroup: anon=250MiB file=5MiB 
+clone of mylife_wiki (file://, 1.8 GB .git): 21 s
+2.9G	/vaults
+--- idle, 1 vault (3 GB) cloned (10:03:05)
+karpathy-app-prodtest-proxy-1	18.76MiB / 23.43GiB	0.00%
+karpathy-app-prodtest-backend-1	1.911GiB / 23.43GiB	0.13%
+karpathy-app-prodtest-opencode-1	482.8MiB / 23.43GiB	1.35%
+karpathy-app-prodtest-ollama-bridge-1	980KiB / 23.43GiB	0.00%
+  backend cgroup: anon=96MiB file=4692MiB 
+  opencode cgroup: anon=314MiB file=160MiB 
+chat turn: 30 s; opencode mem samples:677MiB
+answer: idle {"id":"msg_0e70a6421001VN6FiDqnnK0b4t","role":"assistant","createdAt":1790582613025,"model":"ollama/qwen2.5:3b","parts":[{"type":"text","id":"prt_0e70a6bd3001gQ8Q3ZOK8207yk","text":"It seems that reading README.md files from the vaults is restricted. I will now proceed to list the top-level folders of this vault without reading the README files."}]}
+--- after 1 chat turn (10:03:37)
+karpathy-app-prodtest-proxy-1	18.8MiB / 23.43GiB	0.00%
+karpathy-app-prodtest-backend-1	1.916GiB / 23.43GiB	0.23%
+karpathy-app-prodtest-opencode-1	656.1MiB / 23.43GiB	4.41%
+karpathy-app-prodtest-ollama-bridge-1	1.168MiB / 23.43GiB	0.00%
+  backend cgroup: anon=100MiB file=4692MiB 
+  opencode cgroup: anon=480MiB file=169MiB 
+disk:
+Images	51.83GB
+Containers	203.4MB
+Local Volumes	24.09GB
+Build Cache	9.56GB
+1.2M	/data
+
+--- dev stack for comparison (running 2 h, 14 vaults, many e2e chat sessions; 10:05)
+backend: anon=179MiB file=16MiB
+opencode: anon=1023MiB file=165MiB

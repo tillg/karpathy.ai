@@ -1,0 +1,205 @@
+# spike 01 — 2026-09-28 09:58 — git 2.50.1 — src /Users/tgartner/git/mylife_wiki
+bare server copy: 1760 MB  (14.9 s)
+
+## A full clone
+   git clone 
+   time 15.8 s | .git 1758 MB | working tree 1188 MB | total 2946 MB | files on disk 5603
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              OK
+    new binary committed         OK
+    still uncommitted after commit: 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 1759 MB
+   | count: 23
+   | in-pack: 11014
+   | size-pack: 1.70 GiB
+
+## B shallow --depth 1
+   git clone --depth 1
+   time 11.5 s | .git 1129 MB | working tree 1188 MB | total 2317 MB | files on disk 5605
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              OK
+    new binary committed         OK
+    still uncommitted after commit: 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 1129 MB
+   | count: 22
+   | in-pack: 7214
+   | size-pack: 1.09 GiB
+
+## C partial --filter=blob:none
+   git clone --filter=blob:none
+   time 11.7 s | .git 1137 MB | working tree 1188 MB | total 2325 MB | files on disk 5607
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              OK
+    new binary committed         OK
+    still uncommitted after commit: 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 1137 MB
+   | count: 19
+   | in-pack: 8684
+   | size-pack: 1.09 GiB
+
+## D partial --filter=blob:limit=1m
+   git clone --filter=blob:limit=1m
+   time 11.6 s | .git 1125 MB | working tree 1188 MB | total 2313 MB | files on disk 5609
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              OK
+    new binary committed         OK
+    still uncommitted after commit: 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 1125 MB
+   | count: 19
+   | in-pack: 10986
+   | size-pack: 1.09 GiB
+
+## E blob:none + sparse, only *.md (non-cone)
+   git clone --filter=blob:none --sparse
+   time 1.4 s | .git 4 MB | working tree 14 MB | total 18 MB | files on disk 3103
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              FAIL: The following paths and/or pathspecs matched paths that exist outside of your sparse-checkout definition, so will not be updated in the index: Sources/spike-E/new-image.png hint: If you intend to update such entries, try one of the following: hint: * Use the --sparse option. hint: * Disable or modif
+    new binary committed         FAIL: error: pathspec 'Sources/spike-E/new-image.png' did not match any file(s) known to git Did you forget to 'git add'? 
+    still uncommitted after commit: M  .claude/skills/archify/SKILL.md A  spike-new-note-E.md ?? Sources/spike-E/new-image.png 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 4 MB
+   | count: 16
+   | in-pack: 6312
+   | size-pack: 2.60 MiB
+
+## F blob:none + sparse cone on root subfolder Wiki/
+   git clone --filter=blob:none --sparse
+   time 1.1 s | .git 26 MB | working tree 31 MB | total 56 MB | files on disk 1709
+specs/05_prod_env/spikes/01-clone-modes.sh: line 63: .claude/skills/archify/SKILL.md: No such file or directory
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              FAIL: The following paths and/or pathspecs matched paths that exist outside of your sparse-checkout definition, so will not be updated in the index: Sources/spike-F/new-image.png hint: If you intend to update such entries, try one of the following: hint: * Use the --sparse option. hint: * Disable or modif
+    new binary committed         FAIL: error: pathspec 'Sources/spike-F/new-image.png' did not match any file(s) known to git Did you forget to 'git add'? 
+    still uncommitted after commit: A  spike-new-note-F.md ?? Sources/spike-F/new-image.png 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 26 MB
+   | count: 10
+   | in-pack: 4943
+   | size-pack: 24.54 MiB
+
+## G blob:none + sparse, everything except video (non-cone)
+   git clone --filter=blob:none --sparse
+   time 3.2 s | .git 136 MB | working tree 188 MB | total 324 MB | files on disk 5403
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              OK
+    new binary committed         OK
+    still uncommitted after commit: 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 136 MB
+   | count: 19
+   | in-pack: 8500
+   | size-pack: 134.18 MiB
+
+## H shallow --depth 1 + blob:none + sparse *.md
+   git clone --depth 1 --filter=blob:none --sparse
+   time 1.6 s | .git 4 MB | working tree 14 MB | total 17 MB | files on disk 3104
+   backend operations (edited .claude/skills/archify/SKILL.md, new .md, new binary under Sources/):
+    status --untracked=all       OK
+    diff HEAD -- file            OK
+    diff HEAD --stat             OK
+    cat-file -e HEAD:file        OK
+    stash push -u + pop          OK
+    upstream commit pushed       OK
+    pull: fetch                  OK
+    pull: merge-base             OK
+    pull: stash push -u          OK
+    pull: merge --ff-only        OK
+    pull: stash pop              OK
+    add -A + commit              FAIL: The following paths and/or pathspecs matched paths that exist outside of your sparse-checkout definition, so will not be updated in the index: Sources/spike-H/new-image.png hint: If you intend to update such entries, try one of the following: hint: * Use the --sparse option. hint: * Disable or modif
+    new binary committed         FAIL: error: pathspec 'Sources/spike-H/new-image.png' did not match any file(s) known to git Did you forget to 'git add'? 
+    still uncommitted after commit: M  .claude/skills/archify/SKILL.md A  spike-new-note-H.md ?? Sources/spike-H/new-image.png 
+    push                         OK
+    log -3 (history)             OK
+   .git after ops: 4 MB
+   | count: 16
+   | in-pack: 4833
+   | size-pack: 2.32 MiB
+
+cleaned up /private/tmp/claude-64795839/-Users-tgartner-git-karpathy-app/c74c75ff-9e73-4f61-b012-f9e7bdd3e291/scratchpad/disk

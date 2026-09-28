@@ -50,6 +50,8 @@ Feature ideas from similar projects (30, ranked, filed as issues #64–#93):
 Browser-only (serverless) architecture research with spikes:
 [`specs/03_browser_only/browser-only-report.html`](specs/03_browser_only/browser-only-report.html).
 V1 plan draft: [`specs/04_v1/v1-plan.html`](specs/04_v1/v1-plan.html).
+Production environment research (hosters and free tiers, Hetzner vs IONOS, security, disk space):
+[`specs/05_prod_env/prod-env-report.html`](specs/05_prod_env/prod-env-report.html).
 UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.app/main/specs/01_mvp/layouts/index.html)**.
 

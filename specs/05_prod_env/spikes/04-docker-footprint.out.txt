@@ -1,0 +1,54 @@
+# spike 04 — 2026-09-28 09:52 — docker 29.1.3 (Rancher Desktop VM)
+
+## docker system df (whole daemon — shared with other projects on this machine)
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          65        24        50.56GB   27.86GB (55%)
+Containers      26        14        198.5MB   184.4MB (92%)
+Local Volumes   203       28        24.09GB   10.12GB (42%)
+Build Cache     243       0         9.56GB    5.772GB
+
+## karpathy-app images + the base images the stack uses
+alpine/socat:latest	15.8MB
+caddy:2.10-alpine	80.1MB
+dockerregistry.mgm-tp.com/node:22-alpine	235MB
+dockerregistry.mgm-tp.com/node:24.4.0-alpine	232MB
+karpathy-ai-backend:latest	399MB
+karpathy-ai-opencode:latest	288MB
+karpathy-ai-prodtest-backend:latest	295MB
+karpathy-ai-prodtest-opencode:latest	288MB
+karpathy-ai-prodtest-proxy:latest	139MB
+karpathy-ai-proxy-prod:latest	139MB
+karpathy-ai-web:latest	588MB
+karpathy-app-backend:latest	399MB
+karpathy-app-opencode:latest	288MB
+karpathy-app-prodtest-backend:latest	295MB
+karpathy-app-prodtest-opencode:latest	288MB
+karpathy-app-prodtest-proxy:latest	139MB
+karpathy-app-proxy:latest	139MB
+karpathy-app-web:latest	588MB
+ollama/ollama:latest	6.99GB
+
+## karpathy-app volumes (size via a throwaway alpine container, read-only mounts)
+karpathy-app_caddy-data            72.0K
+karpathy-app_config                8.0K
+karpathy-app_ollama                1.8G
+karpathy-app_opencode-data         17.6M
+karpathy-app_vaults                2.9G
+
+## container json logs (default json-file driver, no rotation unless configured)
+karpathy-app-prodtest-proxy-1  8.0K   log-opts={}
+karpathy-app-prodtest-backend-1 4.0K   log-opts={}
+karpathy-app-prodtest-opencode-1 4.0K   log-opts={}
+karpathy-app-prodtest-ollama-bridge-1 0   log-opts={}
+karpathy-app-proxy-1           320.0K   log-opts={}
+karpathy-app-backend-1         8.0K   log-opts={}
+karpathy-app-web-1             4.0K   log-opts={}
+karpathy-app-opencode-1        4.0K   log-opts={}
+karpathy-app-ollama-1          264.0K   log-opts={}
+
+## opencode data dir contents (sessions/logs/snapshots)
+17.6M	/data/opencode
+
+## docker VM filesystem
+Filesystem                Size      Used Available Use% Mounted on
+/dev/vda1                97.9G     73.1G     19.8G  79% /mnt/data

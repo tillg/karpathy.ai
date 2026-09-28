@@ -1,0 +1,13 @@
+# spike 02 — 2026-09-28 09:51
+
+## tillg/karpathy-app-test-vault
+REST repos/tillg/karpathy-app-test-vault .size = 1 KB (0.0 MB)  branch=main  pushed_at=2026-09-28T06:23:38Z  (call 0.64 s)
+tree API: truncated=false entries=8 blob bytes at HEAD=462 (0.0 MB) .md bytes=462 (0.0 MB) blobs>1MiB=0  (call 0.92 s)
+real clone: 144 KB total, .git 120 KB, size-pack 2 KB, du -sb .git: 46 KB apparent  (1.2 s)
+files in .git: 28 (hooks samples etc. dominate a tiny repo)
+
+## tillg/mylife_wiki
+REST repos/tillg/mylife_wiki .size = 1787424 KB (1745.5 MB)  branch=main  pushed_at=2026-09-16T20:54:27Z  (call 0.44 s)
+tree API: truncated=false entries=7348 blob bytes at HEAD=1230752084 (1173.7 MB) .md bytes=5443464 (5.2 MB) blobs>1MiB=209  (call 1.50 s)
+(not cloned: > 50 MB; see spike 01 for the measured clone)
+rate limit core: 5000/5000

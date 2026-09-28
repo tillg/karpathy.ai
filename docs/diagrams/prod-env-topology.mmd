@@ -1,0 +1,26 @@
+flowchart LR
+  subgraph Devices["Your devices (Tailscale app, VPN On Demand)"]
+    IPAD["iPad / iPhone<br/>installed PWA"]
+    MAC["Mac<br/>browser · SSH"]
+  end
+  subgraph VPS["EU VPS, e.g. Hetzner CAX11 / CX23 (4 GB, 40 GB)"]
+    FW["Provider firewall<br/>no inbound rules"]
+    TS["tailscaled<br/>100.x.y.z"]
+    P["Caddy<br/>bound to 100.x.y.z:443<br/>LE cert via DNS-01"]
+    B["Backend<br/>bearer token · git · rg"]
+    OC["opencode serve<br/>internal only"]
+    V[("/vaults<br/>git clones<br/>(optional LUKS)")]
+  end
+  DNS["DNS app.karpathy.app<br/>A → 100.x.y.z"]
+  GH[("GitHub<br/>fine-grained PAT,<br/>selected repos")]
+  LLM["LLM provider<br/>(e.g. OpenRouter ZDR)"]
+  BK[("restic backup<br/>encrypted, off-site")]
+  IPAD -- "WireGuard tunnel<br/>(outbound UDP / DERP)" --> TS
+  MAC --> TS
+  TS --> P --> B --> OC
+  B --> V
+  OC --> V
+  B -- "HTTPS out" --> GH
+  OC -- "HTTPS out" --> LLM
+  V -. nightly .-> BK
+  IPAD -. resolves .-> DNS

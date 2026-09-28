@@ -13,7 +13,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const arg = (k) => process.argv.find((a) => a.startsWith(`--${k}`));
 const engines = (arg('engines')?.split('=')[1] ?? 'chromium,webkit').split(',');
 const GIT = 'http://localhost:8788';
-const TEST_REPO = 'tillg/karpathy-ai-test-vault';
+const TEST_REPO = 'tillg/karpathy-app-test-vault';
 const PUBLIC_REPO = 'octocat/Hello-World';
 const sh = (cwd, ...a) => execFileSync('git', a, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 const hostGit = (cwd, ...a) => sh(cwd, '-c', 'user.name=Host', '-c', 'user.email=host@example.invalid', ...a);

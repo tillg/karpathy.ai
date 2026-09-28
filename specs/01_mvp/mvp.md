@@ -174,11 +174,11 @@ See [ADR 0001](../../docs/adr/0001-user-triggered-commits.md).
      `git reset --mixed @{u}` and check out the files that only exist upstream; the whole
      local state becomes uncommitted changes on top of the new upstream, and the pull ends here.
   3. If there are uncommitted changes: `git stash push --include-untracked -m
-     karpathy-ai-pull`.
+     karpathy-app-pull`.
   4. `git merge --ff-only @{u}` (always a fast-forward after steps 2–3).
   5. `git stash pop`. Success → normal state. Failure → **Conflict**.
 - **Conflict:** the stash pop failed for some paths. Git has already applied the stash's
-  non-conflicting changes; the stash entry `karpathy-ai-pull` is kept. The vault is in
+  non-conflicting changes; the stash entry `karpathy-app-pull` is kept. The vault is in
   Conflict **exactly while that stash entry exists**, so the state is derived from git and
   survives backend restarts. Writes are blocked (editor read-only, AI runs with the
   read-only agent (§3.2), chat still usable for questions, with a banner). Per conflicting

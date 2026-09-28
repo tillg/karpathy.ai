@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { identity } from './helpers.js';
 
 // @github tier: the throwaway test vault on GitHub, never the real life wiki.
-const REPO = process.env.TEST_VAULT_REPO ?? 'tillg/karpathy-ai-test-vault';
+const REPO = process.env.TEST_VAULT_REPO ?? 'tillg/karpathy-app-test-vault';
 const token = process.env.TEST_VAULT_TOKEN ?? execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' }).trim();
 const branch = `test-${Date.now()}`;
 
@@ -49,7 +49,7 @@ describe('@github test vault', () => {
 
   it('bad repo → clone-failed with the git error, token redacted', async () => {
     const { vaults } = await setup();
-    const v = await vaults.add({ name: 'bad', repo: 'tillg/karpathy-ai-no-such-repo' });
+    const v = await vaults.add({ name: 'bad', repo: 'tillg/karpathy-app-no-such-repo' });
     await vaults.whenCloned(v.id);
     const got = vaults.getVault(v.id);
     expect(got.state).toBe('clone-failed');

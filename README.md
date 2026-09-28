@@ -87,7 +87,7 @@ certificate via DNS-01.
 
 ```sh
 npm test               # unit + integration: real git against local bare repos, real opencode container (Docker)
-npm run test:github    # @github: clone/push against the throwaway repo tillg/karpathy-ai-test-vault
+npm run test:github    # @github: clone/push against the throwaway repo tillg/karpathy-app-test-vault
 npm run test:llm       # @llm: real model turns (default: local Ollama qwen2.5:3b, see apps/backend/test/opencode-container.ts)
 npm run test:e2e       # Playwright against the running dev stack
 npm run typecheck

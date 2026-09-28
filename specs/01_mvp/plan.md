@@ -35,7 +35,7 @@ Stated here so they aren't re-decided per phase:
 - **Backend HTTP:** Express 5 (native async errors, `res.write` streaming; tests via
   `supertest`, input validation via zod). Config store: one JSON file on the config
   volume (atomic write via temp file + rename).
-- **Test vault:** a dedicated throwaway GitHub repo (`karpathy-ai-test-vault`) with a
+- **Test vault:** a dedicated throwaway GitHub repo (`karpathy-app-test-vault`) with a
   subfolder variant, used by integration and e2e tests. Never the real life wiki.
 
 ---
@@ -111,7 +111,7 @@ Goal: edit on the phone, see uncommitted changes, commit & push, survive Obsidia
 | Changed-files counter + Show changes view, driven by the event stream | Playwright: counter matches `git status`; a file changed on disk updates the counter without reload; tab hidden → visible reconnects the stream |
 | Commit: frontend flushes the pending autosave, then backend takes exclusive lock → pull → commit all → push; author = user | Integration: remote has 1 new commit with all changes; working tree clean. Playwright: type, commit within the 1.5 s debounce → typed text is in the commit |
 | Push failure → unpushed state; retry on next commit/pull | Integration with remote made unreachable: commit local, status "1 unpushed"; restore remote → next pull pushes it |
-| Conflict = stash pop failed; state derived from the `karpathy-ai-pull` stash entry; writes blocked | Integration: conflicting edits local + remote → vault state `conflict`, `PUT /file` → 423; restart backend → still `conflict` |
+| Conflict = stash pop failed; state derived from the `karpathy-app-pull` stash entry; writes blocked | Integration: conflicting edits local + remote → vault state `conflict`, `PUT /file` → 423; restart backend → still `conflict` |
 | Conflict resolution per file: keep mine / theirs / both (default both → `Foo.conflict-<date>.md`); then `git reset -q` + `stash drop` | Integration per option, plus cases: both sides added the same new file (untracked mine from `stash^3`), modify vs delete; vault returns to normal, no stash left, no unmerged entries; nothing lost with "both" |
 | Commit reminder: above threshold, dismiss → again at 2× threshold | Unit test on reminder logic; Playwright: 5th changed file → dialog with Commit button |
 | Remove vault blocked while uncommitted changes exist | `DELETE /vaults/:id` → 409 with dirty tree |

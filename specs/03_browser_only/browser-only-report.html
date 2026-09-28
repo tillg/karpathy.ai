@@ -27,7 +27,8 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
 main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
-.appicon { display: block; width: 48px; height: 48px; border-radius: 11px; margin: 0 0 12px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.appicon { flex: none; width: 48px; height: 48px; border-radius: 11px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
 h2 { font-size: 1.4rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 h3 { font-size: 1.1rem; margin: 28px 0 8px; }
@@ -63,8 +64,7 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 </head>
 <body>
 <main>
-<img class="appicon" src="../../assets/icons/icon-192.png" alt="karpathy.ai" width="48" height="48">
-<h1>Browser-only karpathy.ai: can we drop the server?</h1>
+<header class="top"><h1>Browser-only karpathy.ai: can we drop the server?</h1><img class="appicon" src="../../assets/icons/icon-192.png" alt="karpathy.ai" width="48" height="48"></header>
 <p class="sub">Architecture report for <a href="browser_only.md">spec #03</a>. Research only; nothing gets built. Written 2026-09-27. Evidence comes from primary-source <a href="research-notes.md">desk research</a> and <b>eleven spikes</b> run in headless Chromium 153 and WebKit 26.6 (≈ Safari 26 on iPad). The spikes used the real demo vault: 5,604 files, 1.2 GB, of which 3,337 are Markdown.</p>
 
 <div class="tldr">

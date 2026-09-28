@@ -14,7 +14,7 @@ don't translate or normalize it.
   instead when the user is likely to edit the document a lot. If unsure which, ask.
 - HTML reports use an Apple-like design matching the app: system font stack (`-apple-system`,
   SF), generous whitespace, rounded cards, subtle borders, light + dark mode.
-- Put a small app icon at the top (`assets/icons/icon-192.png`, linked relative to the report).
+- Put a small app icon on the title line, at the right edge (`assets/icons/icon-192.png`, linked relative to the report).
 - A report longer than one page gets a table of contents.
 
 ## Status

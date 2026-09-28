@@ -384,7 +384,7 @@ describe('git API', () => {
     cleanups.push(() => t2.vaults.close());
     expect(t2.vaults.aiTouched(t.id)).toEqual(['Other.md']);
     await t2.api.post(`/vaults/${t.id}/commit`, { message: 'with ai' });
-    expect(sh(t.remote.bare, 'log', '-1', '--format=%B')).toContain('Co-authored-by: karpathy.ai agent');
+    expect(sh(t.remote.bare, 'log', '-1', '--format=%B')).toContain('Co-authored-by: karpathy.app agent');
     expect(t2.vaults.aiTouched(t.id)).toEqual([]);
   });
 

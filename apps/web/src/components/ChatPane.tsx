@@ -115,7 +115,7 @@ function Message({ t, model }: { t: Turn; model: string }) {
   const changed = changedPaths(t.parts);
   return (
     <div className="a" data-testid="assistant-message">
-      <div className="who"><img src="/icon-192.png" alt="" />karpathy.ai · {t.model?.split('/').pop() ?? model}</div>
+      <div className="who"><img src="/icon-192.png" alt="" />karpathy.app · {t.model?.split('/').pop() ?? model}</div>
       <Parts parts={t.parts} />
       {t.errors.map((e, i) => <div className="form-error" key={i}>{e}</div>)}
       {changed.length > 0 && (

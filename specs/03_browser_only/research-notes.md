@@ -1,6 +1,6 @@
 # Browser-only variant — desk research notes
 
-Date: 2026-09-27. Scope: can karpathy.ai (vault = GitHub repo, git sync, ripgrep search, opencode agent
+Date: 2026-09-27. Scope: can karpathy.app (vault = GitHub repo, git sync, ripgrep search, opencode agent
 loop with skills/MCP) work as a pure browser app with no server of our own?
 
 Method: primary sources only (MDN / MDN browser-compat-data, WebKit blog, vendor docs, GitHub
@@ -113,7 +113,7 @@ The MDN page for each API is linked inline.
   unless the git server sends CORS headers. GitHub, GitLab and Bitbucket don't; Gitea, Gogs and
   Azure DevOps do. You need a proxy.
   <https://github.com/isomorphic-git/isomorphic-git>
-- **[probe]** `GET https://github.com/tillg/karpathy.ai.git/info/refs?service=git-upload-pack`
+- **[probe]** `GET https://github.com/tillg/karpathy.app.git/info/refs?service=git-upload-pack`
   with an Origin header gives **200 with no `Access-Control-Allow-Origin`**. The preflight
   `OPTIONS` gives **405**. **Confirmed: a browser cannot talk to github.com git directly.**
 - Proxies:

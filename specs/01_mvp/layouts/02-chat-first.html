@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  karpathy.ai · Layout 02 · Chat-First
+  karpathy.app · Layout 02 · Chat-First
   Rationale: the conversation is home (like the ChatGPT/Claude apps). Most vault work starts by asking the
   agent (ingest, query, lint), so the chat owns the main stage. Notes come to the user: every note the agent
   reads or edits shows up as an inline card; tapping opens it in a "canvas" next to (or over) the chat.
@@ -17,7 +17,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f7f3ec">
-<title>Chat-First · karpathy.ai</title>
+<title>Chat-First · karpathy.app</title>
 <link rel="icon" type="image/png" href="../../../assets/icons/favicon-32x32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -285,8 +285,8 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
   <!-- LEFT DRAWER: conversations + vault tree -->
   <aside class="drawer" id="drawer" aria-label="Conversations and vault">
     <div class="brand">
-      <img class="logo" src="../../../assets/karpathy_ai_logo.png" alt="">
-      <div><b>karpathy.ai</b><small>vault · ~/wiki</small></div>
+      <img class="logo" src="../../../assets/karpathy_app_logo.png" alt="">
+      <div><b>karpathy.app</b><small>vault · ~/wiki</small></div>
       <button class="icon-btn close-drawer" data-act="drawer" aria-label="Close drawer"><i data-i="x"></i></button>
     </div>
     <button class="newchat" data-act="newchat"><i data-i="plus"></i> New chat</button>
@@ -659,7 +659,7 @@ const tool=(icon,html,cls='')=>`<span class="tool ${cls}">${ic(icon)}${html}</sp
 const DIFF=`<div class="diff" id="diff1"><header>${ic('edit')}<code>wiki/concepts/llm-wiki.md</code><span class="plus">+12</span><span class="minus">−3</span></header><pre>
 <div class="c">@@ -8,9 +8,18 @@ ## Kernidee</div><div class="c"> - Rohquellen landen unverändert in raw/ — sie sind immutable.</div><div class="d">-- Das LLM fasst Quellen zusammen.</div><div class="a">+- Das LLM kompiliert sie zu Seiten in wiki/: entities, concepts, synthesis.</div><div class="a">+- Jede Ingestion aktualisiert 5–15 Seiten, den [[index]] und das [[log]].</div><div class="a">+- Widersprüche werden explizit markiert statt überschrieben.</div><div class="c"> </div><div class="d">-## Notizen</div><div class="a">+## Warum es funktioniert</div><div class="a">+> The wiki is a persistent, compounding artifact — knowledge is</div><div class="a">+> compiled once, not re-derived on every query.</div><div class="a">+- Wissen **akkumuliert** über Sessions hinweg.</div><div class="a">+- Menschen lesen es in [[obsidian]]; das LLM editiert denselben Text.</div><div class="d">-- TODO: Quelle finden</div><div class="a">+- Git macht jede AI-Änderung reviewbar und revertierbar.</div><div class="a">+</div><div class="a">+## Siehe auch</div><div class="a">+- [[rag-vs-llm-wiki]] · [[karpathy-llm-wiki-gist]]</div></pre></div>`;
 function userMsg(t){return `<div class="msg user">${esc(t).replace(/^(\/\w+)/,'<span class="skill">$1</span>').replace(/@([\w\/.\-]+)/g,'<span class="mention">@$1</span>')}</div>`}
-function aiShell(){const d=document.createElement('div');d.className='msg ai';d.innerHTML=`<img class="av" src="../../../assets/karpathy_ai_logo.png" alt=""><div class="aib"><div class="who">karpathy.ai · ${S.model}</div><div class="tools"></div><div class="text"></div></div>`;thread.appendChild(d);return d}
+function aiShell(){const d=document.createElement('div');d.className='msg ai';d.innerHTML=`<img class="av" src="../../../assets/karpathy_app_logo.png" alt=""><div class="aib"><div class="who">karpathy.app · ${S.model}</div><div class="tools"></div><div class="text"></div></div>`;thread.appendChild(d);return d}
 function seed(){
   thread.innerHTML=`<div class="day">Today · 09:41</div>`+userMsg('/ingest raw/articles/karpathy-llm-wiki-gist.md — und verlinke es mit dem Konzept LLM Wiki');
   const a=aiShell();a.querySelector('.tools').innerHTML=tool('file','read <code>raw/articles/karpathy-llm-wiki-gist.md</code>')+tool('file','read <code>wiki/index.md</code>')+tool('grep',"grep <code>'Karpathy'</code> · 7 hits")+

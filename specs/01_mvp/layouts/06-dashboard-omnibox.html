@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  06 · Home Dashboard + Omnibox — karpathy.ai UI prototype
+  06 · Home Dashboard + Omnibox — karpathy.app UI prototype
 
   Rationale: a launcher. Most sessions start with "find X" or "ask about X", so the home screen
   is one omnibox (Files / Full-text / Ask AI in a single result list) plus cards that surface
@@ -23,7 +23,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1e33">
-<title>karpathy.ai · Dashboard + Omnibox</title>
+<title>karpathy.app · Dashboard + Omnibox</title>
 <link rel="icon" type="image/png" sizes="32x32" href="../../../assets/icons/favicon-32x32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -321,7 +321,7 @@ body.pal-open .palette{display:block}
 
 <header class="topbar">
   <button class="icon-btn back" id="backBtn" aria-label="Back"><i data-ic="back"></i></button>
-  <a class="brand" href="#/home" aria-label="Home"><img src="../../../assets/karpathy_ai_logo.png" alt=""><span class="wordmark">karpathy.ai</span></a>
+  <a class="brand" href="#/home" aria-label="Home"><img src="../../../assets/karpathy_app_logo.png" alt=""><span class="wordmark">karpathy.app</span></a>
   <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
   <div class="spacer"></div>
   <button class="icon-btn" id="searchBtn" aria-label="Search (Cmd K)"><i data-ic="search"></i></button>
@@ -661,7 +661,7 @@ const SKILLS=['/ingest','/query','/lint','/timeline'];
 function renderCtx(){$('#ctxRow').innerHTML=S.ctx?`<span class="ctxchip">${ic('file')}${S.ctx.split('/').pop()}<button id="rmCtx" aria-label="Remove context">${ic('close')}</button></span>`:'';$('#ctxRow').style.display=S.ctx?'flex':'none'}
 function scrollMsgs(){const m=$('#msgs');m.scrollTop=m.scrollHeight}
 function addMsg(role,html){const d=document.createElement('div');d.className='msg '+role;d.innerHTML=html;$('#msgs').appendChild(d);scrollMsgs();return d}
-const WHO=()=>`<div class="who"><img src="../../../assets/karpathy_ai_logo.png" alt="">${MODELS[S.model][0]} · ${MODELS[S.model][1]}</div>`;
+const WHO=()=>`<div class="who"><img src="../../../assets/karpathy_app_logo.png" alt="">${MODELS[S.model][0]} · ${MODELS[S.model][1]}</div>`;
 function chipHTML(t,cls){return `<span class="tc ${cls}"${cls==='ed'?` data-open="${t.path}"`:''}>${ic(cls==='run'?'spin':cls==='ed'?'edit':'check')}${esc(t.label)}</span>`}
 function seedChat(){addMsg('u','<code>/ingest raw/articles/karpathy-llm-wiki-gist.md</code>');
   const e=S.edits[0];addMsg('a',WHO()+`<div class="tools">${chipHTML({label:'read raw/articles/karpathy-llm-wiki-gist.md'},'done')}${chipHTML({label:'read wiki/index.md'},'done')}${chipHTML({label:"grep 'Karpathy'"},'done')}${chipHTML({label:'edited wiki/concepts/llm-wiki.md +12 −3',path:e.path},'ed')}${chipHTML({label:'edited wiki/index.md +1',path:'index.md'},'ed')}</div><p>Ingested. Created ${inl('[[sources/karpathy-llm-wiki-gist]]')}, extended ${inl('[[llm-wiki]]')} with <em>Abgrenzung</em> and a sharper lint step, and added the index entry.</p>${diffHTML(e.diff)}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-open="${e.path}">${ic('file')}Open changed page</button><button class="btn sm" data-open="wiki/sources/karpathy-llm-wiki-gist.md">Open source summary</button></div>`)}

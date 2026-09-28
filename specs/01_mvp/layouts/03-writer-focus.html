@@ -23,7 +23,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fbfaf7">
-<title>karpathy.ai · 03 Writer Focus</title>
+<title>karpathy.app · 03 Writer Focus</title>
 <link rel="icon" type="image/png" href="../../../assets/icons/favicon-32x32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -288,7 +288,7 @@ body.sheet .fab{opacity:0;pointer-events:none;transform:scale(.8)}
 
 <header class="bar" id="bar">
   <button class="ib" id="treeBtn" title="Files (⌘\)" aria-label="Open file tree"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h16"/></svg></button>
-  <img class="logo-img" src="../../../assets/karpathy_ai_logo.png" alt="karpathy.ai">
+  <img class="logo-img" src="../../../assets/karpathy_app_logo.png" alt="karpathy.app">
   <div class="crumb" id="crumb"></div>
   <button class="pill-search" id="pillBtn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg>Search, / skills, ? ask<kbd>⌘K</kbd></button>
   <button class="sync" id="syncBtn" title="Git sync"><span class="dot" id="syncDot"></span><span class="lbl" id="syncLbl"></span></button>
@@ -304,7 +304,7 @@ body.sheet .fab{opacity:0;pointer-events:none;transform:scale(.8)}
 <div class="scrim" id="scrim"></div>
 
 <nav class="tree" id="tree" aria-label="Vault">
-  <div class="tree-h"><img class="logo-img" src="../../../assets/karpathy_ai_logo.png" alt=""><div class="t">Frechen<small>~/vault · main</small></div>
+  <div class="tree-h"><img class="logo-img" src="../../../assets/karpathy_app_logo.png" alt=""><div class="t">Frechen<small>~/vault · main</small></div>
     <button class="ib" id="treeClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
   <button class="tree-s" id="treeSearch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg>Search vault<kbd>⌘K</kbd></button>
   <div class="tree-l" id="treeList"></div>
@@ -602,7 +602,7 @@ function openFile(path, opts={}){
   $("#doc").innerHTML = `<div class="path" contenteditable="false">${path.split("/").join(" / ")}</div>${r.html}
     <div class="meta" contenteditable="false"><span>${r.words} words</span><span>${Math.max(1,Math.round(r.words/220))} min read</span><span>${ai?"edited 3 min ago by assistant":"last commit 2 days ago"}</span></div>`;
   $("#crumb").innerHTML = `${esc(path.split("/").slice(0,-1).join(" / "))}${path.includes("/")?" / ":""}<b>${esc(path.split("/").pop())}</b><span class="dirty" id="dirty"></span>`;
-  document.title = base(path) + " · karpathy.ai";
+  document.title = base(path) + " · karpathy.app";
   window.scrollTo({top:0});
   drawTree(); closeTree(); closePal();
   if (opts.fromChat && innerWidth < 1180) closeAI();
@@ -740,7 +740,7 @@ $("#skills").innerHTML = SKILLS.map(([n]) => `<button data-s="${n}">/${n}</butto
 $("#skills").onclick = e => { const b = e.target.closest("[data-s]"); if (b) runSkill(b.dataset.s, ""); };
 
 const msgs = $("#msgs");
-const who = '<div class="who"><img src="../../../assets/karpathy_ai_logo.png" alt="">Assistant</div>';
+const who = '<div class="who"><img src="../../../assets/karpathy_app_logo.png" alt="">Assistant</div>';
 const chatInline = s => inline(s).replace(/<span class="mk">[^<]*<\/span>/g,"");
 function toolChip(t){
   const ic = t.k === "read" ? I.read : t.k === "grep" ? I.grep : I.edit;

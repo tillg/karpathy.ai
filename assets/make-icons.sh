@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-SRC=karpathy_ai_logo.png
+SRC=karpathy_app_logo.png
 OUT=icons
 mkdir -p "$OUT"
 

@@ -45,7 +45,7 @@ test.describe('PWA', () => {
     const res = await request.get(href!);
     expect(res.ok()).toBe(true);
     const m = await res.json();
-    expect(m.name).toBe('karpathy.ai');
+    expect(m.name).toBe('karpathy.app');
     expect(m.display).toBe('standalone');
     expect(m.start_url).toBe('/');
     expect(m.icons.length).toBeGreaterThanOrEqual(2);

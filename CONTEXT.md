@@ -1,4 +1,4 @@
-# karpathy.ai
+# karpathy.app
 
 A mobile-friendly app for reading, editing, and talking to an AI about Markdown vaults that live in GitHub repos.
 

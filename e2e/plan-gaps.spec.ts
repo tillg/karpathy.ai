@@ -51,7 +51,7 @@ test.describe('prod proxy config (plan P1)', () => {
   test('the prod Caddyfile (DNS-01) passes `caddy validate` in the prod proxy image', async () => {
     // The prod image carries the DNS provider module (xcaddy); use a locally built one if present.
     const images = execFileSync('docker', ['images', '--format', '{{.Repository}}'], { encoding: 'utf8' }).split('\n');
-    const image = ['karpathy-ai-proxy', 'karpathy-ai-proxy-prod', 'karpathy-ai-prodtest-proxy'].find((i) => images.includes(i));
+    const image = ['karpathy-app-proxy', 'karpathy-app-proxy-prod', 'karpathy-app-prodtest-proxy'].find((i) => images.includes(i));
     test.skip(!image, 'no prod proxy image built (docker compose -f deploy/compose.yml build proxy)');
     const dir = mkdtempSync(join(tmpdir(), 'e2e-caddy-'));
     // Cloudflare tokens are 40 characters; the module rejects other shapes at provision time.

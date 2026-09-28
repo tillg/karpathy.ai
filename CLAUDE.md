@@ -79,7 +79,7 @@ global `~/.claude/CLAUDE.md`) are listed in `specs/01_mvp/mvp.md` §4.
 
 ### Issue tracker
 
-GitHub Issues in `tillg/karpathy.ai` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+GitHub Issues in `tillg/karpathy.app` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

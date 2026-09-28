@@ -1,8 +1,8 @@
-# Feature research: what similar projects do that karpathy.ai could use
+# Feature research: what similar projects do that karpathy.app could use
 
-*2026-09-26 · autonomous research run · 30 features, filed as GitHub issues [#64–#93](https://github.com/tillg/karpathy.ai/issues?q=label%3Afeature-research)*
+*2026-09-26 · autonomous research run · 30 features, filed as GitHub issues [#64–#93](https://github.com/tillg/karpathy.app/issues?q=label%3Afeature-research)*
 
-We surveyed about 50 projects near karpathy.ai's niche (a mobile PWA for a Markdown vault with an agentic LLM that maintains an "LLM wiki"). They fall into four groups:
+We surveyed about 50 projects near karpathy.app's niche (a mobile PWA for a Markdown vault with an agentic LLM that maintains an "LLM wiki"). They fall into four groups:
 
 - **AI-augmented note apps:** Obsidian Copilot, Smart Connections, Khoj, Reor, Mem, NotebookLM, Notion AI, Tana, Heptabase, Capacities, Cursor/Canvas-style editing.
 - **PKM and Markdown web tools:** Obsidian core plugins, Bases/Dataview, SilverBullet, Logseq, Foam, Dendron, Trilium, HedgeDoc, Memos, Quartz, Flowershow.
@@ -59,7 +59,7 @@ About 50 raw ideas were deduplicated into **30 features**, each filed as an issu
   - no provider lock-in (everything goes through opencode);
   - the Markdown round-trip must be lossless;
   - iOS PWA limits apply: no Web Share Target, no Web Speech in installed apps, and Web Push only for Home-Screen apps.
-- Open enhancements that already exist and were **not** re-filed: [#59](https://github.com/tillg/karpathy.ai/issues/59) image embeds, [#60](https://github.com/tillg/karpathy.ai/issues/60) templates, [#61](https://github.com/tillg/karpathy.ai/issues/61) multi-word/accent-insensitive search.
+- Open enhancements that already exist and were **not** re-filed: [#59](https://github.com/tillg/karpathy.app/issues/59) image embeds, [#60](https://github.com/tillg/karpathy.app/issues/60) templates, [#61](https://github.com/tillg/karpathy.app/issues/61) multi-word/accent-insensitive search.
 
 ## Overview
 
@@ -157,36 +157,36 @@ quadrantChart
 
 | # | Feature | Issue | Effort | Fit | Help | Cool |
 |---:|---|---|:-:|:-:|:-:|:-:|
-| 1 | [Slash commands and one-tap skill chips in the chat](#01-slash-commands-and-one-tap-skill-chips-in-the-chat) | [#64](https://github.com/tillg/karpathy.ai/issues/64) | S | 5 | 5 | 3 |
-| 2 | [Clip URLs / text / files into raw/ with an ingest inbox](#02-clip-urls--text--files-into-raw-with-an-ingest-inbox) | [#65](https://github.com/tillg/karpathy.ai/issues/65) | M | 5 | 5 | 4 |
-| 3 | [Per-turn review and undo of AI edits (turn diff, undo turn, per-hunk keep/undo)](#03-per-turn-review-and-undo-of-ai-edits) | [#66](https://github.com/tillg/karpathy.ai/issues/66) | M | 5 | 5 | 4 |
-| 4 | ["Save to wiki": file a chat answer as a synthesis page](#04-save-to-wiki-file-a-chat-answer-as-a-synthesis-page) | [#67](https://github.com/tillg/karpathy.ai/issues/67) | S | 5 | 4 | 3 |
-| 5 | [Backlinks panel with unlinked mentions and a one-tap "Link"](#05-backlinks-panel-with-unlinked-mentions-and-a-one-tap-link) | [#68](https://github.com/tillg/karpathy.ai/issues/68) | M | 5 | 4 | 3 |
-| 6 | [Quick switcher: fuzzy open/create with recent and pinned notes](#06-quick-switcher-fuzzy-opencreate-with-recent-and-pinned-notes) | [#69](https://github.com/tillg/karpathy.ai/issues/69) | S | 4 | 5 | 3 |
-| 7 | [Markdown toolbar above the on-screen keyboard](#07-markdown-toolbar-above-the-on-screen-keyboard) | [#70](https://github.com/tillg/karpathy.ai/issues/70) | M | 4 | 5 | 2 |
-| 8 | [Plan mode: agent proposes the pages it will touch, user approves before writing](#08-plan-mode-agent-proposes-the-pages-it-will-touch-user-approves-before-writing) | [#71](https://github.com/tillg/karpathy.ai/issues/71) | M | 4 | 4 | 4 |
-| 9 | [Clickable citations and source provenance](#09-clickable-citations-and-source-provenance) | [#72](https://github.com/tillg/karpathy.ai/issues/72) | S | 5 | 4 | 3 |
-| 10 | [@-mention notes and folders as chat context](#10--mention-notes-and-folders-as-chat-context) | [#73](https://github.com/tillg/karpathy.ai/issues/73) | S | 4 | 4 | 3 |
-| 11 | [Auto-fetch on open with a "behind remote" badge and one-tap pull](#11-auto-fetch-on-open-with-a-behind-remote-badge-and-one-tap-pull) | [#74](https://github.com/tillg/karpathy.ai/issues/74) | S | 4 | 4 | 2 |
-| 12 | [Per-file history: git log, diff and restore an old version](#12-per-file-history-git-log-diff-and-restore-an-old-version) | [#75](https://github.com/tillg/karpathy.ai/issues/75) | S | 4 | 4 | 3 |
-| 13 | [Scheduled background agent jobs (nightly lint, inbox ingest, weekly digest)](#13-scheduled-background-agent-jobs-nightly-lint-inbox-ingest-weekly-digest) | [#76](https://github.com/tillg/karpathy.ai/issues/76) | M | 5 | 4 | 5 |
-| 14 | [Push notifications when a turn/job finishes or needs approval](#14-push-notifications-when-a-turnjob-finishes-or-needs-approval) | [#77](https://github.com/tillg/karpathy.ai/issues/77) | M | 4 | 4 | 4 |
-| 15 | [Quick capture and daily notes](#15-quick-capture-and-daily-notes) | [#78](https://github.com/tillg/karpathy.ai/issues/78) | S | 4 | 4 | 2 |
-| 16 | [Outline / table of contents and note info (words, reading time)](#16-outline--table-of-contents-and-note-info-words-reading-time) | [#79](https://github.com/tillg/karpathy.ai/issues/79) | S | 3 | 4 | 2 |
-| 17 | [Rename/move notes and update every wikilink](#17-renamemove-notes-and-update-every-wikilink) | [#80](https://github.com/tillg/karpathy.ai/issues/80) | M | 4 | 4 | 2 |
-| 18 | [Semantic search and "Related notes" (embeddings, also exposed to the agent)](#18-semantic-search-and-related-notes-embeddings-also-exposed-to-the-agent) | [#81](https://github.com/tillg/karpathy.ai/issues/81) | L | 4 | 4 | 5 |
-| 19 | [Properties (frontmatter) editor with wiki-schema validation](#19-properties-frontmatter-editor-with-wiki-schema-validation) | [#82](https://github.com/tillg/karpathy.ai/issues/82) | M | 4 | 3 | 3 |
-| 20 | [Inline AI edit on a selection (Cmd-K style) with accept/reject](#20-inline-ai-edit-on-a-selection-cmd-k-style-with-acceptreject) | [#83](https://github.com/tillg/karpathy.ai/issues/83) | M | 3 | 4 | 4 |
-| 21 | [Model and agent switcher per chat](#21-model-and-agent-switcher-per-chat) | [#84](https://github.com/tillg/karpathy.ai/issues/84) | S | 3 | 3 | 3 |
-| 22 | [Token, cost and context meter](#22-token-cost-and-context-meter) | [#85](https://github.com/tillg/karpathy.ai/issues/85) | S | 3 | 3 | 3 |
-| 23 | [Deep research into the wiki (`/research <topic>`)](#23-deep-research-into-the-wiki-research-topic) | [#86](https://github.com/tillg/karpathy.ai/issues/86) | M | 4 | 3 | 5 |
-| 24 | [Attach photos and PDFs (camera → raw/, chat attachments)](#24-attach-photos-and-pdfs-camera--raw-chat-attachments) | [#87](https://github.com/tillg/karpathy.ai/issues/87) | M | 3 | 3 | 3 |
-| 25 | [Voice memos → transcript in raw/ (optional auto-ingest)](#25-voice-memos--transcript-in-raw-optional-auto-ingest) | [#88](https://github.com/tillg/karpathy.ai/issues/88) | M | 3 | 3 | 4 |
-| 26 | [Hover / long-press wikilink preview](#26-hover--long-press-wikilink-preview) | [#89](https://github.com/tillg/karpathy.ai/issues/89) | S | 3 | 3 | 3 |
-| 27 | [Tag browser (inline and frontmatter tags)](#27-tag-browser-inline-and-frontmatter-tags) | [#90](https://github.com/tillg/karpathy.ai/issues/90) | S | 3 | 3 | 2 |
-| 28 | [Wiki dashboards: Bases-compatible query tables](#28-wiki-dashboards-bases-compatible-query-tables) | [#91](https://github.com/tillg/karpathy.ai/issues/91) | L | 3 | 3 | 4 |
-| 29 | [Local graph view of the open note](#29-local-graph-view-of-the-open-note) | [#92](https://github.com/tillg/karpathy.ai/issues/92) | M | 2 | 2 | 5 |
-| 30 | [Fork a chat from any message](#30-fork-a-chat-from-any-message) | [#93](https://github.com/tillg/karpathy.ai/issues/93) | S | 2 | 2 | 3 |
+| 1 | [Slash commands and one-tap skill chips in the chat](#01-slash-commands-and-one-tap-skill-chips-in-the-chat) | [#64](https://github.com/tillg/karpathy.app/issues/64) | S | 5 | 5 | 3 |
+| 2 | [Clip URLs / text / files into raw/ with an ingest inbox](#02-clip-urls--text--files-into-raw-with-an-ingest-inbox) | [#65](https://github.com/tillg/karpathy.app/issues/65) | M | 5 | 5 | 4 |
+| 3 | [Per-turn review and undo of AI edits (turn diff, undo turn, per-hunk keep/undo)](#03-per-turn-review-and-undo-of-ai-edits) | [#66](https://github.com/tillg/karpathy.app/issues/66) | M | 5 | 5 | 4 |
+| 4 | ["Save to wiki": file a chat answer as a synthesis page](#04-save-to-wiki-file-a-chat-answer-as-a-synthesis-page) | [#67](https://github.com/tillg/karpathy.app/issues/67) | S | 5 | 4 | 3 |
+| 5 | [Backlinks panel with unlinked mentions and a one-tap "Link"](#05-backlinks-panel-with-unlinked-mentions-and-a-one-tap-link) | [#68](https://github.com/tillg/karpathy.app/issues/68) | M | 5 | 4 | 3 |
+| 6 | [Quick switcher: fuzzy open/create with recent and pinned notes](#06-quick-switcher-fuzzy-opencreate-with-recent-and-pinned-notes) | [#69](https://github.com/tillg/karpathy.app/issues/69) | S | 4 | 5 | 3 |
+| 7 | [Markdown toolbar above the on-screen keyboard](#07-markdown-toolbar-above-the-on-screen-keyboard) | [#70](https://github.com/tillg/karpathy.app/issues/70) | M | 4 | 5 | 2 |
+| 8 | [Plan mode: agent proposes the pages it will touch, user approves before writing](#08-plan-mode-agent-proposes-the-pages-it-will-touch-user-approves-before-writing) | [#71](https://github.com/tillg/karpathy.app/issues/71) | M | 4 | 4 | 4 |
+| 9 | [Clickable citations and source provenance](#09-clickable-citations-and-source-provenance) | [#72](https://github.com/tillg/karpathy.app/issues/72) | S | 5 | 4 | 3 |
+| 10 | [@-mention notes and folders as chat context](#10--mention-notes-and-folders-as-chat-context) | [#73](https://github.com/tillg/karpathy.app/issues/73) | S | 4 | 4 | 3 |
+| 11 | [Auto-fetch on open with a "behind remote" badge and one-tap pull](#11-auto-fetch-on-open-with-a-behind-remote-badge-and-one-tap-pull) | [#74](https://github.com/tillg/karpathy.app/issues/74) | S | 4 | 4 | 2 |
+| 12 | [Per-file history: git log, diff and restore an old version](#12-per-file-history-git-log-diff-and-restore-an-old-version) | [#75](https://github.com/tillg/karpathy.app/issues/75) | S | 4 | 4 | 3 |
+| 13 | [Scheduled background agent jobs (nightly lint, inbox ingest, weekly digest)](#13-scheduled-background-agent-jobs-nightly-lint-inbox-ingest-weekly-digest) | [#76](https://github.com/tillg/karpathy.app/issues/76) | M | 5 | 4 | 5 |
+| 14 | [Push notifications when a turn/job finishes or needs approval](#14-push-notifications-when-a-turnjob-finishes-or-needs-approval) | [#77](https://github.com/tillg/karpathy.app/issues/77) | M | 4 | 4 | 4 |
+| 15 | [Quick capture and daily notes](#15-quick-capture-and-daily-notes) | [#78](https://github.com/tillg/karpathy.app/issues/78) | S | 4 | 4 | 2 |
+| 16 | [Outline / table of contents and note info (words, reading time)](#16-outline--table-of-contents-and-note-info-words-reading-time) | [#79](https://github.com/tillg/karpathy.app/issues/79) | S | 3 | 4 | 2 |
+| 17 | [Rename/move notes and update every wikilink](#17-renamemove-notes-and-update-every-wikilink) | [#80](https://github.com/tillg/karpathy.app/issues/80) | M | 4 | 4 | 2 |
+| 18 | [Semantic search and "Related notes" (embeddings, also exposed to the agent)](#18-semantic-search-and-related-notes-embeddings-also-exposed-to-the-agent) | [#81](https://github.com/tillg/karpathy.app/issues/81) | L | 4 | 4 | 5 |
+| 19 | [Properties (frontmatter) editor with wiki-schema validation](#19-properties-frontmatter-editor-with-wiki-schema-validation) | [#82](https://github.com/tillg/karpathy.app/issues/82) | M | 4 | 3 | 3 |
+| 20 | [Inline AI edit on a selection (Cmd-K style) with accept/reject](#20-inline-ai-edit-on-a-selection-cmd-k-style-with-acceptreject) | [#83](https://github.com/tillg/karpathy.app/issues/83) | M | 3 | 4 | 4 |
+| 21 | [Model and agent switcher per chat](#21-model-and-agent-switcher-per-chat) | [#84](https://github.com/tillg/karpathy.app/issues/84) | S | 3 | 3 | 3 |
+| 22 | [Token, cost and context meter](#22-token-cost-and-context-meter) | [#85](https://github.com/tillg/karpathy.app/issues/85) | S | 3 | 3 | 3 |
+| 23 | [Deep research into the wiki (`/research <topic>`)](#23-deep-research-into-the-wiki-research-topic) | [#86](https://github.com/tillg/karpathy.app/issues/86) | M | 4 | 3 | 5 |
+| 24 | [Attach photos and PDFs (camera → raw/, chat attachments)](#24-attach-photos-and-pdfs-camera--raw-chat-attachments) | [#87](https://github.com/tillg/karpathy.app/issues/87) | M | 3 | 3 | 3 |
+| 25 | [Voice memos → transcript in raw/ (optional auto-ingest)](#25-voice-memos--transcript-in-raw-optional-auto-ingest) | [#88](https://github.com/tillg/karpathy.app/issues/88) | M | 3 | 3 | 4 |
+| 26 | [Hover / long-press wikilink preview](#26-hover--long-press-wikilink-preview) | [#89](https://github.com/tillg/karpathy.app/issues/89) | S | 3 | 3 | 3 |
+| 27 | [Tag browser (inline and frontmatter tags)](#27-tag-browser-inline-and-frontmatter-tags) | [#90](https://github.com/tillg/karpathy.app/issues/90) | S | 3 | 3 | 2 |
+| 28 | [Wiki dashboards: Bases-compatible query tables](#28-wiki-dashboards-bases-compatible-query-tables) | [#91](https://github.com/tillg/karpathy.app/issues/91) | L | 3 | 3 | 4 |
+| 29 | [Local graph view of the open note](#29-local-graph-view-of-the-open-note) | [#92](https://github.com/tillg/karpathy.app/issues/92) | M | 2 | 2 | 5 |
+| 30 | [Fork a chat from any message](#30-fork-a-chat-from-any-message) | [#93](https://github.com/tillg/karpathy.app/issues/93) | S | 2 | 2 | 3 |
 
 ### Suggested roadmap
 
@@ -265,7 +265,7 @@ flowchart LR
 
 ## 01. Slash commands and one-tap skill chips in the chat
 
-> **Issue:** [#64](https://github.com/tillg/karpathy.ai/issues/64) · **Effort:** S · **Seen in:** Obsidian Copilot, Open WebUI, Claudian, Agent Client (Obsidian ACP)
+> **Issue:** [#64](https://github.com/tillg/karpathy.app/issues/64) · **Effort:** S · **Seen in:** Obsidian Copilot, Open WebUI, Claudian, Agent Client (Obsidian ACP)
 
 Typing `/` in the chat composer opens a palette of the vault's opencode commands and skills (`/ingest`, `/lint`, `/query`, `/timeline`, plus your own prompts stored as `.md` in the vault), each with a description and an argument hint. An empty chat shows one-tap chips like "Ingest inbox", "Lint wiki" and "Ask the wiki", so the most common LLM-wiki operations are a single tap instead of a paragraph typed on a phone keyboard.
 
@@ -361,7 +361,7 @@ Typing "please ingest raw/articles/foo.md following the ingest skill" on a phone
 
 ## 02. Clip URLs / text / files into raw/ with an ingest inbox
 
-> **Issue:** [#65](https://github.com/tillg/karpathy.ai/issues/65) · **Effort:** M · **Seen in:** Karpathy LLM wiki gist, nashsu/llm_wiki, Obsidian Web Clipper
+> **Issue:** [#65](https://github.com/tillg/karpathy.app/issues/65) · **Effort:** M · **Seen in:** Karpathy LLM wiki gist, nashsu/llm_wiki, Obsidian Web Clipper
 
 A capture screen (paste a URL or text, or share into the app from another app) saves the source to `raw/` as clean Markdown with `url` and `clipped` frontmatter. An "Inbox" view lists the raw sources that have not been ingested yet, each with an "Ingest" button that starts the chat turn for it.
 
@@ -461,7 +461,7 @@ Getting sources into `raw/` from the phone is the biggest gap in the mobile LLM-
 
 ## 03. Per-turn review and undo of AI edits
 
-> **Issue:** [#66](https://github.com/tillg/karpathy.ai/issues/66) · **Effort:** M · **Seen in:** Cline, Cursor, Obsidian Git
+> **Issue:** [#66](https://github.com/tillg/karpathy.app/issues/66) · **Effort:** M · **Seen in:** Cline, Cursor, Obsidian Git
 
 After each chat turn a "Changes in this turn" card lists the files the AI changed, with inline diffs and Keep/Undo per hunk and per file. "Undo this turn" restores exactly what that turn changed and leaves your own edits alone, so reviewing a 12-page ingest on the phone no longer means all-or-nothing.
 
@@ -475,7 +475,7 @@ After each chat turn a "Changes in this turn" card lists the files the AI change
 │              │ /ingest raw/article │ │
 │              │ s/2026-09-26-llm-wi │ │
 │              └─────────────────────┘ │
-│ ✦ karpathy.ai · qwen3-coder          │
+│ ✦ karpathy.app · qwen3-coder          │
 │ Ingested the gist: 1 new source,     │
 │ 2 pages updated.                     │
 │ ┌──────────────────────────────────┐ │
@@ -561,7 +561,7 @@ An ingest touches 5–15 pages. Today the only undo is per-file Discard against 
 
 ## 04. "Save to wiki": file a chat answer as a synthesis page
 
-> **Issue:** [#67](https://github.com/tillg/karpathy.ai/issues/67) · **Effort:** S · **Seen in:** Karpathy LLM wiki gist, nashsu/llm_wiki, Khoj, Heptabase
+> **Issue:** [#67](https://github.com/tillg/karpathy.app/issues/67) · **Effort:** S · **Seen in:** Karpathy LLM wiki gist, nashsu/llm_wiki, Khoj, Heptabase
 
 Every finished assistant answer gets a "Save to wiki" button that turns it into `wiki/synthesis/<slug>.md` with proper frontmatter (`sources`, `related`, `confidence`), links it from the related pages and appends entries to `index.md` and `log.md`. Two lighter actions, "Append to current note" and "Insert at cursor", drop the answer into the note you are editing without any AI call.
 
@@ -575,7 +575,7 @@ Every finished assistant answer gets a "Save to wiki" button that turns it into 
 │        │ How does Karpathy's LLM   │ │
 │        │ wiki relate to RAG?       │ │
 │        └───────────────────────────┘ │
-│ ✦ karpathy.ai · qwen3-coder          │
+│ ✦ karpathy.app · qwen3-coder          │
 │ ✓ read wiki/index.md                 │
 │ ✓ read wiki/concepts/rag.md          │
 │ ✓ read wiki/sources/llm-wiki-gist.md │
@@ -589,7 +589,7 @@ Every finished assistant answer gets a "Save to wiki" button that turns it into 
 │ │ Save to wiki │ │ Append │ │Insert│ │ ②
 │ └──────────────┘ └────────┘ └──────┘ │
 │                                      │
-│ ✦ karpathy.ai · qwen3-coder          │
+│ ✦ karpathy.app · qwen3-coder          │
 │ ✎ changed wiki/synthesis/            │ ③
 │    llm-wiki-vs-rag.md                │
 │ ✎ changed wiki/concepts/rag.md       │
@@ -652,7 +652,7 @@ Karpathy's gist says good query answers should be filed back into the wiki; that
 
 ## 05. Backlinks panel with unlinked mentions and a one-tap "Link"
 
-> **Issue:** [#68](https://github.com/tillg/karpathy.ai/issues/68) · **Effort:** M · **Seen in:** Obsidian, SilverBullet, Foam, Quartz
+> **Issue:** [#68](https://github.com/tillg/karpathy.app/issues/68) · **Effort:** M · **Seen in:** Obsidian, SilverBullet, Foam, Quartz
 
 Under the note (or in a side panel on iPad) a "Linked mentions" list shows every note that links to this one, with a context snippet. "Unlinked mentions" shows plain-text occurrences of the note's title or aliases, each with a one-tap "Link" that turns exactly that occurrence into a `[[wikilink]]`.
 
@@ -745,7 +745,7 @@ Checking that the LLM wove a new source into existing pages is the main review l
 
 ## 06. Quick switcher: fuzzy open/create with recent and pinned notes
 
-> **Issue:** [#69](https://github.com/tillg/karpathy.ai/issues/69) · **Effort:** S · **Seen in:** Obsidian, SilverBullet
+> **Issue:** [#69](https://github.com/tillg/karpathy.app/issues/69) · **Effort:** S · **Seen in:** Obsidian, SilverBullet
 
 Cmd/Ctrl-K (or a search button on the phone) opens a fuzzy list of note names and frontmatter `aliases`. With an empty query it shows pinned and recent notes; pressing Enter on a name that does not exist creates that note. It is the fastest way to jump to `index.md`, `log.md` or an entity page without scrolling the tree.
 
@@ -829,7 +829,7 @@ Scrolling a 130-note tree on a phone is slow (#53). After an ingest you want to 
 
 ## 07. Markdown toolbar above the on-screen keyboard
 
-> **Issue:** [#70](https://github.com/tillg/karpathy.ai/issues/70) · **Effort:** M · **Seen in:** Obsidian mobile, 1Writer, Prose
+> **Issue:** [#70](https://github.com/tillg/karpathy.app/issues/70) · **Effort:** M · **Seen in:** Obsidian mobile, 1Writer, Prose
 
 A swipeable row pinned directly above the software keyboard with heading, bold/italic, list, checkbox, `[[` link (opens a note picker), `#` tag, indent/outdent, undo/redo and cursor arrows. The characters that Markdown and an LLM wiki need most are one tap away instead of two keyboard-layer switches.
 
@@ -916,7 +916,7 @@ Typing `[[`, `#` and `- [ ]` on the iOS keyboard needs several layer switches ea
 
 ## 08. Plan mode: agent proposes the pages it will touch, user approves before writing
 
-> **Issue:** [#71](https://github.com/tillg/karpathy.ai/issues/71) · **Effort:** M · **Seen in:** Cline, Roo Code, opencode
+> **Issue:** [#71](https://github.com/tillg/karpathy.app/issues/71) · **Effort:** M · **Seen in:** Cline, Roo Code, opencode
 
 A Plan/Act toggle in the chat composer. In Plan mode the agent reads the vault and proposes which pages it will create or change, without writing anything; "Go" continues the same session in Build mode. An optional "ask" mode shows each edit as an approval card with its diff before it lands.
 
@@ -930,7 +930,7 @@ A Plan/Act toggle in the chat composer. In Plan mode the agent reads the vault a
 │  │ /ingest raw/articles/2026-09-2 │  │
 │  │ 4-software-3-0.md              │  │
 │  └────────────────────────────────┘  │
-│ ✦ karpathy.ai · plan                 │
+│ ✦ karpathy.app · plan                 │
 │ ✓ read raw/articles/…software-3-0.md │
 │ ✓ read wiki/index.md                 │
 │ PLAN · no files changed yet          │ ①
@@ -1010,7 +1010,7 @@ Before a 15-page ingest on the phone, you want to see the plan and trust it, rat
 
 ## 09. Clickable citations and source provenance
 
-> **Issue:** [#72](https://github.com/tillg/karpathy.ai/issues/72) · **Effort:** S · **Seen in:** NotebookLM, AnythingLLM, GPT Researcher, nashsu/llm_wiki
+> **Issue:** [#72](https://github.com/tillg/karpathy.app/issues/72) · **Effort:** S · **Seen in:** NotebookLM, AnythingLLM, GPT Researcher, nashsu/llm_wiki
 
 Answers cite `[[wiki/page#Heading]]`, and the chat renders these citations (and the files the turn read) as tappable chips that open the note scrolled to that heading. The note pane shows `sources:` frontmatter as links into `raw/`, and a raw file shows the wiki pages derived from it, so every claim can be traced back to where it came from.
 
@@ -1024,7 +1024,7 @@ Answers cite `[[wiki/page#Heading]]`, and the chat renders these citations (and 
 │        │ Where did Karpathy first  │ │
 │        │ describe the LLM wiki?    │ │
 │        └───────────────────────────┘ │
-│ ✦ karpathy.ai · qwen3-coder          │
+│ ✦ karpathy.app · qwen3-coder          │
 │ In his LLM-wiki GitHub gist ¹, which │
 │ builds on "Software 3.0" ²: the LLM  │
 │ compiles raw sources into a          │
@@ -1101,7 +1101,7 @@ It makes answers checkable on the phone: one tap from a claim to the paragraph i
 
 ## 10. @-mention notes and folders as chat context
 
-> **Issue:** [#73](https://github.com/tillg/karpathy.ai/issues/73) · **Effort:** S · **Seen in:** Obsidian Copilot, Notion AI, Capacities
+> **Issue:** [#73](https://github.com/tillg/karpathy.app/issues/73) · **Effort:** S · **Seen in:** Obsidian Copilot, Notion AI, Capacities
 
 Typing `@` in the chat composer opens a fuzzy note/folder search; picked items become removable chips that are sent with the prompt as explicit context. Two shortcuts cover the common cases: `@current` for the open note and `@selection` for the selected text.
 
@@ -1185,7 +1185,7 @@ Typing `wiki/entities/andrej-karpathy.md` on a phone keyboard is painful, and "t
 
 ## 11. Auto-fetch on open with a "behind remote" badge and one-tap pull
 
-> **Issue:** [#74](https://github.com/tillg/karpathy.ai/issues/74) · **Effort:** S · **Seen in:** Obsidian Git, Working Copy, GitJournal
+> **Issue:** [#74](https://github.com/tillg/karpathy.app/issues/74) · **Effort:** S · **Seen in:** Obsidian Git, Working Copy, GitJournal
 
 When you open the app, the backend fetches from GitHub right away and again every few minutes. The header tells you how far behind your copy is ("↓ 3 behind"). One tap pulls, so you stop editing an old copy of a page that Obsidian desktop changed an hour ago.
 
@@ -1275,7 +1275,7 @@ The vault is shared with Obsidian on the Mac and on the phone. An ingest on the 
 
 ## 12. Per-file history: git log, diff and restore an old version
 
-> **Issue:** [#75](https://github.com/tillg/karpathy.ai/issues/75) · **Effort:** S · **Seen in:** Obsidian Git, TriliumNext, HedgeDoc, Joplin
+> **Issue:** [#75](https://github.com/tillg/karpathy.app/issues/75) · **Effort:** S · **Seen in:** Obsidian Git, TriliumNext, HedgeDoc, Joplin
 
 Each note gets a "History" view that lists every commit that touched it. Pick one to read that version and see a diff against the current file. "Restore" brings the old text back as an ordinary uncommitted change, so you can review it and commit it like any other edit.
 
@@ -1366,7 +1366,7 @@ Git already stores the history, so this costs little. It is the safety net for A
 
 ## 13. Scheduled background agent jobs (nightly lint, inbox ingest, weekly digest)
 
-> **Issue:** [#76](https://github.com/tillg/karpathy.ai/issues/76) · **Effort:** M · **Seen in:** Claude Code routines, AnythingLLM, Khoj
+> **Issue:** [#76](https://github.com/tillg/karpathy.app/issues/76) · **Effort:** M · **Seen in:** Claude Code routines, AnythingLLM, Khoj
 
 Each vault gets a "Jobs" page where you schedule agent work: a nightly `/lint`, an inbox ingest every morning, a weekly digest. The server runs these while your phone sleeps. In the morning you get a report and a set of uncommitted edits to review. Nothing is committed for you.
 
@@ -1455,7 +1455,7 @@ Karpathy describes lint as a periodic operation, and a phone is a bad place to r
 
 ## 14. Push notifications when a turn/job finishes or needs approval
 
-> **Issue:** [#77](https://github.com/tillg/karpathy.ai/issues/77) · **Effort:** M · **Seen in:** WebKit Web Push, Claude Code
+> **Issue:** [#77](https://github.com/tillg/karpathy.app/issues/77) · **Effort:** M · **Seen in:** WebKit Web Push, Claude Code
 
 Start an ingest, lock the phone, and get a notification when it's done, when the agent is waiting for your approval, or when a pull hits a conflict. The home-screen icon shows a badge with the number of changes waiting for review.
 
@@ -1467,13 +1467,13 @@ Start an ingest, lock the phone, and get a notification when it's done, when the
 │         Saturday, 26 September         │
 │                                        │
 │ ┌────────────────────────────────────┐ │
-│ │ ◆ karpathy.ai              now   ① │ │
+│ │ ◆ karpathy.app              now   ① │ │
 │ │ Ingest finished · Frechen          │ │
 │ │ 6 files changed: sources/software- │ │
 │ │ 2-0.md, entities/andrej-karpathy…  │ │
 │ └────────────────────────────────────┘ │
 │ ┌────────────────────────────────────┐ │
-│ │ ◆ karpathy.ai             2m ago ② │ │
+│ │ ◆ karpathy.app             2m ago ② │ │
 │ │ Approval needed · Frechen          │ │
 │ │ Agent wants to run: rg "Tesla"     │ │
 │ │ in raw/articles/                   │ │
@@ -1545,7 +1545,7 @@ On a phone you start an ingest and put the phone away. Without a notification yo
 
 ## 15. Quick capture and daily notes
 
-> **Issue:** [#78](https://github.com/tillg/karpathy.ai/issues/78) · **Effort:** S · **Seen in:** Drafts, Obsidian daily notes, Obsidian mobile, Memos
+> **Issue:** [#78](https://github.com/tillg/karpathy.app/issues/78) · **Effort:** S · **Seen in:** Drafts, Obsidian daily notes, Obsidian mobile, Memos
 
 A "+" button opens a small text box. What you type is added, with a timestamp, to `Inbox.md` or to today's daily note, without opening the editor. "Today" opens today's `daily/YYYY-MM-DD.md` and creates it from a template if it doesn't exist yet.
 
@@ -1635,7 +1635,7 @@ It is the fastest way to get a thought into the vault from a phone, faster than 
 
 ## 16. Outline / table of contents and note info (words, reading time)
 
-> **Issue:** [#79](https://github.com/tillg/karpathy.ai/issues/79) · **Effort:** S · **Seen in:** Obsidian, Bear, Typora
+> **Issue:** [#79](https://github.com/tillg/karpathy.app/issues/79) · **Effort:** S · **Seen in:** Obsidian, Bear, Typora
 
 An outline of the current note's headings: a side panel on tablet, a bottom sheet on phone. Tap a heading to jump to it. A small info sheet shows words, characters and reading time. Frontmatter is not counted, and if text is selected, only the selection is.
 
@@ -1721,7 +1721,7 @@ LLM-generated synthesis and source pages are long and heavily sectioned. On a ph
 
 ## 17. Rename/move notes and update every wikilink
 
-> **Issue:** [#80](https://github.com/tillg/karpathy.ai/issues/80) · **Effort:** M · **Seen in:** Obsidian, Dendron, SilverBullet
+> **Issue:** [#80](https://github.com/tillg/karpathy.app/issues/80) · **Effort:** M · **Seen in:** Obsidian, Dendron, SilverBullet
 
 Rename or move a note in the file tree, and before anything happens you see every file whose links will change: `[[old]]`, `[[old|alias]]`, `[[old#heading]]`, and frontmatter lists such as `sources:` and `related:`. Confirm, and the rename and all link fixes land as uncommitted changes you can review or discard together.
 
@@ -1808,7 +1808,7 @@ The wiki is a graph of `[[links]]` and frontmatter references. A single rename o
 
 ## 18. Semantic search and "Related notes" (embeddings, also exposed to the agent)
 
-> **Issue:** [#81](https://github.com/tillg/karpathy.ai/issues/81) · **Effort:** L · **Seen in:** Smart Connections, Khoj, Reor, qmd
+> **Issue:** [#81](https://github.com/tillg/karpathy.app/issues/81) · **Effort:** L · **Seen in:** Smart Connections, Khoj, Reor, qmd
 
 A per-vault embedding index lets you search by meaning, not just by matching words. The same index fills a "Related notes" panel for the open note. The agent can use it too, through an MCP tool, so ingest and query skills can find pages by meaning.
 
@@ -1900,7 +1900,7 @@ Queries phrased differently from the page text fail with grep: "who trains nets 
 
 ## 19. Properties (frontmatter) editor with wiki-schema validation
 
-> **Issue:** [#82](https://github.com/tillg/karpathy.ai/issues/82) · **Effort:** M · **Seen in:** Obsidian properties, Foam, Notion AI
+> **Issue:** [#82](https://github.com/tillg/karpathy.app/issues/82) · **Effort:** M · **Seen in:** Obsidian properties, Foam, Notion AI
 
 A collapsible form above the editor shows the YAML frontmatter as typed fields: text, list chips, dates and link lists. A toggle switches back to raw YAML. The form checks the fields against the wiki schema (`type`, `tags`, `updated`, `sources`, `related`, `confidence`) and flags anything that doesn't fit, so you can fix a page's metadata without typing YAML on a phone keyboard.
 
@@ -1987,7 +1987,7 @@ The LLM wiki depends on consistent frontmatter: Dataview queries, the index, and
 
 ## 20. Inline AI edit on a selection (Cmd-K style) with accept/reject
 
-> **Issue:** [#83](https://github.com/tillg/karpathy.ai/issues/83) · **Effort:** M · **Seen in:** Cursor, ChatGPT Canvas, Obsidian Copilot
+> **Issue:** [#83](https://github.com/tillg/karpathy.app/issues/83) · **Effort:** M · **Seen in:** Cursor, ChatGPT Canvas, Obsidian Copilot
 
 Select some text, tap the floating ✦ button (or press Cmd-K), and tell the AI what to do: "tighten", "translate", "make a table", or anything else. The result shows up in place as a proposed diff with Accept and Reject. In "ask" mode you get an answer about the selection instead.
 
@@ -2075,7 +2075,7 @@ Small edits are the common case on a phone: tighten a summary the ingest wrote, 
 
 ## 21. Model and agent switcher per chat
 
-> **Issue:** [#84](https://github.com/tillg/karpathy.ai/issues/84) · **Effort:** S · **Seen in:** Agent Client, Cline, opencode SDK
+> **Issue:** [#84](https://github.com/tillg/karpathy.app/issues/84) · **Effort:** S · **Seen in:** Agent Client, Cline, opencode SDK
 
 A dropdown in the chat header picks the provider and model, and optionally the agent (normal
 `vault`, `plan`, or a custom "librarian"), for the next turn. The choice is remembered per chat, so a
@@ -2100,7 +2100,7 @@ cheap local model can run the weekly lint while a strong model writes the synthe
 │         Lint wiki/entities/ and flag │
 │         pages with confidence: low   │
 │                                      │
-│ karpathy.ai · qwen3:14b            ④ │
+│ karpathy.app · qwen3:14b            ④ │
 │ ✓ read wiki/entities/andrej-karpat…  │
 │ 3 pages are marked confidence: low:  │
 │ tinygrad.md, eureka-labs.md, …       │
@@ -2181,7 +2181,7 @@ makes the project's provider-agnostic design visible instead of hidden in a sett
 
 ## 22. Token, cost and context meter
 
-> **Issue:** [#85](https://github.com/tillg/karpathy.ai/issues/85) · **Effort:** S · **Seen in:** opencode TokenScope, Agent Client
+> **Issue:** [#85](https://github.com/tillg/karpathy.app/issues/85) · **Effort:** S · **Seen in:** opencode TokenScope, Agent Client
 
 Every assistant turn shows its input, output and cache tokens plus an estimated cost, and the chat
 keeps a running total. A context-fill bar warns before the model runs out of room and offers
@@ -2200,7 +2200,7 @@ keeps a running total. A context-fill bar warns before the model runs out of roo
 │       Ingest raw/articles/karpathy-  │
 │       llm-wiki-gist.md into the wiki │
 │                                      │
-│ karpathy.ai · claude-sonnet          │
+│ karpathy.app · claude-sonnet          │
 │ ✓ read raw/articles/karpathy-llm-…   │
 │ ✎ changed wiki/sources/llm-wiki.md   │
 │ ✎ changed wiki/concepts/llm-wiki.md  │
@@ -2282,7 +2282,7 @@ With scheduled lint and ingest jobs, the monthly total is the only place spend b
 
 ## 23. Deep research into the wiki (`/research <topic>`)
 
-> **Issue:** [#86](https://github.com/tillg/karpathy.ai/issues/86) · **Effort:** M · **Seen in:** nashsu/llm_wiki, GPT Researcher MCP
+> **Issue:** [#86](https://github.com/tillg/karpathy.app/issues/86) · **Effort:** M · **Seen in:** nashsu/llm_wiki, GPT Researcher MCP
 
 Typing `/research <topic>` makes the agent propose a handful of sub-questions, which the user
 confirms or edits before any money is spent. It then searches the web, saves useful sources to
@@ -2297,7 +2297,7 @@ from gaps that lint flagged.
 ├──────────────────────────────────────┤
 │   /research nanoGPT vs. llm.c        │
 │                                      │
-│ karpathy.ai · claude-sonnet          │
+│ karpathy.app · claude-sonnet          │
 │ Research plan                      ① │
 │ ☑ How do nanoGPT and llm.c differ    │
 │   in goals and codebase size?        │
@@ -2378,7 +2378,7 @@ otherwise left for later. Research turns a throwaway chat answer into durable, c
 
 ## 24. Attach photos and PDFs (camera → raw/, chat attachments)
 
-> **Issue:** [#87](https://github.com/tillg/karpathy.ai/issues/87) · **Effort:** M · **Seen in:** Agent Client, opencode attachments, caniuse HTML media capture
+> **Issue:** [#87](https://github.com/tillg/karpathy.app/issues/87) · **Effort:** M · **Seen in:** Agent Client, opencode attachments, caniuse HTML media capture
 
 An "Attach" button in the editor and in the chat composer takes a photo or picks a file. In the
 editor the file goes to the attachment folder and `![[file]]` is inserted at the cursor. In the
@@ -2396,7 +2396,7 @@ are saved to `raw/` and ingested.
 │  │ ▒ photo  ▒ │  from "Deep Learning"│
 │  └────────────┘  into the wiki     ① │
 │                                      │
-│ karpathy.ai · claude-sonnet          │
+│ karpathy.app · claude-sonnet          │
 │ ✓ saved raw/media/2026-09-26-book.jpg│
 │ ✎ changed wiki/concepts/backprop.md  │
 │ ✎ changed wiki/sources/deep-learnin… │
@@ -2481,7 +2481,7 @@ finally have a path into `raw/` without a laptop.
 
 ## 25. Voice memos → transcript in raw/ (optional auto-ingest)
 
-> **Issue:** [#88](https://github.com/tillg/karpathy.ai/issues/88) · **Effort:** M · **Seen in:** Mem, Tana, Open WebUI, What PWA can do
+> **Issue:** [#88](https://github.com/tillg/karpathy.app/issues/88) · **Effort:** M · **Seen in:** Mem, Tana, Open WebUI, What PWA can do
 
 A mic button records a voice memo. The server transcribes it with a configurable speech-to-text
 backend and saves `raw/voice/<date>.md`, optionally keeping the audio. The user can pick a preset
@@ -2586,7 +2586,7 @@ remember to process it" into one action.
 
 ## 26. Hover / long-press wikilink preview
 
-> **Issue:** [#89](https://github.com/tillg/karpathy.ai/issues/89) · **Effort:** S · **Seen in:** Obsidian, Quartz
+> **Issue:** [#89](https://github.com/tillg/karpathy.app/issues/89) · **Effort:** S · **Seen in:** Obsidian, Quartz
 
 Hovering a `[[wikilink]]` on desktop, or long-pressing it on touch in Read mode, opens a
 scrollable popover with the target note rendered. "Open" navigates there; a missing page offers
@@ -2688,7 +2688,7 @@ ingest is about.
 
 ## 27. Tag browser (inline and frontmatter tags)
 
-> **Issue:** [#90](https://github.com/tillg/karpathy.ai/issues/90) · **Effort:** S · **Seen in:** Obsidian, Foam
+> **Issue:** [#90](https://github.com/tillg/karpathy.app/issues/90) · **Effort:** S · **Seen in:** Obsidian, Foam
 
 A panel lists every tag in the vault, both inline `#tag` and frontmatter `tags:`, with counts.
 Tags can be shown nested (`#topic/sub`) or flat and sorted by name or frequency; tapping a tag
@@ -2778,7 +2778,7 @@ everything tagged `#topic/robotics`".
 
 ## 28. Wiki dashboards: Bases-compatible query tables
 
-> **Issue:** [#91](https://github.com/tillg/karpathy.ai/issues/91) · **Effort:** L · **Seen in:** Obsidian Bases, Dataview, SilverBullet
+> **Issue:** [#91](https://github.com/tillg/karpathy.app/issues/91) · **Effort:** L · **Seen in:** Obsidian Bases, Dataview, SilverBullet
 
 A fenced ` ```base ` block renders a live, read-only table over notes filtered by folder, tag and
 frontmatter, for example "entities with `confidence: low` sorted by `updated`" or "sources
@@ -2843,7 +2843,7 @@ sequenceDiagram
 ![Wiki dashboards diagram](../../docs/diagrams/f28-wiki-dashboards.svg)
 
 - v1 supports a subset of Obsidian Bases syntax: filters on folder, tag and frontmatter equality,
-  sort, and the table view. Anything else renders as "unsupported in karpathy.ai" with the raw
+  sort, and the table view. Anything else renders as "unsupported in karpathy.app" with the raw
   block shown.
 - The backend keeps a frontmatter index per vault (shared with tags, backlinks, graph) and
   evaluates the query; proposed route `POST /vaults/:id/base` with the block source.
@@ -2879,7 +2879,7 @@ Obsidian on the Mac.
 
 ## 29. Local graph view of the open note
 
-> **Issue:** [#92](https://github.com/tillg/karpathy.ai/issues/92) · **Effort:** M · **Seen in:** Obsidian, Quartz, Foam
+> **Issue:** [#92](https://github.com/tillg/karpathy.app/issues/92) · **Effort:** M · **Seen in:** Obsidian, Quartz, Foam
 
 A small force-directed graph shows the notes within depth 1–2 of the open note, both outgoing links
 and backlinks, coloured by folder or `type` (entity, concept, source, synthesis). Tapping a node
@@ -2967,7 +2967,7 @@ users expect; graph view was deferred past the MVP.
 
 ## 30. Fork a chat from any message
 
-> **Issue:** [#93](https://github.com/tillg/karpathy.ai/issues/93) · **Effort:** S · **Seen in:** LibreChat, AnythingLLM mobile
+> **Issue:** [#93](https://github.com/tillg/karpathy.app/issues/93) · **Effort:** S · **Seen in:** LibreChat, AnythingLLM mobile
 
 "Fork from here" on any message opens a new chat that contains the history up to that point. The
 user can try another direction, for example a different synthesis angle, without losing the
@@ -2982,7 +2982,7 @@ original conversation.
 │        Compare the LLM-wiki pattern  │
 │        with classic RAG              │
 │                                      │
-│ karpathy.ai · claude-sonnet          │
+│ karpathy.app · claude-sonnet          │
 │ ✓ read wiki/concepts/llm-wiki.md     │
 │ ✓ read wiki/concepts/rag.md          │
 │ The wiki compiles knowledge once;    │

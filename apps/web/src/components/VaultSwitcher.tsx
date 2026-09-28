@@ -54,7 +54,7 @@ export function VaultSwitcher({ compact }: { compact?: boolean }) {
         aria-haspopup="menu" aria-expanded={open}>
         {!compact && <img src="/icon-192.png" alt="" />}
         <div>
-          {!compact && <b>karpathy.ai</b>}
+          {!compact && <b>karpathy.app</b>}
           <small>{active ? `${active.name} · ${active.branch}` : 'No vault'} <Icon n="chevron_down" size={11} /></small>
         </div>
       </button>

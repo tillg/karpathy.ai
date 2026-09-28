@@ -24,7 +24,7 @@ real Safari (decision 43).
 (desktop, iPad, iPhone) and WebKit incl. axe accessibility checks, plus a prod-image smoke run.
 Five rounds of exploratory, resilience, security, accessibility and performance testing filed 52 GitHub issues
 (`e2e-found` label); all fixed with a regression test and closed except those still in progress
-at the time of writing (see `gh issue list -R tillg/karpathy.ai`).
+at the time of writing (see `gh issue list -R tillg/karpathy.app`).
 
 **Worth a look first** (decision numbers in the table below, not issue numbers): 3 (OpenAI key
 unusable → local Ollama; Claude tool-calling untested), 6 (a GitHub test repo was created),
@@ -49,7 +49,7 @@ discard/queue semantics that go beyond the spec).
 | 11 | `DELETE /vaults/:id` is also blocked (409) while **unpushed commits** exist, not only uncommitted changes. | Removing the clone would silently lose them. | yes |
 | 12 | Extra routes not in the spec: `DELETE /vaults/:id/file?path=&version=` (delete a note), `GET /vaults/:id/conflicts/sides?path=` (mine/theirs for the resolution UI), `DELETE /vaults/:id/chats/:chatId`, unauthenticated `GET /healthz` (container liveness; no data; outside `/api`). `PUT /file` accepts `force: true` for the stale-save "Overwrite" choice. | Needed for a usable UI (create/edit/delete notes) and for Docker health checks. | yes |
 | 13 | File tree hides dot-entries (`.git`, `.obsidian`, `.claude`, …). Search = ripgrep fixed-string, case-insensitive (respects `.gitignore`), plus file-name matches (line 0), max 200 hits. | Obsidian-like; skills/config aren't notes. | yes |
-| 14 | Commit `Co-authored-by` trailer: `Co-authored-by: karpathy.ai agent <agent@karpathy.ai>`. Author/committer = `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL` env of the backend. | Spec says "an agent trailer" without naming one. | yes |
+| 14 | Commit `Co-authored-by` trailer: `Co-authored-by: karpathy.app agent <agent@karpathy.app>`. Author/committer = `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL` env of the backend. | Spec says "an agent trailer" without naming one. | yes |
 | 15 | Commit / push: if the pre-commit pull can't reach the remote ("offline"), the commit is still made locally and becomes an unpushed commit. | Matches plan P3 "remote unreachable → commit local, 1 unpushed". | yes |
 | 16 | Prod proxy image builds Caddy with a DNS provider module via `xcaddy` (build arg `DNS_PROVIDER`, default **cloudflare** — assumption, the DNS provider isn't named anywhere). DNS token via `{file.*}` from a compose secret. | DNS-01 needs a provider module. | yes |
 | 17 | Named volumes get their ownership from the images (mount points pre-created as `APP_UID:APP_GID`, default 1000:1000) instead of an init container. | Keeps the stack at the three specified services (+ a dev-only `web` Vite service). | yes |

@@ -4,7 +4,7 @@ import type { Change, ChangeKind, ConflictChoice } from '@karpathy/shared';
 import { Git, type GitOptions } from './git.js';
 
 export const PULL_STASH = 'karpathy-ai-pull';
-export const AI_TRAILER = 'Co-authored-by: karpathy.ai agent <agent@karpathy.ai>';
+export const AI_TRAILER = 'Co-authored-by: karpathy.app agent <agent@karpathy.app>';
 
 export type PullResult =
   | { kind: 'ok'; pushed: boolean; pushError?: string }

@@ -20,7 +20,7 @@ const env = {
   token: secret('BEARER_TOKEN') ?? '',
   githubToken: secret('GITHUB_TOKEN'),
   remoteBase: process.env.GIT_REMOTE_BASE ?? 'https://github.com/',
-  identity: { name: process.env.GIT_AUTHOR_NAME ?? 'karpathy.ai user', email: process.env.GIT_AUTHOR_EMAIL ?? 'user@karpathy.ai' },
+  identity: { name: process.env.GIT_AUTHOR_NAME ?? 'karpathy.app user', email: process.env.GIT_AUTHOR_EMAIL ?? 'user@karpathy.app' },
   opencodeUrl: process.env.OPENCODE_URL ?? 'http://opencode:4096',
   /** The vaults dir as opencode sees it (same volume, maybe another mount path). */
   opencodeVaultsDir: process.env.OPENCODE_VAULTS_DIR ?? '/vaults',

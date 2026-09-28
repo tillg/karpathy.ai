@@ -131,7 +131,7 @@ test.describe('keyboard and screen readers', () => {
     await expect(page.getByRole('main', { name: 'Note' })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Sidebar' })).toBeVisible();
     await expect(page.getByRole('banner')).toHaveCount(1);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`karpathy.ai — ${vault.id}`);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`karpathy.app — ${vault.id}`);
     await expect(page.getByRole('heading', { level: 2, name: 'Home' })).toHaveCount(1);
   });
 

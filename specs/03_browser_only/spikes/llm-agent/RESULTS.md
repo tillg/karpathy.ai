@@ -2,7 +2,7 @@
 
 Run 2026-09-27 on Apple M4 Max, macOS 27.0 (`uname -m` = arm64), Node v22.13.1, Playwright 1.63.0
 (headless Chromium 153 / WebKit 26.6 ≈ Safari 26). LLM for L2–L4: `qwen2.5:3b` in the dev stack's
-Ollama container (`karpathy-ai-ollama-1`), reached through a throwaway socat forwarder on
+Ollama container (`karpathy-app-ollama-1`), reached through a throwaway socat forwarder on
 `127.0.0.1:11435`. The forwarder was removed afterwards. No API keys were used or stored.
 
 ## Verdicts
@@ -168,7 +168,7 @@ npm install && npx playwright install chromium webkit
 npm run fixture                       # copies ~/git/mylife_wiki/**/*.md (read-only) to public/fixture (gitignored) + builds the small vault
 bash scripts/cors-curl.sh             # L1 preflights
 # L2–L4 need the forwarder to the dev stack's Ollama (no stack changes):
-docker run -d --rm --name spike-ollama-fwd --network karpathy-ai_internal -p 127.0.0.1:11435:11434 \
+docker run -d --rm --name spike-ollama-fwd --network karpathy-app_internal -p 127.0.0.1:11435:11434 \
   alpine/socat tcp-listen:11434,fork,reuseaddr tcp-connect:ollama:11434
 bash scripts/ollama-cors.sh           # L2 CORS per origin
 node scripts/mixed-content.mjs        # L2 HTTPS page -> http://localhost Ollama

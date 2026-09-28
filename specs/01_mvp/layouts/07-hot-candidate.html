@@ -35,7 +35,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f1e33">
-<title>karpathy.ai · Hot Candidate</title>
+<title>karpathy.app · Hot Candidate</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/framework7-icons@5.0.5/css/framework7-icons.css">
 <link rel="icon" type="image/png" href="../../../assets/icons/favicon-32x32.png">
 <style>
@@ -334,7 +334,7 @@ body.resizing #app *{pointer-events:none}
       <button class="ib only-tab" data-act="closesb" title="Close sidebar"><i data-i="sidebar"></i></button>
     </div>
     <div class="scroll">
-      <button class="brand" data-act="vaults" title="Switch vault"><img src="../../../assets/karpathy_ai_logo.png" alt=""><div><b>karpathy.ai</b><small>Frechen vault · main <i data-i="chevD"></i></small></div></button>
+      <button class="brand" data-act="vaults" title="Switch vault"><img src="../../../assets/karpathy_app_logo.png" alt=""><div><b>karpathy.app</b><small>Frechen vault · main <i data-i="chevD"></i></small></div></button>
       <button class="sfield no-phone" data-sec="search"><i data-i="search"></i>Search vault</button>
       <div class="gh">Library</div>
       <div class="grp">
@@ -523,7 +523,7 @@ AI researcher (OpenAI founding member, ex-Tesla Autopilot), educator behind *Neu
 - [[sources/karpathy-llm-wiki-gist]]`,
 'wiki/entities/obsidian.md':fm('entity','tool, pkm','2026-09-12','obsidian-web-clipper.md','high')+`# Obsidian
 
-Local-first Markdown editor. Mobile and desktop attach to the **same git remote** as karpathy.ai.
+Local-first Markdown editor. Mobile and desktop attach to the **same git remote** as karpathy.app.
 
 - Editor is built on CodeMirror 6 → lossless round-trip
 - Web Clipper drops articles into raw/articles → [[sources/obsidian-web-clipper]]
@@ -801,10 +801,10 @@ function vaultMenu(a){
 }
 
 /* ---------- chat ---------- */
-const msgs=$('#msgs'),LOGO='../../../assets/karpathy_ai_logo.png';
+const msgs=$('#msgs'),LOGO='../../../assets/karpathy_app_logo.png';
 const chipHTML=(label,state)=>`<span class="tc">${state==='run'?'<span class="spin"></span>':`<span class="ok">${svg('check')}</span>`}${label}</span>`;
 const editChip=(p,a,d)=>`<span class="tc ed" data-open="${p}">${svg('pencil')}edited ${p} <span class="p">+${a}</span><span class="m">−${d}</span></span>`;
-function aiShell(){const d=document.createElement('div');d.className='a';d.innerHTML=`<div class="who"><img src="${LOGO}" alt="">karpathy.ai · ${esc(S.model.split(' ·')[0])}</div><div class="tcs"></div><div class="txt"></div>`;msgs.appendChild(d);scrollChat();return d}
+function aiShell(){const d=document.createElement('div');d.className='a';d.innerHTML=`<div class="who"><img src="${LOGO}" alt="">karpathy.app · ${esc(S.model.split(' ·')[0])}</div><div class="tcs"></div><div class="txt"></div>`;msgs.appendChild(d);scrollChat();return d}
 function addUser(t){const d=document.createElement('div');d.className='u';d.textContent=t;msgs.appendChild(d);scrollChat()}
 function scrollChat(){const s=$('#cScroll');requestAnimationFrame(()=>s.scrollTop=s.scrollHeight)}
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -814,7 +814,7 @@ async function stream(el,text){el.innerHTML='<span class="s"></span><span class=
   el.innerHTML=inl(text);scrollChat()}
 function seed(){
   msgs.innerHTML=`<div class="day">Today 09:41</div><div class="u">/ingest raw/articles/karpathy-llm-wiki-gist.md and update the concept page</div>
-  <div class="a"><div class="who"><img src="${LOGO}" alt="">karpathy.ai · claude-sonnet-5</div>
+  <div class="a"><div class="who"><img src="${LOGO}" alt="">karpathy.app · claude-sonnet-5</div>
    <div class="tcs">${chipHTML('skill ingest')}${chipHTML('read wiki/index.md')}${chipHTML("grep 'Karpathy' · 9 hits")}${chipHTML('read raw/articles/karpathy-llm-wiki-gist.md')}${editChip('wiki/concepts/llm-wiki.md',12,3)}${chipHTML('write wiki/sources/karpathy-llm-wiki-gist.md')}</div>
    <div>${inl('Ingested the gist. I created [[sources/karpathy-llm-wiki-gist]], linked it from [[entities/andrej-karpathy]] and rewrote the *Kernidee* section of [[concepts/llm-wiki]]. [[index]] and [[log]] are updated.')}</div>
    <div class="diff"><div class="dh"><span>wiki/concepts/llm-wiki.md</span><span><span style="color:var(--green)">+12</span> <span style="color:var(--red)">−3</span></span></div>

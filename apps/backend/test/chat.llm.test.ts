@@ -84,7 +84,7 @@ describe('@llm AI reads and writes', () => {
     expect(t.vaults.aiTouched(t.id)).toContain(changed);
     // Commit → Co-authored-by trailer, set empty afterwards.
     await t.vaults.commit(t.id, 'AI note');
-    expect(sh(t.remote.bare, 'log', '-1', '--format=%B')).toContain('Co-authored-by: karpathy.ai agent');
+    expect(sh(t.remote.bare, 'log', '-1', '--format=%B')).toContain('Co-authored-by: karpathy.app agent');
     expect(t.vaults.aiTouched(t.id)).toEqual([]);
   });
 

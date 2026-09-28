@@ -20,7 +20,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b1220">
-<title>01 · Three-Pane Classic — karpathy.ai</title>
+<title>01 · Three-Pane Classic — karpathy.app</title>
 <link rel="icon" type="image/png" sizes="32x32" href="../../../assets/icons/favicon-32x32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -366,7 +366,7 @@ code{font:.86em var(--mono);background:var(--panel2);border:1px solid var(--line
   <div class="meta"><a href="index.html">← All layouts</a><span>·</span><b>01 · Three-Pane Classic</b><span style="margin-left:auto" class="vault">prototype · sample data</span></div>
 
   <header class="top">
-    <div class="brand"><img class="logo" src="../../../assets/karpathy_ai_logo.png" alt="karpathy.ai"><span class="word">karpathy.ai</span><span class="vault">/ Frechen</span></div>
+    <div class="brand"><img class="logo" src="../../../assets/karpathy_app_logo.png" alt="karpathy.app"><span class="word">karpathy.app</span><span class="vault">/ Frechen</span></div>
     <div class="ptitle" id="ptitle">llm-wiki</div>
     <button class="gsearch" id="gsearch"><svg class="i"><use href="#i-search"/></svg>Search vault…<kbd>⌘K</kbd></button>
     <div class="tact">
@@ -427,7 +427,7 @@ code{font:.86em var(--mono);background:var(--panel2);border:1px solid var(--line
 
   <aside class="chat" id="chat">
     <div class="chead">
-      <img class="logo" src="../../../assets/karpathy_ai_logo.png" alt="">
+      <img class="logo" src="../../../assets/karpathy_app_logo.png" alt="">
       <div><b>Vault agent</b><small>opencode · session “ingest karpathy gist” · cwd ~/Frechen</small></div>
       <button class="ib" title="New session" id="newSess"><svg class="i"><use href="#i-plus"/></svg></button>
       <button class="ib" title="Close chat" id="chatClose"><svg class="i"><use href="#i-x"/></svg></button>
@@ -617,7 +617,7 @@ confidence: high
 
 Markdown-Editor auf CodeMirror 6. Mobile und Desktop hängen am selben Git-Remote wie dieses Vault.
 
-- Kein Graph View im MVP von karpathy.ai
+- Kein Graph View im MVP von karpathy.app
 - Konfliktfälle werden in [[log]] notiert
 === wiki/sources/karpathy-llm-wiki-gist.md
 ---
@@ -886,7 +886,7 @@ const MODELS=[['claude-sonnet-5','Anthropic'],['claude-opus-5','Anthropic'],['gp
 function renderModels(){$('#modelMenu').innerHTML='<h4>Model · provider</h4>'+MODELS.map(([m,p])=>`<button class="mopt${S.model.startsWith(m+' ')?' on':''}" data-model="${m} · ${p}">${ico('cpu')}<b>${m}</b><small>${p}</small></button>`).join('')+'<div class="smeta">Keys live server-side in opencode config.</div>'}
 const chipHTML=c=>`<button class="chip${c.ed?' ed':''}${c.run?' run':''}" ${c.path?`data-open="${c.path}"`:''} ${c.q?`data-q="${c.q}"`:''}>${ico(c.run?'load':c.ed?'note':c.i||'check')}<span>${c.label}</span></button>`;
 const DIFF=`<div class="diff"><header>${ico('note')}<span>wiki/concepts/llm-wiki.md</span><b class="add">+12</b><b class="del">−3</b></header><pre><div class="h">@@ -21,5 +21,14 @@ ## Operations</div><div class="m">-1. Ingest — Quelle lesen</div><div class="m">-2. Query — Fragen beantworten</div><div class="p">+1. **Ingest** — Quelle lesen, Summary in \`wiki/sources/\`, …</div><div class="p">+2. **Query** — Index lesen, Seiten folgen, mit Quellen antworten</div><div class="p">+3. **Lint** — tote Links, Waisen, Widersprüche finden</div><div class="p">+4. **Timeline** — datierte Ereignisse als Gantt rendern</div><div class="h">@@ -30,2 +39,5 @@ ## Abgrenzung</div><div class="m">-Kein RAG.</div><div class="p">+> Kein RAG: das Modell _schreibt_ das Wissen, statt nur Chunks …</div><div class="p">+Siehe [[rag-vs-llm-wiki]] für den Vergleich …</div></pre></div>`;
-function msgA(inner){const d=document.createElement('div');d.className='msg a';d.innerHTML=`<div class="who"><img src="../../../assets/karpathy_ai_logo.png" alt="">agent · ${S.model.split(' · ')[0]}</div>${inner}`;$('#msgs').append(d);return d}
+function msgA(inner){const d=document.createElement('div');d.className='msg a';d.innerHTML=`<div class="who"><img src="../../../assets/karpathy_app_logo.png" alt="">agent · ${S.model.split(' · ')[0]}</div>${inner}`;$('#msgs').append(d);return d}
 function msgU(t){const d=document.createElement('div');d.className='msg u';d.innerHTML=inline(t).replace(/^(\/\w+)/,'<code>$1</code>');$('#msgs').append(d);scrollChat()}
 function scrollChat(){const m=$('#msgs');m.scrollTop=m.scrollHeight}
 function seedChat(){

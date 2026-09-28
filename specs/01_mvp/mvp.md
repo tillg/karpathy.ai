@@ -1,4 +1,4 @@
-# MVP — karpathy.ai
+# MVP — karpathy.app
 
 A mobile-friendly web app that unites a Markdown vault (Obsidian'ish) with an AI dialog over the same vault.
 

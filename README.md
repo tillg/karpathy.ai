@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/icons/icon-192.png" alt="karpathy.ai logo" width="128"></p>
+<p align="center"><img src="assets/icons/icon-192.png" alt="karpathy.app logo" width="128"></p>
 
-# karpathy.ai
+# karpathy.app
 
 A mobile-friendly web app that combines an Obsidian-style Markdown vault with an
 AI dialog — so that the knowledge (the `.md` files) and the AI assistant that reads,
@@ -51,7 +51,7 @@ Browser-only (serverless) architecture research with spikes:
 [`specs/03_browser_only/browser-only-report.html`](specs/03_browser_only/browser-only-report.html).
 V1 plan draft: [`specs/04_v1/v1-plan.html`](specs/04_v1/v1-plan.html).
 UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
-**[view rendered](https://raw.githack.com/tillg/karpathy.ai/main/specs/01_mvp/layouts/index.html)**.
+**[view rendered](https://raw.githack.com/tillg/karpathy.app/main/specs/01_mvp/layouts/index.html)**.
 
 ## Running it
 
@@ -128,11 +128,11 @@ Supporting skills called by the ones above: `grilling`, `domain-modeling`, `rese
 
 ## Name
 
-Working title `karpathy.ai` — placeholder.
+`karpathy.app` — renamed from the working title `karpathy.ai` (#95). Domain: `karpathy.app` (#94).
 
 ## Logo & icons
 
-Master logo: [`assets/karpathy_ai_logo.png`](assets/karpathy_ai_logo.png). Favicon
+Master logo: [`assets/karpathy_app_logo.png`](assets/karpathy_app_logo.png). Favicon
 (`favicon.ico` 16/32/48 + PNGs), Apple touch icon (180), PWA icons (192/512) and a
 maskable 512 icon live in `assets/icons/`; regenerate them with `assets/make-icons.sh`
 (needs ImageMagick 7).

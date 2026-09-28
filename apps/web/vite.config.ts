@@ -15,8 +15,8 @@ export default defineConfig(({ command }) => ({
       // The dev stack (the e2e target) serves the manifest and a service worker, too (issue #1).
       devOptions: { enabled: true, type: 'module', navigateFallback: 'index.html' },
       manifest: {
-        name: 'karpathy.ai',
-        short_name: 'karpathy.ai',
+        name: 'karpathy.app',
+        short_name: 'karpathy.app',
         description: 'Markdown vaults with an AI chat',
         theme_color: '#0f1e33',
         background_color: '#f2f2f7',

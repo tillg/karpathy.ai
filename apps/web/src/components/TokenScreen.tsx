@@ -25,7 +25,7 @@ export function TokenScreen({ onDone }: { onDone(): void }) {
     <main className="token-screen">
       <form className="token-card" onSubmit={submit}>
         <img src="/icon-192.png" alt="" className="token-logo" />
-        <h1>karpathy.ai</h1>
+        <h1>karpathy.app</h1>
         <p>Enter the access token of this server. It is stored on this device only.</p>
         <input
           data-testid="token-input" type="password" autoComplete="current-password" placeholder="Access token"

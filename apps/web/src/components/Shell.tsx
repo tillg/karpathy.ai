@@ -68,7 +68,7 @@ export function Shell() {
   return (
     <>
       {/* Page heading + banner landmark for screen readers (issue #47); the panes are main/aside. */}
-      <header className="sr-only"><h1>karpathy.ai{s.active ? ` — ${s.active.name}` : ''}</h1></header>
+      <header className="sr-only"><h1>karpathy.app{s.active ? ` — ${s.active.name}` : ''}</h1></header>
       <div id="app" className={cls} data-sb={pos('sidebar')} data-dt={pos('detail')} data-ch={pos('chat')}>
         <Sidebar inert={inert('sidebar')} />
         <NotePane inert={inert('detail')} />

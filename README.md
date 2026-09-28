@@ -70,7 +70,10 @@ Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Bin
 from the admin area. Unsaved edits
 are also kept on the device and restored after a reload or a lost connection. For the
 offline cache / PWA install in your own browser, trust Caddy's dev CA (in the proxy
-container under `/data/caddy/pki/authorities/local/root.crt`).
+container under `/data/caddy/pki/authorities/local/root.crt`). The app reloads itself when
+a new version is out (checked on load and whenever it comes back into view). If a browser
+still shows an old build, delete the site's website data (Safari: Settings → Privacy →
+Manage Website Data → `localhost`) and enter the token again.
 
 To clone from GitHub in dev, put a token into `deploy/secrets/github_token`. To work
 offline against local bare repos instead, create them under `tmp/dev/remotes/<owner>/<name>.git`

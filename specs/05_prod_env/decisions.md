@@ -26,6 +26,7 @@ option, not prod. Backed by 4 desk-research notes (`notes-*.md`, primary sources
 | D10 | Verified the "github.com has no IPv6" claim myself (`dig AAAA` empty) before stating it. | Agent had it as [unverified]; it drives the "IPv4 required" line item. |
 | D11 | Add-vault diagram simplified to one decision node. | The detailed version was unreadable at 1× (checked in Playwright). |
 | D12 | README links the report. | User-visible doc. |
+| D13 | (Follow-up, on request) Report §4.1 "Oracle as a €0 prod": 4 GB shape so memory stays above 20 %, plus a `Nice=19` stress-ng timer, 1 h every 6 h, as a CPU safety net. On the VM, not a GitHub Action. | Oracle reclaims only if CPU, network and memory are all below 20 %. 1 h per 6 h keeps the CPU 95th percentile above 20 % even if Oracle samples hourly averages. A GitHub Action would need a Tailscale key in GitHub, and GitHub turns off schedules in public repos after 60 days without activity. Timer syntax, stress-ng flags and `systemd-analyze verify` were checked in an Ubuntu 24.04 arm64 container. Not verified: how Oracle's memory metric counts page cache, and whether gaming the rule breaks Oracle's terms. |
 
 ## Assumptions / open for the user
 

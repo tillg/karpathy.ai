@@ -60,6 +60,8 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 .card h4 { margin: 0 0 6px; font-size: 1rem; }
 .card p { margin: 6px 0; font-size: .93rem; }
 .small { font-size: .88rem; color: var(--muted); }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: .82rem; line-height: 1.45; max-width: 100%; }
+pre code { background: none; padding: 0; font-size: inherit; }
 </style>
 </head>
 <body>
@@ -76,14 +78,14 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 <li><b>Security is mostly about the network, not the app</b> (<a href="#security">§5</a>). The app layer is already hardened: bearer token, strict CSP, and opencode reachable only inside compose. What changes is the MVP's assumption of a <i>home server behind a VPN</i>. With <b>Tailscale</b> (free) the VPS keeps that property: zero open ports, and the installed iPad app works unchanged. Tailscale is the "install something on each device" step the spec is willing to accept, and it works. Cloudflare Access is a poor fit: Cloudflare would see every note in plain text, and installed PWAs get stuck when the Access login expires.</li>
 <li><b>Disk: check before adding a vault, and cap the clone itself</b> (<a href="#disk">§6</a>). Two GitHub API calls predict the clone size within about 1 %. If the estimate exceeds free space minus a reserve, refuse the vault. Otherwise clone onto its own filesystem, with a file-size limit and a timeout as a hard stop. Switching to a partial clone (<code>--filter=blob:none</code>) cuts 21 % and breaks nothing. Sparse checkout would cut the demo vault from 2.9 GB to 324 MB, which makes it a good per-vault option.</li>
 </ol>
-<p><b>Recommendation:</b> Hetzner <b>CX23</b> (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, a 20 GB volume for <code>/vaults</code>, Tailscale with Tailnet Lock, the existing Caddy DNS-01 certificate for <code>app.karpathy.app</code>, and a fine-grained GitHub token. That comes to <b>about €10 a month incl. VAT</b>. Oracle Always Free is the €0 alternative if you accept that it might vanish, and it makes a good free staging box. <a href="#reco">§7</a> lists the work items and the decisions you need to make.</p>
+<p><b>Recommendation:</b> Hetzner <b>CX23</b> (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, a 20 GB volume for <code>/vaults</code>, Tailscale with Tailnet Lock, the existing Caddy DNS-01 certificate for <code>app.karpathy.app</code>, and a fine-grained GitHub token. That comes to <b>about €10 a month incl. VAT</b>. Oracle Always Free is the €0 alternative (<a href="#oracle">§4.1</a>): a 4 GB VM plus a low-priority CPU job keeps it out of Oracle's idle rule, if you accept that the account might still vanish. <a href="#reco">§7</a> lists the work items and the decisions you need to make.</p>
 </div>
 
 <nav class="toc" aria-label="Contents">
 <a href="#need">1. What we have to host (measured)</a>
 <a href="#landscape">2. Hoster landscape</a>
 <a href="#hetzner-ionos">3. Hetzner vs IONOS</a>
-<a href="#free">4. Free tiers: the honest picture</a>
+<a href="#free">4. Free tiers: the honest picture (4.1 Oracle as €0 prod)</a>
 <a href="#security">5. Security</a>
 <a href="#disk">6. Disk space</a>
 <a href="#reco">7. Recommendation and next steps</a>
@@ -154,7 +156,48 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 <tr><td>"Out of host capacity" when creating A1 VMs; an account idle for 30 days may be terminated; no SLA or support</td><td>Frankfurt capacity is often exhausted (anecdotal). Keep the setup reproducible: the vaults live on GitHub anyway.</td></tr>
 <tr><td>US company</td><td>The CLOUD Act applies in every region (§5.4).</td></tr>
 </tbody></table></div>
-<p><b>Use it for:</b> a free staging or experiment box, or prod if €10 a month really matters and you accept that a reclaimed VM means re-provisioning. The vaults are safe on GitHub, but uncommitted edits and chats would be lost without the backups from §5.</p>
+<p><b>Use it for:</b> a free staging or experiment box, or prod if €10 a month really matters and you accept that a reclaimed VM means re-provisioning. <a href="#oracle">§4.1</a> shows how to keep the VM out of the idle rule. The vaults are safe on GitHub, but uncommitted edits and chats would be lost without the backups from §5.</p>
+
+<h3 id="oracle">4.1 Oracle as a €0 prod: staying out of the idle rule</h3>
+<p>Oracle reclaims a VM only if CPU, network <i>and</i> memory are <b>all</b> below 20 % over 7 days. So the VM just has to keep <b>one</b> of them above 20 %, and the job that does this belongs on the VM itself. A GitHub Action would need a Tailscale key stored in GitHub to reach a server with no open port. GitHub also turns off scheduled workflows in public repos after 60 days without activity. And one request a week moves none of the three numbers anyway.</p>
+<div class="tbl"><table>
+<thead><tr><th>Resource</th><th>How to keep it above 20 %</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td><b>Memory</b></td><td>Size the VM at <b>4 GB</b> instead of 12 GB. The stack plus the OS uses about 1.2–1.5 GB (§1), so memory stays above 30 % with nothing extra running.</td><td><span class="v go">primary</span></td></tr>
+<tr><td><b>CPU</b> (95th percentile)</td><td>More than 5 % of the measurement samples must be above 20 %. A low-priority load job running 1 h in every 6 h puts 17 % of the samples at about 30 %. That holds whether Oracle samples per minute or per hour; 15 minutes an hour would fail if the samples are hourly averages.</td><td><span class="v go">safety net</span></td></tr>
+<tr><td>Network</td><td>20 % of the VM's bandwidth means hundreds of Mbit/s around the clock.</td><td><span class="v no">no</span></td></tr>
+</tbody></table></div>
+<p><b>Setup, beyond §5's baseline:</b></p>
+<ol>
+<li><b>Home region in the EU</b> (Frankfurt or Amsterdam). You pick it at signup and can't change it. If creating the ARM VM fails with "out of host capacity", retry later or in another availability domain.</li>
+<li><b>Shape</b> <code>VM.Standard.A1.Flex</code>, 2 OCPU / 4 GB, Ubuntu 24.04 arm64. That leaves 8 GB of the free allowance for a second VM, e.g. staging. Boot volume 50 GB, plus a block volume for <code>/vaults</code>; 200 GB in total is free.</li>
+<li><b>Network:</b> Oracle's default security list lets SSH (22) in from anywhere. Delete that rule so nothing comes in, and reach the VM through Tailscale only, as in §5.</li>
+<li><b>CPU safety net</b>, as a systemd timer. <code>Nice=19</code> means real work always wins:
+<pre><code># /etc/systemd/system/oci-keepalive.service
+[Unit]
+Description=Keep the Oracle Always Free VM above the idle threshold
+[Service]
+Type=oneshot
+Nice=19
+ExecStart=/usr/bin/stress-ng --cpu 2 --cpu-load 30 --timeout 60m --quiet
+
+# /etc/systemd/system/oci-keepalive.timer
+[Timer]
+OnCalendar=00/6:00
+RandomizedDelaySec=10m
+Persistent=true
+[Install]
+WantedBy=timers.target
+
+# apt install stress-ng &amp;&amp; systemctl enable --now oci-keepalive.timer</code></pre></li>
+<li><b>First week:</b> in the OCI console, open the instance's metrics and check that <i>CPU utilization</i> and <i>memory utilization</i> both show data and stay above 20 % at the 95th percentile. The memory graph comes from the Oracle Cloud Agent. If it shows no data, the memory route is unproven and only the CPU job protects the VM. Then set a free <b>alarm</b> (Monitoring + Notifications) that emails you if memory drops below 25 % for a day.</li>
+<li><b>Log into the Oracle console once a month</b>, as cheap insurance against the "account idle for 30 days" rule. Oracle doesn't say whether a running VM counts as activity.</li>
+<li><b>Backups are mandatory:</b> a nightly restic backup to a target <i>outside</i> Oracle, and a runbook to rebuild the server. If the VM or the account vanishes, committed vaults are safe on GitHub. Uncommitted edits and chats come back from the backup.</li>
+</ol>
+<div class="cards">
+<div class="card"><h4>What it gets you</h4><p>€0 a month for the same size as the Hetzner plan (2 vCPU / 4 GB), with 8 GB of the allowance to spare, 200 GB of disk and 10 TB of traffic. The same compose, Tailscale and backups as Hetzner, so moving between the two later is cheap.</p></div>
+<div class="card"><h4>What stays risky</h4><p>This deliberately games Oracle's idle rule; whether that breaks Oracle's terms is not verified. Oracle can change the rule at any time, and it already halved the free ARM allowance. Beyond that: capacity shortages when creating the VM, reports of unexplained account terminations (not verified), no SLA and no support, and the US CLOUD Act.</p></div>
+</div>
 
 <h2 id="security">5. Security</h2>
 <p>The server holds three kinds of secrets: <b>clones of private life-wiki vaults</b>, a <b>GitHub token</b> that can push to them, and <b>LLM API keys</b> that cost money. The app layer is already in reasonable shape (<code>mvp.md</code> §3): a constant-time bearer check on every <code>/api</code> route, the token kept out of URLs, DOMPurify with a strict CSP, opencode on the internal network only, vault-borne harness config refused, and the GitHub token passed only as a header. The weak spot is the step from "home server behind the home VPN" to "rented VPS on the internet": taken as-is, the whole pre-auth surface (TLS, HTTP parser, static app) would face every scanner on the internet.</p>
@@ -253,7 +296,7 @@ figcaption { color: #5f6368; font-size: .85rem; margin-top: 8px; text-align: cen
 </tbody></table></div>
 <p><b>Decisions for you:</b></p>
 <ol>
-<li><b>Hetzner (€10 a month) or Oracle Always Free (€0, might vanish)?</b> My pick is Hetzner for prod and Oracle as optional staging.</li>
+<li><b>Hetzner (€10 a month) or Oracle Always Free (€0, set up as in <a href="#oracle">§4.1</a>, might still vanish)?</b> My pick is Hetzner for prod, because it's predictable. Oracle is a reasonable €0 prod if backups and the rebuild runbook are in place from day one.</li>
 <li><b>Tailscale required on every device?</b> This is the "clumsy install" the spec is willing to accept. The alternative is public 443 with a bearer token and rate limiting. My pick: Tailscale.</li>
 <li><b>Paranoid extras:</b> LUKS with a manual unlock after each reboot, and OpenRouter with zero data retention instead of Anthropic direct?</li>
 <li><b>Media-heavy vaults:</b> keep full media on the server (2.3 GB for the demo vault), or make "skip large media" (324 MB) the default for new vaults?</li>

@@ -8,14 +8,23 @@ Document everything in English (code, comments, docs, specs, commit messages). V
 (the user's `.md` notes the app reads/edits) may be in German, French, or any other language —
 don't translate or normalize it.
 
-## Reports
+## Reports and docs
 
-- Reports (research, analyses, plans for the user to read) are **HTML** by default. Use **Markdown**
-  instead when the user is likely to edit the document a lot. If unsure which, ask.
-- HTML reports use an Apple-like design matching the app: system font stack (`-apple-system`,
-  SF), generous whitespace, rounded cards, subtle borders, light + dark mode.
-- Put a small app icon on the title line, at the right edge (`assets/icons/icon-192.png`, linked relative to the report).
-- A report longer than one page gets a table of contents.
+- Reports and docs (research, analyses, plans for the user to read) are **HTML** by default. Use
+  **Markdown** instead when the user is likely to edit the document a lot. If unsure which, ask.
+- HTML uses an Apple-like design matching the app: system font stack (`-apple-system`, SF),
+  generous whitespace, rounded cards, subtle borders, light + dark mode, works at phone width.
+- **Default layout** (reference: `specs/03_browser_only/browser-only-report.html`), top to bottom:
+  1. **Title line:** `<h1>` on the left, the small app icon on the right edge, top-aligned
+     (`<header class="top">` = flex, `space-between`; icon 48 px, rounded, `assets/icons/icon-192.png`
+     linked relative to the doc).
+  2. **Subtitle:** one muted paragraph with what it is, date, and where the evidence comes from.
+  3. **TL;DR card:** the answer first, then the few reasons, then the recommendation.
+  4. **Table of contents** (two columns, one on phones) if the doc is longer than one page.
+  5. **Numbered sections** (`<h2>` with a top rule). Wide tables scroll inside a rounded frame;
+     verdicts as colored pills (go / partial / no); diagrams as pre-rendered SVG `<figure>`s with
+     a caption linking the `.mmd` source.
+  6. **Sources / appendix** last.
 
 ## Status
 

@@ -90,3 +90,18 @@ deploy target *args:
 # Dry run of `just deploy` (check mode with diff): changes nothing
 deploy-check target *args:
     deploy/ansible/deploy.sh check {{target}} {{args}}
+
+# Playwright suite (minus @llm) against a deployed target; only `local` (the VM on https://localhost:9444)
+deploy-e2e target *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ "{{target}}" = local ] || { echo "deploy-e2e runs against local only" >&2; exit 1; }
+    mkdir -p tmp/local && umask 077
+    (cd deploy/ansible && ansible-vault view --vault-id local@vault-pass-client.sh inventories/local/group_vars/all/vault.yml </dev/null) \
+      | sed -n 's/^vault_bearer_token: "\(.*\)"$/\1/p' > tmp/local/bearer_token
+    url=https://localhost:9444
+    version=$(curl -sfk -H "Authorization: Bearer $(cat tmp/local/bearer_token)" $url/api/health | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+    echo "e2e against $url, release $version"
+    E2E_BASE_URL=$url E2E_TOKEN_FILE=tmp/local/bearer_token E2E_EXPECT_VERSION="$version" \
+      E2E_DOCKER="limactl shell karpathy-vm sudo docker" E2E_BACKEND_CONTAINER=karpathy-app-backend-1 \
+      npx playwright test --grep-invert @llm {{args}}

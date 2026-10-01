@@ -31,7 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pipx install ansible-core && pipx install ansible-lint
-      - run: ansible-galaxy collection install -r requirements.yml
+      # Into the user path explicitly: the runner's preinstalled Ansible has them elsewhere, and
+      # pipx's ansible-lint only sees ~/.ansible/collections.
+      - run: ansible-galaxy collection install --force -r requirements.yml -p ~/.ansible/collections
       - run: ansible-lint
       - run: |
           for t in local hetzner; do

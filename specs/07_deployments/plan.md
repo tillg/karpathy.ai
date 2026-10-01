@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Plan: releases, Ansible targets, monitoring"
-status: paused
+status: applying
 order: 4
 created: 2026-10-01
 edited: 2026-10-01
@@ -205,7 +205,7 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       `systemd-analyze verify` clean. (Built; `verify` clean; with a throwaway local listener as the URL,
       the script posts `/fail` with "karpathy-app: no containers". With the healthchecks.io test check
       `karpathy-local` (user, 2026-10-01): `list-timers` shows it every 5 min.)
-- [ ] **Check (alerts, on the VM with the test ntfy topic):** a `karpathy-app` container made
+- [x] **Check (alerts, on the VM with the test ntfy topic):** a `karpathy-app` container made
       unhealthy → Beszel ContainerHealth alert; `docker stop karpathy-app-backend-1` → heartbeat
       `/fail` → healthchecks.io alert (Beszel ignores stopped containers); stopping the Beszel hub → the
       same `/fail` alert; `fallocate` `/srv/vaults` past
@@ -214,9 +214,9 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       "Unhealthy container karpathy-app-backend-1 on local 🔴" after 105 s, "healthy ✅" 63 s after
       it resumed; `/srv/vaults` → above/below threshold. Backend stopped → "karpathy-local is DOWN"
       (failure signal) on ntfy after 11 s, UP after the next ping; Beszel hub stopped → DOWN, then UP.
-      **Open:** the missed-heartbeat alert (stopping the VM when parking on 2026-10-01 should raise it
-      about 10 min later: check ntfy/healthchecks.io, then tick). `/` skipped: ~28 GB to fill, the Mac
-      has 36 GiB free.)
+      Missed heartbeat: VM stopped at 17:27 → "karpathy-local is DOWN" at 17:35, 10 min after the
+      last ping (period + grace). `/` skipped: ~28 GB to fill, the Mac has 36 GiB free; Beszel's one
+      Disk alert takes the fullest filesystem, which `/srv/vaults` proved.)
 
 ## Phase 7: Hetzner (once the server exists)
 

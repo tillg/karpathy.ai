@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Plan: releases, Ansible targets, monitoring"
-status: applying
+status: paused
 order: 4
 created: 2026-10-01
 edited: 2026-10-01
@@ -198,13 +198,13 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       test notification arrives on the ntfy topic. (Every write is guarded by a read of the hub's
       state, so the second run is `changed=0`; the test notification goes out only when the webhook
       was just set.)
-- [ ] Heartbeat: systemd service + timer (5 min) pinging `heartbeat_url`, `/fail` when any container
+- [x] Heartbeat: systemd service + timer (5 min) pinging `heartbeat_url`, `/fail` when any container
       of `karpathy-app` **or** `karpathy-monitoring` isn't running (and healthy, if it has a healthcheck);
       skipped when unset (on `local`, set it to a separate
       healthchecks.io test check for the alert test below). **Check:** `systemctl list-timers` shows it;
       `systemd-analyze verify` clean. (Built; `verify` clean; with a throwaway local listener as the URL,
-      the script posts `/fail` with "karpathy-app: no containers". Open: `list-timers` needs a
-      `heartbeat_url`, i.e. the healthchecks.io test check.)
+      the script posts `/fail` with "karpathy-app: no containers". With the healthchecks.io test check
+      `karpathy-local` (user, 2026-10-01): `list-timers` shows it every 5 min.)
 - [ ] **Check (alerts, on the VM with the test ntfy topic):** a `karpathy-app` container made
       unhealthy → Beszel ContainerHealth alert; `docker stop karpathy-app-backend-1` → heartbeat
       `/fail` → healthchecks.io alert (Beszel ignores stopped containers); stopping the Beszel hub → the
@@ -212,8 +212,11 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       80 % → disk alert, then freed → "below threshold"; the same on `/`; stopping the timer →
       missed-heartbeat alert after the grace period. (Done: backend frozen (SIGSTOP as uid 1000) →
       "Unhealthy container karpathy-app-backend-1 on local 🔴" after 105 s, "healthy ✅" 63 s after
-      it resumed; `/srv/vaults` → above/below threshold. Open: the three heartbeat cases need a
-      healthchecks.io test check URL; `/` skipped: ~28 GB to fill, the Mac has 36 GiB free.)
+      it resumed; `/srv/vaults` → above/below threshold. Backend stopped → "karpathy-local is DOWN"
+      (failure signal) on ntfy after 11 s, UP after the next ping; Beszel hub stopped → DOWN, then UP.
+      **Open:** the missed-heartbeat alert (stopping the VM when parking on 2026-10-01 should raise it
+      about 10 min later: check ntfy/healthchecks.io, then tick). `/` skipped: ~28 GB to fill, the Mac
+      has 36 GiB free.)
 
 ## Phase 7: Hetzner (once the server exists)
 

@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Proposal: one command deploys a released version anywhere"
-status: applying
+status: paused
 order: 1
 created: 2026-10-01
 edited: 2026-10-01

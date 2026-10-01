@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Architecture: tag → GHCR → Ansible → target"
-status: applying
+status: paused
 order: 3
 created: 2026-10-01
 edited: 2026-10-01

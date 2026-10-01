@@ -17,3 +17,15 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+
+# md2html spec viewer (/spec:view): generated spec HTML and the index are local-only
+specs/**/*.html
+!specs/03_browser_only/browser-only-report.html
+!specs/04_v1/v1-plan.html
+!specs/05_prod_env/prod-env-report.html
+!specs/06_md_to_html/md-to-html-report.html
+# hand-written / separately built HTML under specs/ stays committed
+!specs/02_features/feature-report.html
+!specs/01_mvp/layouts/*.html
+!specs/03_browser_only/spikes/**/*.html
+/index.html

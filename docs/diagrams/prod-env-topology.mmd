@@ -6,9 +6,11 @@ flowchart LR
   subgraph VPS["Hetzner CX23, Nuremberg / Falkenstein (4 GB, 40 GB)"]
     FW["Provider firewall<br/>no inbound rules"]
     TS["tailscaled<br/>100.x.y.z"]
-    P["Caddy<br/>bound to 100.x.y.z:443<br/>LE cert via DNS-01"]
-    B["Backend<br/>bearer token · git · rg"]
-    OC["opencode serve<br/>internal only"]
+    subgraph Stack["Docker compose stack (deploy/compose.yml + compose.hetzner.yml)"]
+      P["Caddy<br/>bound to 100.x.y.z:443<br/>LE cert via DNS-01"]
+      B["Backend<br/>bearer token · git · rg"]
+      OC["opencode serve<br/>internal only"]
+    end
     V[("/srv/vaults<br/>20 GB loop FS<br/>git clones")]
   end
   DNS["Cloudflare DNS (DNS only)<br/>app.karpathy.app A → 100.x.y.z"]

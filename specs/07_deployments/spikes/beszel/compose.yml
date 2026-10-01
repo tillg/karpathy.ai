@@ -1,0 +1,60 @@
+# Beszel v0.20 spike (throwaway): can Ansible set up hub + agent + alerts with no UI clicks?
+# Run with ./run.sh. Everything stays on this machine: alerts go to a local ntfy, not ntfy.sh.
+name: beszel-spike
+
+services:
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    command: serve
+    ports: ["127.0.0.1:18091:80"]
+
+  hub:
+    image: henrygd/beszel:0.20.0
+    environment:
+      # Q1: first user from env, no UI.
+      USER_EMAIL: spike@example.com
+      USER_PASSWORD: spike-password-123
+    ports: ["127.0.0.1:18090:8090"]
+    volumes:
+      - hub-data:/beszel_data
+      # Pre-generated hub key (run.sh), so the agent's KEY is known before the hub starts.
+      - ./.spike/id_ed25519:/beszel_data/id_ed25519:ro
+
+  agent:
+    image: henrygd/beszel-agent:0.20.0
+    profiles: [agent] # started by run.sh after the hub is up
+    environment:
+      HUB_URL: http://hub:8090
+      TOKEN: ${UNIVERSAL_TOKEN}
+      KEY: ${HUB_KEY}
+      SYSTEM_NAME: spike-host
+      LISTEN: "45876"
+      EXCLUDE_CONTAINERS: "w12-free-*"
+    volumes:
+      - agent-data:/var/lib/beszel-agent
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Q4: a separate, small filesystem standing in for /srv/vaults.
+      - vaults:/extra-filesystems/vaults:ro
+
+  # Fills the "vaults" filesystem on demand (run.sh) and holds it mounted.
+  filler:
+    image: alpine:3.22
+    command: sleep infinity
+    volumes: [vaults:/vaults]
+
+  # A container that turns unhealthy, for the container-health alert.
+  sick:
+    image: alpine:3.22
+    profiles: [agent]
+    command: sleep infinity
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/healthy"]
+      interval: 5s
+      retries: 1
+
+volumes:
+  hub-data: {}
+  agent-data: {}
+  vaults:
+    driver: local
+    driver_opts: { type: tmpfs, device: tmpfs, o: size=1g }

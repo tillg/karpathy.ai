@@ -1,0 +1,18 @@
+flowchart LR
+  subgraph Inputs["Inputs (all in git)"]
+    MD["report.md<br/>frontmatter + Markdown"]
+    MMD["docs/diagrams/*.mmd"]
+    CSS["project CSS<br/>reports/theme.css"]
+    CFG["reports.json<br/>report list · icon"]
+  end
+  subgraph Build["build (pure function, no clock, no network)"]
+    P["parse<br/>remark + GFM + directives"]
+    T["transform<br/>number · ids · TOC · pills · figures"]
+    R["render<br/>fixed HTML template"]
+  end
+  SVG["*.svg<br/>pre-rendered, committed"]
+  OUT["report.html<br/>self-contained"]
+  MD --> P --> T --> R --> OUT
+  MMD -- "mmdc, only when .mmd changes" --> SVG --> T
+  CSS -- "inlined" --> R
+  CFG --> R

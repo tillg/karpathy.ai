@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spikes: LLM, agent loop, search — browser-only</title>
+<meta name="generator" content="md2html 0.3.0">
+<style>
+@layer base, theme;
+@layer base {
+:root {
+  --bg: #fbfbfa; --fg: #1d1d1f; --muted: #5f6368; --line: #e3e3e0; --card: #ffffff;
+  --accent: #1f5bd6; --go: #1e7b3a; --go-bg: #e6f4ea; --partial: #8a5a00; --partial-bg: #fdf1d6;
+  --no: #b3261e; --no-bg: #fce8e6; --code: #f2f2ef; --figure-bg: #ffffff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16171a; --fg: #e8e8ea; --muted: #a0a3a8; --line: #2c2e33; --card: #1e2024;
+    --accent: #8ab4ff; --go: #7fd49a; --go-bg: #173524; --partial: #f0c36a; --partial-bg: #3a2e12;
+    --no: #ff9b91; --no-bg: #3d1a17; --code: #26282d; --figure-bg: #ffffff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16171a; --fg: #e8e8ea; --muted: #a0a3a8; --line: #2c2e33; --card: #1e2024;
+  --accent: #8ab4ff; --go: #7fd49a; --go-bg: #173524; --partial: #f0c36a; --partial-bg: #3a2e12;
+  --no: #ff9b91; --no-bg: #3d1a17; --code: #26282d; --figure-bg: #ffffff; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; overflow-wrap: break-word; }
+main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.appicon { flex: none; width: 48px; height: 48px; border-radius: 11px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.4rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 12px 0; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; border-radius: 0; font-size: .85rem; }
+blockquote { margin: 12px 0; padding: 0 0 0 16px; border-left: 3px solid var(--line); color: var(--muted); }
+img { max-width: 100%; height: auto; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0; }
+hr + h2 { border-top: 0; padding-top: 0; margin-top: 0; }
+.sub { color: var(--muted); margin: 0 0 24px; }
+.sub img { height: 1.2em; width: auto; vertical-align: middle; }
+.tldr { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+.tldr p:first-child { margin-top: 0; }
+.tldr > :last-child { margin-bottom: 0; }
+nav.toc { columns: 2; column-gap: 32px; font-size: .95rem; margin-top: 20px; }
+nav.toc a { display: block; padding: 2px 0; }
+@media (max-width: 640px) { nav.toc { columns: 1; } }
+.tbl { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; background: var(--code); }
+tr:last-child td { border-bottom: 0; }
+th[align="center"], td[align="center"] { text-align: center; }
+th[align="right"], td[align="right"] { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+td .v { white-space: nowrap; }
+.go { color: var(--go); background: var(--go-bg); }
+.partial { color: var(--partial); background: var(--partial-bg); }
+.no { color: var(--no); background: var(--no-bg); }
+figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; background: var(--figure-bg); border-radius: 6px; }
+figcaption { color: var(--muted); font-size: .85rem; margin-top: 8px; text-align: center; }
+figcaption a.mmd-src { white-space: nowrap; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin: 12px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; min-width: 0; }
+.card h4 { margin: 0 0 6px; font-size: 1rem; }
+.card p { margin: 6px 0; font-size: .93rem; }
+.contains-task-list { list-style: none; padding-left: 20px; }
+.footnotes { margin-top: 48px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .9rem; color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.reports-nav { display: flex; align-items: center; gap: 4px;
+  padding: 8px 16px; overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+  background: var(--card); border-bottom: 1px solid var(--line);
+  font: 500 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+.reports-nav::-webkit-scrollbar { display: none; }
+.reports-nav .brand { display: flex; align-items: center; gap: 8px; margin-right: 8px; color: var(--muted); }
+.reports-nav .brand img { width: 20px; height: 20px; border-radius: 5px; }
+.reports-nav a.item { padding: 6px 12px; border-radius: 999px; color: var(--fg); text-decoration: none; }
+.reports-nav a.item:hover { background: rgba(127,127,127,.12); }
+.reports-nav a.item[aria-current="page"] { background: var(--accent); color: var(--bg); }
+
+.report-meta { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 4px 0 16px; padding: 0; font-size: .88rem; }
+.report-meta div { display: flex; align-items: baseline; gap: 6px; }
+.report-meta dt { color: var(--muted); }
+.report-meta dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.report-status { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+.report-status.research { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.report-status.ongoing { color: var(--partial); background: var(--partial-bg); }
+.report-status.implemented { color: var(--go); background: var(--go-bg); }
+.spec-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 8px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+  font: 500 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+.spec-nav a { padding: 6px 12px; border-radius: 999px; color: var(--fg); text-decoration: none; }
+.spec-nav a:hover { background: rgba(127,127,127,.12); }
+.spec-nav a.up { color: var(--muted); margin-right: 8px; }
+.spec-nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+.spec-nav .spec-status { margin-left: auto; }
+.spec-status { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.spec-status.exploring { color: var(--muted); background: var(--code); }
+.spec-status.proposed { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.spec-status.applying { color: var(--partial); background: var(--partial-bg); }
+.spec-status.paused { color: var(--no); background: var(--no-bg); }
+.spec-status.applied { color: var(--go); background: var(--go-bg); }
+
+pre.mermaid { font-size: .85rem; }
+pre.mermaid[data-processed] { background: none; border: 0; padding: 0; text-align: center; }
+pre.mermaid svg { max-width: 100%; height: auto; }
+
+.spec-index td a { margin-right: 10px; }
+.spec-index td a:last-child { margin-right: 0; }
+.spec-index td.pages { min-width: 16ch; }
+.spec-index td.dir code { white-space: nowrap; }
+@media (max-width: 640px) {
+  .spec-index thead { display: none; }
+  .spec-index tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .spec-index tr:last-child { border-bottom: 0; }
+  .spec-index td { display: flex; gap: 12px; border: 0; padding: 3px 12px; text-align: left; white-space: normal; }
+  .spec-index td::before { content: attr(data-label); flex: none; width: 6.5em; color: var(--muted); font-size: .85em; }
+  .spec-index td.pages { display: block; padding-left: calc(12px + 6.5em + 12px); text-indent: calc(-6.5em - 12px); }
+  .spec-index td.pages::before { display: inline-block; margin-right: 12px; text-indent: 0; }
+}
+/* Plan checkboxes: GFM renders them disabled (greyed); keep done vs. open steps easy to tell apart. */
+.contains-task-list input[type="checkbox"] { accent-color: var(--accent); opacity: 1; width: 1em; height: 1em; vertical-align: -0.1em; }
+.task-list-item:has(input:checked) { color: var(--muted); }
+}
+@layer theme {
+/* karpathy.app theme for md2html reports. Layered after md2html's base.css.
+ * base.css already is the karpathy.app house style (Apple-like, light + dark), so this file
+ * only holds deliberate deviations from it.
+ */
+
+/* Diagrams are drawn for a white background: keep the whole figure frame white in dark mode too,
+ * as in the hand-written reports. */
+figure { background: var(--figure-bg); }
+figcaption { color: #5f6368; }
+
+/* ```text blocks are ASCII wireframes (feature report): box-drawing lines must touch, so use a
+ * real monospace font and a tight line height on the <pre> itself (the line box comes from it). */
+pre:has(> code.language-text) { font: 12.5px/1.22 "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }
+pre > code.language-text { font: inherit; }
+}
+</style>
+</head>
+<body>
+<nav class="spec-nav" aria-label="Spec pages"><a class="up" href="../../../../index.html">↑ Index</a><a class="item" href="RESULTS.html" aria-current="page">RESULTS</a></nav>
+<main>
+<h1 id="spikes-llm-agent-loop-search--browser-only">Spikes: LLM, agent loop, search — browser-only</h1>
+<p>Run 2026-09-27 on Apple M4 Max, macOS 27.0 (<code>uname -m</code> = arm64), Node v22.13.1, Playwright 1.63.0
+(headless Chromium 153 / WebKit 26.6 ≈ Safari 26). LLM for L2–L4: <code>qwen2.5:3b</code> in the dev stack's
+Ollama container (<code>karpathy-app-ollama-1</code>), reached through a throwaway socat forwarder on
+<code>127.0.0.1:11435</code>. The forwarder was removed afterwards. No API keys were used or stored.</p>
+<h2 id="verdicts">Verdicts</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Theory</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L1</td>
+<td>LLM providers can be called straight from the browser (CORS)</td>
+<td><strong>PARTIAL.</strong> Anthropic (only with the <code>anthropic-dangerous-direct-browser-access</code> header), OpenRouter, Gemini, Mistral and Groq work. OpenAI answers the preflight, but its error responses have no ACAO header, so the page never sees a 401. Success responses could not be checked without a key.</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>A browser page can talk to a local Ollama</td>
+<td><strong>PARTIAL.</strong> Works from <code>http://localhost</code>/<code>127.0.0.1</code> pages, because Ollama's default origin list allows them. Other origins get 403 unless <code>OLLAMA_ORIGINS</code> is set. <strong>WebKit blocks an HTTPS page calling <code>http://localhost:11435</code> (mixed content).</strong> Chromium allows it. So on iPad, Ollama needs HTTPS plus <code>OLLAMA_ORIGINS</code>.</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>A complete tool-calling agent loop (OPFS tools, skills) runs in the browser</td>
+<td><strong>CONFIRMED (plumbing)</strong> in Chromium and WebKit, with both the AI SDK and a hand-written fetch loop. <strong>Model quality is the limit:</strong> qwen2.5:3b completed the task cleanly 1 time in 70 runs.</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>A running stream survives the tab going to the background</td>
+<td><strong>NOT TESTABLE headless; doc-based.</strong> The CDP freeze on a visible headless page did nothing, and a synthetic <code>visibilitychange</code> has no effect. See notes.</td>
+</tr>
+<tr>
+<td>L5</td>
+<td>Full-vault search (3337 files, 5.6 M chars) in the browser is fast enough</td>
+<td><strong>CONFIRMED.</strong> A naive regex over texts in memory takes 1–10 ms per query. MiniSearch builds in 0.4–0.8 s and answers in 1–2 ms. FlexSearch builds in 0.6–1.1 s and answers in &#x3C; 0.1 ms. <strong>The bottleneck is OPFS I/O</strong>, not search: loading many small files takes seconds.</td>
+</tr>
+<tr>
+<td>L6</td>
+<td>An in-browser model (WebGPU) is possible</td>
+<td><strong>PARTIAL.</strong> Headless WebKit exposes <code>navigator.gpu</code> and returns an Apple adapter with <code>shader-f16</code>. Headless Chromium has <code>navigator.gpu</code> but no adapter. No model was downloaded.</td>
+</tr>
+<tr>
+<td>extra</td>
+<td>OPFS works in WebKit in every context</td>
+<td><strong>REJECTED.</strong> <code>navigator.storage.getDirectory()</code> throws <code>UnknownError</code> in an ephemeral (non-persistent) WebKit context, which behaves like Safari Private Browsing. It works in a persistent context.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="l1--cors-of-llm-providers">L1 — CORS of LLM providers</h2>
+<p>Preflight: <code>curl -X OPTIONS</code> with <code>Origin: http://localhost:5199</code> (see <code>results/L1-curl.txt</code>).
+Real request: <code>fetch()</code> from a page on <code>http://localhost:5199</code> with a fake key
+(<code>results/L1-cors-{chromium,webkit}.json</code>). Chromium and WebKit gave identical results.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Provider / endpoint</th>
+<th>Preflight status, ACAO</th>
+<th>Browser fetch (both engines)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic <code>/v1/messages</code>, no direct-access header</td>
+<td>400, no ACAO</td>
+<td><strong>blocked</strong> (TypeError)</td>
+</tr>
+<tr>
+<td>Anthropic + <code>anthropic-dangerous-direct-browser-access: true</code></td>
+<td>200, <code>*</code></td>
+<td>response <strong>401</strong> (readable)</td>
+</tr>
+<tr>
+<td>OpenAI <code>/v1/chat/completions</code></td>
+<td>200, echoes the origin</td>
+<td><strong>blocked</strong>: the 401 has no ACAO (curl confirms: only <code>access-control-expose-headers</code>). Success responses unverified.</td>
+</tr>
+<tr>
+<td>OpenRouter <code>/api/v1/chat/completions</code></td>
+<td>204, <code>*</code></td>
+<td>response 401</td>
+</tr>
+<tr>
+<td>Gemini native <code>:generateContent</code> (<code>x-goog-api-key</code>)</td>
+<td>200, echoes the origin</td>
+<td>response 400</td>
+</tr>
+<tr>
+<td>Gemini OpenAI-compat <code>/v1beta/openai/chat/completions</code></td>
+<td>200, echoes the origin</td>
+<td>response 400</td>
+</tr>
+<tr>
+<td>Mistral <code>/v1/chat/completions</code></td>
+<td>200, <code>*</code></td>
+<td>response 401</td>
+</tr>
+<tr>
+<td>Groq <code>/openai/v1/chat/completions</code></td>
+<td>204, <code>*</code></td>
+<td>response 401</td>
+</tr>
+<tr>
+<td>Ollama via forwarder <code>/v1/chat/completions</code></td>
+<td>204, echoes the origin</td>
+<td>response 404 (dummy model), readable</td>
+</tr>
+</tbody>
+</table></div>
+<p>Consequence: a browser-only app can reach every provider on the list except, possibly, OpenAI.
+The key has to live in the browser (BYO key). OpenRouter is the most permissive gateway: it
+allows <code>*</code> and a very long list of headers.</p>
+<h2 id="l2--local-ollama-from-the-browser">L2 — local Ollama from the browser</h2>
+<p>Container env has <code>OLLAMA_HOST=0.0.0.0:11434</code> and no <code>OLLAMA_ORIGINS</code>
+(<code>results/L2-ollama-cors.txt</code>, <code>results/L2-mixed-content.json</code>).</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Origin</th>
+<th><code>/api/chat</code> and <code>/v1/chat/completions</code> preflight</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>http://localhost:5199</code>, <code>http://127.0.0.1:5199</code></td>
+<td>204, ACAO = origin</td>
+</tr>
+<tr>
+<td><code>app://obsidian.md</code></td>
+<td>204, ACAO = origin</td>
+</tr>
+<tr>
+<td><code>https://vault.example.com</code> (a hosted PWA)</td>
+<td><strong>403</strong></td>
+</tr>
+<tr>
+<td><code>null</code> (file://, sandboxed iframe)</td>
+<td><strong>403</strong></td>
+</tr>
+</tbody>
+</table></div>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>HTTPS page (<code>https://localhost:5443</code>) → <code>http://localhost:11435/api/tags</code></th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chromium</td>
+<td>200</td>
+</tr>
+<tr>
+<td>WebKit</td>
+<td><strong>blocked</strong> (mixed content)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Consequence for iPad/Safari: a hosted HTTPS PWA can only use an Ollama on another machine if that
+Ollama sits behind HTTPS (for example a reverse proxy or Tailscale serve) with
+<code>OLLAMA_ORIGINS=https://&#x3C;pwa-origin></code>. Ollama's OpenAI-compatible <code>/v1</code> streams SSE and works with
+<code>@ai-sdk/openai-compatible</code> unchanged.</p>
+<h2 id="l3--agent-loop-fully-in-the-browser">L3 — agent loop fully in the browser</h2>
+<p>Page <code>agent.html</code> / <code>src/agent.ts</code>. It builds a 12-note vault with frontmatter and <code>[[wikilinks]]</code>,
+plus 2 skills under <code>.claude/skills/*/SKILL.md</code>, and writes them into OPFS. Tools run on OPFS:
+<code>list_files</code>, <code>read_file</code>, <code>search</code>, <code>write_file</code> (or <code>edit_file</code>) and <code>load_skill</code>. The system
+prompt lists the skills by name and description only; the body is loaded on demand (progressive
+disclosure). After each run the page reads the target file back from OPFS to check it.
+Implementation A is the Vercel AI SDK (<code>ai@7.0.118</code>, <code>streamText</code> + <code>tool</code> + <code>isStepCount(10)</code>,
+<code>@ai-sdk/openai-compatible@3.0.57</code>). Implementation B is a hand-written loop over <code>fetch</code> with an
+SSE parser (about 40 lines). Tasks:
+<em>plain</em> = "Find the note about the lighthouse near Brest and add a final line "Seen: yes" to it.";
+<em>skill</em> = "I visited the Phare du Petit Minou lighthouse. Use the matching skill." Pass = <code>Seen: yes</code>
+line present, frontmatter intact, and (for <em>skill</em>) <code>updated: 2026-09-27</code>.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Variant (temp 0, 3 runs each)</th>
+<th>Chromium ok / file changed</th>
+<th>WebKit ok / file changed</th>
+<th>Latency per run</th>
+<th>Tools called</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SDK, plain</td>
+<td>0 / 1</td>
+<td>0 / 1</td>
+<td>2.1–4.3 s</td>
+<td>search, read_file, (write_file)</td>
+</tr>
+<tr>
+<td>fetch loop, plain</td>
+<td>0 / 1</td>
+<td>0 / 1</td>
+<td>2.2–3.3 s</td>
+<td>same</td>
+</tr>
+<tr>
+<td>SDK or fetch, skill (<code>load_skill</code> only)</td>
+<td>0 / 0</td>
+<td>0 / 0</td>
+<td>0.3–0.4 s</td>
+<td>none: the model emits a call to a tool named <code>mark-seen</code>, which <strong>Ollama silently drops</strong> because the name is not in <code>tools</code></td>
+</tr>
+<tr>
+<td>SDK or fetch, skill + each skill also exposed as a tool</td>
+<td>0 / 0</td>
+<td>0 / 0</td>
+<td>5.6–7.8 s</td>
+<td>skill loaded 3/3; the write went to the wrong path (<code>phare-du-petit-minou.md</code> without <code>Wiki/</code>)</td>
+</tr>
+</tbody>
+</table></div>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Retries at temp 0.7, plain task (5 × SDK + 5 × fetch per browser)</th>
+<th>Chromium ok / changed</th>
+<th>WebKit ok / changed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_file</code> (full overwrite)</td>
+<td>0/10, 5/10</td>
+<td>0/10, 6/10</td>
+</tr>
+<tr>
+<td><code>edit_file</code> (exact string replace, like opencode's <code>edit</code>)</td>
+<td><strong>1/10</strong> (SDK, 7 steps, 6.3 s), 5/10</td>
+<td>0/10, 6/10</td>
+</tr>
+</tbody>
+</table></div>
+<p>Observations:</p>
+<ul>
+<li><strong>Plumbing works identically in both engines</strong>, with both implementations: tool calls come back
+parsed, tools run against OPFS, results feed the next step, and the file really changes in OPFS.
+OPFS writes used <code>createWritable()</code> in both engines (a worker fallback exists but was not needed).</li>
+<li><strong>Streaming works:</strong> the final answer arrived as 107 text deltas, and the L4 baseline delivered
+336–392 SSE chunks for 400 tokens in both engines. Ollama sends tool calls as one whole chunk, not
+streamed arguments. The SDK's "first chunk" (3–40 ms) is its stream-start event; the first real
+model byte takes about 180–800 ms (fetch loop).</li>
+<li><strong>Every failure is a model-quality failure.</strong> qwen2.5:3b rewrites the frontmatter on full-file
+writes, repeats <code>edit_file</code> with an <code>old_string</code> that does not match, or stops after <code>read_file</code>.
+Harness lessons: (1) prefer an exact-replace edit tool over full overwrite; (2) expose skills
+through a tool whose name the model will actually call (opencode uses a <code>skill</code> tool), because
+Ollama drops unknown tool names without any error; (3) always cap output tokens. One uncapped run
+generated more than 20 000 tokens before the client aborted it.</li>
+<li><strong>The AI SDK has no trouble in the browser:</strong> no Node polyfills needed, and it bundles to 408 kB
+(110 kB gzip, including zod). The hand-written loop is only a few kB and behaved the same, but
+you would then maintain the SSE and tool-call parsing yourself.</li>
+</ul>
+<h2 id="l4--background--tab-lifecycle">L4 — background / tab lifecycle</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Method</th>
+<th>Baseline stream</th>
+<th>"Interrupted" stream</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chromium</td>
+<td>CDP <code>Page.setWebLifecycleState frozen</code> for 8 s after 1.5 s</td>
+<td>336 chunks, 4.9 s</td>
+<td>401 chunks, 5.8 s, max gap 197 ms, no <code>freeze</code> event: <strong>the freeze had no effect on a visible headless page</strong></td>
+</tr>
+<tr>
+<td>WebKit</td>
+<td>synthetic <code>visibilitychange</code> → hidden (the only thing available)</td>
+<td>392 chunks, 5.3 s</td>
+<td>374 chunks, 5.3 s, no gap: synthetic event, no real throttling</td>
+</tr>
+</tbody>
+</table></div>
+<p>Headless browsers cannot reproduce iOS behaviour, so the rest comes from the platform docs: Safari on
+iOS suspends a backgrounded tab's JS within seconds and may drop its network connections. There is
+no Background Fetch or Background Sync in WebKit. Service workers do not keep a fetch alive
+indefinitely. Measured side effect: when the client disconnects, Ollama stops generating (seen in
+its logs). <strong>Design implication:</strong> a browser-only agent loop runs only while the tab is in the
+foreground. It must persist its state after every step (messages and tool results, for example in
+OPFS or IndexedDB) and resume after a reload. Long runs cannot continue while the iPad is locked.</p>
+<h2 id="l5--search-over-the-full-mylife_wiki-vault-3337-md-files-5-632-421-chars-62-mb-json">L5 — search over the full mylife_wiki vault (3337 .md files, 5 632 421 chars, 6.2 MB JSON)</h2>
+<p><code>search.html</code> / <code>src/search.ts</code>, <code>results/L5-search-*.json</code>. Times are the mean of 5 runs after a warm-up.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Measurement</th>
+<th>Chromium</th>
+<th>WebKit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fetch + JSON.parse of all files</td>
+<td>462 ms</td>
+<td>41 ms</td>
+</tr>
+<tr>
+<td>(a) naive <code>RegExp(q,'i')</code> over all texts in memory, per query</td>
+<td>1–10 ms (one outlier 49 ms)</td>
+<td>0.8–2.6 ms</td>
+</tr>
+<tr>
+<td>OPFS write of 3337 files, <code>createWritable</code> sequentially</td>
+<td>102 s (21 s in an ephemeral context)</td>
+<td>18 s</td>
+</tr>
+<tr>
+<td>OPFS write of 3337 files, one worker + <code>createSyncAccessHandle</code></td>
+<td>21.6 s (9.7 s ephemeral)</td>
+<td>6.9 s</td>
+</tr>
+<tr>
+<td>OPFS recursive list</td>
+<td>2.0 s</td>
+<td>7.9 s</td>
+</tr>
+<tr>
+<td>OPFS read all (<code>Promise.all</code>)</td>
+<td>11.1 s (1.0 s ephemeral)</td>
+<td>3.4 s</td>
+</tr>
+<tr>
+<td>scan once after reading from OPFS</td>
+<td>1.9 ms</td>
+<td>2.0 ms</td>
+</tr>
+<tr>
+<td>(b) MiniSearch build (<code>path</code>, <code>text</code>)</td>
+<td>822 ms (665–2463 across runs)</td>
+<td>376 ms</td>
+</tr>
+<tr>
+<td>MiniSearch serialized size / <code>loadJSON</code></td>
+<td>5.3 MB / 252 ms</td>
+<td>5.3 MB / 360 ms</td>
+</tr>
+<tr>
+<td>MiniSearch query (prefix + fuzzy 0.2)</td>
+<td>0.8–2.1 ms</td>
+<td>0.2–1.2 ms</td>
+</tr>
+<tr>
+<td>(c) FlexSearch <code>Index</code> (<code>tokenize: forward</code>) build</td>
+<td>1075 ms</td>
+<td>558 ms</td>
+</tr>
+<tr>
+<td>FlexSearch export size</td>
+<td>13.7 MB</td>
+<td>13.7 MB</td>
+</tr>
+<tr>
+<td>FlexSearch query</td>
+<td>&#x3C; 0.1 ms</td>
+<td>&#x3C; 0.1 ms</td>
+</tr>
+<tr>
+<td>JS heap after everything</td>
+<td>304 MB</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table></div>
+<p>Consequences: keep all texts in memory, or keep a persisted MiniSearch index plus the file texts.
+Naive regex over 5.6 M chars is already interactive (it is the in-browser equivalent of ripgrep),
+and MiniSearch adds ranking and fuzzy matching. The expensive part is getting 3300 small files into
+and out of OPFS: several seconds to minutes, with high variance in Chromium. Storing the vault as
+per-file OPFS entries needs a bulk path (a worker with sync access handles) and ideally a packed
+cache (one JSON/SQLite blob, or a persisted index) for cold start.</p>
+<h2 id="l6--webgpu-for-an-in-browser-model-feature-detection-only">L6 — WebGPU for an in-browser model (feature detection only)</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th></th>
+<th>Chromium headless</th>
+<th>WebKit headless</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>navigator.gpu</code></td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>requestAdapter()</code></td>
+<td>null (no GPU in headless)</td>
+<td>Apple adapter, <code>shader-f16</code></td>
+</tr>
+<tr>
+<td><code>storage.estimate().quota</code> (ephemeral context)</td>
+<td>10.7 GB</td>
+<td>1.0 GB</td>
+</tr>
+</tbody>
+</table></div>
+<p>WebLLM was not initialised and no model was downloaded. WebGPU is present in Safari 26-class WebKit,
+so small in-browser models are technically possible. The 1 GB quota in an ephemeral WebKit context
+is a warning sign for multi-GB model weights. Persistent Safari quotas are larger but get evicted.</p>
+<h2 id="re-run">Re-run</h2>
+<pre><code class="language-bash">cd specs/03_browser_only/spikes/llm-agent
+npm install &#x26;&#x26; npx playwright install chromium webkit
+npm run fixture                       # copies ~/git/mylife_wiki/**/*.md (read-only) to public/fixture (gitignored) + builds the small vault
+bash scripts/cors-curl.sh             # L1 preflights
+# L2–L4 need the forwarder to the dev stack's Ollama (no stack changes):
+docker run -d --rm --name spike-ollama-fwd --network karpathy-app_internal -p 127.0.0.1:11435:11434 \
+  alpine/socat tcp-listen:11434,fork,reuseaddr tcp-connect:ollama:11434
+bash scripts/ollama-cors.sh           # L2 CORS per origin
+node scripts/mixed-content.mjs        # L2 HTTPS page -> http://localhost Ollama
+node scripts/run.mjs                  # L1 fetch, L6, L5, L3 (REPEAT=3), L4 in Chromium + WebKit -> results/*.json
+node scripts/agent-retries.mjs 5 0.7 0   # L3 retries, write_file
+node scripts/agent-retries.mjs 5 0.7 1   # L3 retries, edit_file
+node scripts/webkit-opfs-ephemeral.mjs   # OPFS ephemeral vs persistent WebKit context
+docker rm -f spike-ollama-fwd
+</code></pre>
+<p>Notes: <code>scripts/run.mjs</code> uses persistent browser contexts because WebKit refuses OPFS in ephemeral
+ones. Pages can also be opened by hand with <code>npm run dev</code> → <code>http://localhost:5199/agent.html</code> and
+calling <code>runAgent('sdk'|'fetch', 'plain'|'skill', skillTools?)</code> in the console
+(<code>?temp=0.7&#x26;edit=1</code> are optional).</p>
+</main>
+</body>
+</html>

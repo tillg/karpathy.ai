@@ -1,0 +1,41 @@
+{
+  "sources": [
+    "specs/03_browser_only/browser-only-report.md",
+    "specs/04_v1/v1-plan.md",
+    "specs/05_prod_env/prod-env-report.md",
+    "specs/06_md_to_html/md-to-html-report.md"
+  ],
+  "reports": [
+    {
+      "path": "specs/02_features/feature-report.html",
+      "label": "Features"
+    },
+    {
+      "path": "specs/03_browser_only/browser-only-report.md",
+      "label": "Browser-only"
+    },
+    {
+      "path": "specs/04_v1/v1-plan.md",
+      "label": "V1 plan"
+    },
+    {
+      "path": "specs/05_prod_env/prod-env-report.md",
+      "label": "Prod environment"
+    },
+    {
+      "path": "specs/06_md_to_html/md-to-html-report.md",
+      "label": "md → HTML"
+    }
+  ],
+  "brand": {
+    "name": "karpathy.app",
+    "icon": "assets/icons/icon-192.png"
+  },
+  "theme": "specs/reports-theme.css",
+  "specs": {
+    "sources": [
+      "specs/*/*.md",
+      "specs/*/spikes/*/*.md"
+    ]
+  }
+}

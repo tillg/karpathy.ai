@@ -12,19 +12,22 @@ don't translate or normalize it.
 
 - Reports and docs (research, analyses, plans for the user to read) are **HTML** by default. Use
   **Markdown** instead when the user is likely to edit the document a lot. If unsure which, ask.
-- HTML uses an Apple-like design matching the app: system font stack (`-apple-system`, SF),
-  generous whitespace, rounded cards, subtle borders, light + dark mode, works at phone width.
-- **Default layout** (reference: `specs/03_browser_only/browser-only-report.html`), top to bottom:
-  1. **Title line:** `<h1>` on the left, the small app icon on the right edge, top-aligned
-     (`<header class="top">` = flex, `space-between`; icon 48 px, rounded, `assets/icons/icon-192.png`
-     linked relative to the doc).
-  2. **Subtitle:** one muted paragraph with what it is, date, and where the evidence comes from.
-  3. **TL;DR card:** the answer first, then the few reasons, then the recommendation.
-  4. **Table of contents** (two columns, one on phones) if the doc is longer than one page.
-  5. **Numbered sections** (`<h2>` with a top rule). Wide tables scroll inside a rounded frame;
-     verdicts as colored pills (go / partial / no); diagrams as pre-rendered SVG `<figure>`s with
-     a caption linking the `.mmd` source.
-  6. **Sources / appendix** last.
+- **HTML reports are generated from Markdown with md2html** (plugin `md2html@till-claude-code-marketplace`,
+  enabled in `.claude/settings.json`). Write and edit the `.md` with `/md2html:write`; never edit the
+  generated `.html` next to it. Build and check only through the plugin (`/md2html:build`, `--check`);
+  there is no local copy of the tool and no `just` recipe. Missing functionality goes into the plugin in
+  the marketplace repo, not into local scripts. A new report must be added to `sources` and `reports`
+  (menu bar) in `reports.json`.
+- The look is md2html's `base.css` (the Apple-like house style: light + dark, phone width) plus the small
+  project theme `specs/reports-theme.css`. The layout (menu bar, title + icon, Created / Last edited /
+  Status, subtitle, TL;DR, TOC, numbered sections, figures with `.mmd` source links) is derived from the
+  frontmatter and plain Markdown; the cheat sheet ships with `/md2html:write`.
+- Content rules the tool can't enforce: TL;DR first (answer, then the few reasons, then the
+  recommendation), sources / appendix last, bump `edited` on every content edit, diagrams as pre-rendered
+  SVGs next to their `.mmd` (Mermaid is not rendered by the build).
+- Exception: `specs/02_features/feature-report.html` is interactive and still built by
+  `node specs/02_features/build-report-html.mjs` from `feature-report.md`; its menu bar comes from
+  `specs/reports-nav.js`, so keep that list in sync with `reports.json`.
 
 ## Status
 

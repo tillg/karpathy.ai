@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dev stack: https://localhost:8443 (Caddy internal CA), hot reload, local Ollama model.
-# Usage: deploy/dev.sh [up|down|logs|token]
+# Usage: deploy/dev.sh [up|down|logs|ps|token]  (or `just dev [...]`)
 set -euo pipefail
 cd "$(dirname "$0")"
 compose() { docker compose -f compose.yml -f compose.dev.yml "$@"; }
@@ -17,6 +17,7 @@ case "${1:-up}" in
     ;;
   down) compose down ;;
   logs) compose logs -f ;;
+  ps) compose ps ;;
   token) cat secrets/bearer_token ;;
-  *) echo "usage: $0 [up|down|logs|token]" >&2; exit 1 ;;
+  *) echo "usage: $0 [up|down|logs|ps|token]" >&2; exit 1 ;;
 esac

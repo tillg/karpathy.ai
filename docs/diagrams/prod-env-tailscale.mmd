@@ -1,0 +1,22 @@
+flowchart LR
+  subgraph Classic["Classic VPN: hub and spoke"]
+    direction TB
+    CI["iPad"] -- "all traffic" --> GW["VPN gateway<br/>open UDP port<br/>on the internet"]
+    CM["Mac"] -- "all traffic" --> GW
+    GW --> CS["Server<br/>inside the network"]
+  end
+  subgraph TS["Tailscale: mesh"]
+    direction TB
+    CO["Coordination server<br/>(Tailscale Inc.)<br/>public keys · policy · no traffic"]
+    TI["iPad<br/>100.101.1.2"]
+    TV["Server<br/>100.64.7.9<br/>no open port"]
+    TM["Mac<br/>100.88.3.4"]
+    DE["DERP relay<br/>fallback, can't decrypt"]
+    CO -. "keys, peers, rules" .- TI
+    CO -. "keys, peers, rules" .- TV
+    CO -. "keys, peers, rules" .- TM
+    TI == "WireGuard, direct" ==> TV
+    TM == "WireGuard, direct" ==> TV
+    TI -. "if no direct path" .-> DE -.-> TV
+  end
+  Classic ~~~ TS

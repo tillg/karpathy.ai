@@ -52,6 +52,9 @@ Browser-only (serverless) architecture research with spikes:
 V1 plan draft: [`specs/04_v1/v1-plan.html`](specs/04_v1/v1-plan.html).
 Production environment research (hosters and free tiers, Hetzner vs IONOS, security, disk space):
 [`specs/05_prod_env/prod-env-report.html`](specs/05_prod_env/prod-env-report.html).
+Generating the reports from Markdown:
+[`specs/06_md_to_html/md-to-html-report.html`](specs/06_md_to_html/md-to-html-report.html).
+These HTML reports are generated from the `.md` next to each (see [Reports](#reports)).
 UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.app/main/specs/01_mvp/layouts/index.html)**.
 
@@ -62,10 +65,12 @@ Everything runs in docker compose (on this Mac: Rancher Desktop).
 **Dev** (hot reload, https://localhost:8443, local Ollama `qwen2.5:3b` as the model):
 
 ```sh
-deploy/dev.sh up        # builds, starts, pulls the dev model once, prints the token
-deploy/dev.sh logs
-deploy/dev.sh down
+just dev                # builds, starts, pulls the dev model once, prints the token
+just dev logs           # also: ps, token
+just dev down
 ```
+
+`just` lists all commands (`brew install just`); they wrap `deploy/dev.sh` and npm.
 
 Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Binary files
 (images, PDFs, …) are listed but not editable. A vault whose clone failed can be retried
@@ -98,8 +103,10 @@ npm run test:e2e       # Playwright against the running dev stack
 npm run typecheck
 ```
 
+`just check` runs lint, typecheck and `npm test` in one go.
+
 To run the e2e suite against the **prod images** (https://localhost:9443, next to the dev
-stack), see the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL` and `E2E_TOKEN_FILE`
+stack): `just prodtest`, `just prodtest e2e`, `just prodtest down`; details in the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL` and `E2E_TOKEN_FILE`
 point Playwright at it.
 
 Accessibility: `e2e/a11y.spec.ts` runs axe-core (WCAG 2.1 AA + best practice) over the main
@@ -114,9 +121,9 @@ Layout: `apps/backend` (Express 5, Node/TS), `apps/web` (Vite + React PWA),
 
 Project skills live in `.claude/skills/`, vendored from
 [mattpocock/skills](https://github.com/mattpocock/skills) (`c55ee46`, without the
-`agents/` Codex configs). Upstream `code-review` is renamed to `spec-review` here, so it
-doesn't clash with Claude Code's built-in `/code-review` (bug hunt); `implement` and `tdd`
-are adjusted to call it:
+`agents/` Codex configs). Upstream `code-review` is dropped here: its two-axis review
+(standards + spec) is merged into the spec plugin's `/spec:adversarial-code-review`, which
+`implement` and `tdd` are adjusted to call:
 
 | Skill | Use |
 |---|---|
@@ -125,11 +132,40 @@ are adjusted to call it:
 | `/wayfinder` | Chart a large effort as a map of decision tickets and resolve them one by one |
 | `/triage` | Move issues through triage states and write agent briefs |
 | `/implement` | Implement a spec/tickets test-first, then review |
-| `tdd`, `spec-review`, `codebase-design` | Red-green loop, two-axis review (standards + spec), deep-module vocabulary |
-| `/setup-matt-pocock-skills` | One-time repo setup (issue tracker, triage labels, domain docs) that `to-spec`, `to-tickets`, `triage`, `wayfinder` and `spec-review` expect |
+| `tdd`, `codebase-design` | Red-green loop, deep-module vocabulary |
+| `/setup-matt-pocock-skills` | One-time repo setup (issue tracker, triage labels, domain docs) that `to-spec`, `to-tickets`, `triage` and `wayfinder` expect |
 
 Supporting skills called by the ones above: `grilling`, `domain-modeling`, `research`,
 `prototype`.
+
+### Plugins
+
+`.claude/settings.json` registers the
+[till-claude-code-marketplace](https://github.com/tillg/till-claude-code-marketplace) and Matt
+Pocock's [`mattpocock/skills`](https://github.com/mattpocock/skills) marketplace (both with
+auto-update), and enables `spec` (spec workflow: `/spec:explore`, `/spec:propose`, `/spec:grill`,
+`/spec:apply`, …), `md2html`, `mattpocock-skills` (needed by `/spec:grill`) and `claude-security`
+from the official marketplace. The spec skills come only from there: the `.claude/skills/` above are
+a different, vendored set.
+
+After cloning: start `claude` in the repo and **trust the folder**. In that first session a
+`SessionStart` hook installs any of the four plugins that are missing (`claude plugin install …
+--scope project`); they load from the **next** session on (restart, or `/reload-plugins`). When
+adding or removing a plugin, keep the hook's list in sync with `enabledPlugins`.
+
+### Reports
+
+Reports under `specs/` are Markdown (`*-report.md`, `v1-plan.md`) rendered to self-contained HTML
+by the [md2html](https://github.com/tillg/till-claude-code-marketplace/tree/main/plugins/md2html)
+plugin, used only through its skills (no local copy of the tool):
+
+| Skill | Use |
+|---|---|
+| `/md2html:write` | Write or edit a report (the `.md`); the plugin's hook lints every edit |
+| `/md2html:build` | Build the HTML; `--check` fails on lint errors, non-canonical Markdown or stale HTML |
+
+Config: `reports.json` (which files, menu bar, brand, theme); theme: `specs/reports-theme.css`.
+Improvements go into the plugin in the marketplace repo, not into local scripts.
 
 ## Name
 

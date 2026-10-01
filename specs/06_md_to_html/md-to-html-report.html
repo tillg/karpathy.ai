@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>md → HTML: generating the reports from Markdown</title>
+<meta name="description" content="How to generate the HTML reports deterministically from Markdown, with a per-project design via CSS (2026-09-30).">
+<meta name="generator" content="md2html 0.2.0">
+<style>
+@layer base, theme;
+@layer base {
+:root {
+  --bg: #fbfbfa; --fg: #1d1d1f; --muted: #5f6368; --line: #e3e3e0; --card: #ffffff;
+  --accent: #1f5bd6; --go: #1e7b3a; --go-bg: #e6f4ea; --partial: #8a5a00; --partial-bg: #fdf1d6;
+  --no: #b3261e; --no-bg: #fce8e6; --code: #f2f2ef; --figure-bg: #ffffff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16171a; --fg: #e8e8ea; --muted: #a0a3a8; --line: #2c2e33; --card: #1e2024;
+    --accent: #8ab4ff; --go: #7fd49a; --go-bg: #173524; --partial: #f0c36a; --partial-bg: #3a2e12;
+    --no: #ff9b91; --no-bg: #3d1a17; --code: #26282d; --figure-bg: #ffffff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16171a; --fg: #e8e8ea; --muted: #a0a3a8; --line: #2c2e33; --card: #1e2024;
+  --accent: #8ab4ff; --go: #7fd49a; --go-bg: #173524; --partial: #f0c36a; --partial-bg: #3a2e12;
+  --no: #ff9b91; --no-bg: #3d1a17; --code: #26282d; --figure-bg: #ffffff; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; overflow-wrap: break-word; }
+main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.appicon { flex: none; width: 48px; height: 48px; border-radius: 11px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.4rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 12px 0; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; border-radius: 0; font-size: .85rem; }
+blockquote { margin: 12px 0; padding: 0 0 0 16px; border-left: 3px solid var(--line); color: var(--muted); }
+img { max-width: 100%; height: auto; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0; }
+hr + h2 { border-top: 0; padding-top: 0; margin-top: 0; }
+.sub { color: var(--muted); margin: 0 0 24px; }
+.sub img { height: 1.2em; width: auto; vertical-align: middle; }
+.tldr { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+.tldr p:first-child { margin-top: 0; }
+.tldr > :last-child { margin-bottom: 0; }
+nav.toc { columns: 2; column-gap: 32px; font-size: .95rem; margin-top: 20px; }
+nav.toc a { display: block; padding: 2px 0; }
+@media (max-width: 640px) { nav.toc { columns: 1; } }
+.tbl { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; background: var(--code); }
+tr:last-child td { border-bottom: 0; }
+th[align="center"], td[align="center"] { text-align: center; }
+th[align="right"], td[align="right"] { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+td .v { white-space: nowrap; }
+.go { color: var(--go); background: var(--go-bg); }
+.partial { color: var(--partial); background: var(--partial-bg); }
+.no { color: var(--no); background: var(--no-bg); }
+figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; background: var(--figure-bg); border-radius: 6px; }
+figcaption { color: var(--muted); font-size: .85rem; margin-top: 8px; text-align: center; }
+figcaption a.mmd-src { white-space: nowrap; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin: 12px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; min-width: 0; }
+.card h4 { margin: 0 0 6px; font-size: 1rem; }
+.card p { margin: 6px 0; font-size: .93rem; }
+.contains-task-list { list-style: none; padding-left: 20px; }
+.footnotes { margin-top: 48px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .9rem; color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.reports-nav { display: flex; align-items: center; gap: 4px;
+  padding: 8px 16px; overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+  background: var(--card); border-bottom: 1px solid var(--line);
+  font: 500 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+.reports-nav::-webkit-scrollbar { display: none; }
+.reports-nav .brand { display: flex; align-items: center; gap: 8px; margin-right: 8px; color: var(--muted); }
+.reports-nav .brand img { width: 20px; height: 20px; border-radius: 5px; }
+.reports-nav a.item { padding: 6px 12px; border-radius: 999px; color: var(--fg); text-decoration: none; }
+.reports-nav a.item:hover { background: rgba(127,127,127,.12); }
+.reports-nav a.item[aria-current="page"] { background: var(--accent); color: var(--bg); }
+
+.report-meta { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 4px 0 16px; padding: 0; font-size: .88rem; }
+.report-meta div { display: flex; align-items: baseline; gap: 6px; }
+.report-meta dt { color: var(--muted); }
+.report-meta dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.report-status { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+.report-status.research { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.report-status.ongoing { color: var(--partial); background: var(--partial-bg); }
+.report-status.implemented { color: var(--go); background: var(--go-bg); }
+}
+@layer theme {
+/* karpathy.app theme for md2html reports. Layered after md2html's base.css.
+ * base.css already is the karpathy.app house style (Apple-like, light + dark), so this file
+ * only holds deliberate deviations from it.
+ */
+
+/* Diagrams are drawn for a white background: keep the whole figure frame white in dark mode too,
+ * as in the hand-written reports. */
+figure { background: var(--figure-bg); }
+figcaption { color: #5f6368; }
+
+/* ```text blocks are ASCII wireframes (feature report): box-drawing lines must touch, so use a
+ * real monospace font and a tight line height on the <pre> itself (the line box comes from it). */
+pre:has(> code.language-text) { font: 12.5px/1.22 "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }
+pre > code.language-text { font: inherit; }
+}
+</style>
+</head>
+<body>
+<nav class="reports-nav" aria-label="Reports"><span class="brand"><img src="../../assets/icons/icon-192.png" alt="">karpathy.app</span><a class="item" href="../02_features/feature-report.html">Features</a><a class="item" href="../03_browser_only/browser-only-report.html">Browser-only</a><a class="item" href="../04_v1/v1-plan.html">V1 plan</a><a class="item" href="../05_prod_env/prod-env-report.html">Prod environment</a><a class="item" href="md-to-html-report.html" aria-current="page">md → HTML</a></nav>
+<main>
+<header class="top"><h1>md → HTML: generating the reports from Markdown</h1><img class="appicon" src="../../assets/icons/icon-192.png" alt="karpathy.app" width="48" height="48"></header>
+<dl class="report-meta"><div><dt>Created</dt><dd>2026-09-30</dd></div><div><dt>Last edited</dt><dd>2026-09-30</dd></div><div><dt>Status</dt><dd><span class="report-status implemented">Implemented</span></dd></div></dl>
+<p class="sub">Design report for <a href="md_to_html.md">spec #06</a>. Written 2026-09-30. <strong>Done:</strong> built as the <a href="https://github.com/tillg/till-claude-code-marketplace/tree/main/plugins/md2html">md2html plugin</a> in <code>tillg/till-claude-code-marketplace</code>, and used by this repo since 2026-09-30. The evidence is the four existing reports under <code>specs/</code>, the house layout in <code>CLAUDE.md</code>, the one generator we already have (<a href="../02_features/build-report-html.mjs"><code>build-report-html.mjs</code></a>), and the Markdown format of the sibling project <strong>W12</strong> (<code>../w12-free</code>), which stores all wiki content as canonical Markdown with <code>remark-directive</code> extensions.</p>
+<div class="tldr">
+<p><strong>Status: done.</strong> This design was built as the <a href="https://github.com/tillg/till-claude-code-marketplace/tree/main/plugins/md2html"><strong>md2html</strong> plugin</a> in <a href="https://github.com/tillg/till-claude-code-marketplace"><code>tillg/till-claude-code-marketplace</code></a> (spec: <a href="https://github.com/tillg/till-claude-code-marketplace/tree/main/specs/changes/add-md2html-plugin"><code>specs/changes/add-md2html-plugin/</code></a>). This repo uses it through the plugin's skills only (<code>/md2html:write</code>, <code>/md2html:build</code>): the reports under <code>specs/</code> are Markdown, configured in <code>reports.json</code>, themed by <code>specs/reports-theme.css</code>. Open: the interactive feature report still uses its own builder.</p>
+<p><strong>Short answer: write reports in Markdown and add a small build step that turns each <code>.md</code> into today's HTML layout. The build is a pure function: the same inputs always produce the same bytes. Each project brings its own CSS file and nothing else.</strong></p>
+<ol>
+<li><strong>Today every report is hand-written HTML</strong>, with the layout rules from <code>CLAUDE.md</code> retyped each time. Three of the four reports are HTML only. The one generated report (<code>feature-report</code>) uses a single-use 29 KB script. Markdown is shorter to write, much cheaper for the AI to edit, and easier to review in a diff.</li>
+<li><strong>Most of the layout can be derived.</strong> The title, header block, section numbers, table of contents, table frames and figures all follow from plain Markdown plus frontmatter. Only the TL;DR card, cards and verdict pills need new syntax, and three small directives cover them.</li>
+<li><strong>"Different projects, different CSS" is enough</strong>, and it is the simplest design: one fixed HTML template with stable class names, plus a per-project <code>theme.css</code> that sets tokens and may restyle components. No templating language and no plugin API.</li>
+<li><strong>Determinism is manageable</strong> if the build never reads the clock, the network or file modification times, and if Mermaid SVGs are treated as committed inputs rather than being re-rendered on every build.</li>
+<li><strong>W12 has already solved most of the format questions</strong>, for a much larger product: content uses directives only (no raw HTML), there is one registry of directives, unknown directives fall back to literal text, the written form is canonical, and 91 golden round-trip fixtures test it. We copy those rules, not its editor. <a href="#w12">§6</a></li>
+<li><strong>Writing it correctly</strong> is handled in three layers, all generated from that registry: a skeleton command, a cheat sheet and a <code>write-report</code> skill <em>prevent</em> errors; a linter with <code>file:line</code> messages, run by a hook after every AI edit, <em>detects</em> them; <code>fmt</code> <em>fixes</em> fence colons and attribute order automatically. <a href="#guide">§7</a></li>
+</ol>
+<p><strong>Recommendation:</strong> build <a href="#reco">a ~300-line Node tool on unified/remark</a> as its own small package. Then prove it by converting <code>browser-only-report</code> and checking that the rebuilt page looks the same. Keep interactive reports such as <code>feature-report</code> on an escape hatch (a report-local script) rather than growing the core.</p>
+</div>
+<nav class="toc" aria-label="Contents">
+<a href="#want">1. What we want to do</a>
+<a href="#today">2. Where we are today</a>
+<a href="#source">3. The source format</a>
+<a href="#how">4. How the build works</a>
+<a href="#tools">5. Tool options</a>
+<a href="#w12">6. Borrowed from W12</a>
+<a href="#guide">7. Helping humans and the AI write it correctly</a>
+<a href="#theme">8. Per-project design: just CSS</a>
+<a href="#determinism">9. Determinism</a>
+<a href="#hard">10. Challenges</a>
+<a href="#reco">11. Recommendation and next steps</a>
+<a href="#appendix">12. Sources</a>
+</nav>
+<h2 id="want">1. What we want to do</h2>
+<ul>
+<li><strong>Markdown is the source of truth.</strong> Humans and the AI write and edit <code>report.md</code>. The <code>report.html</code> next to it is generated and never edited by hand.</li>
+<li><strong>Same layout for free.</strong> The generated page follows the house layout (menu bar, title with icon, header block, subtitle, TL;DR, TOC, numbered sections, appendix) without anyone retyping it.</li>
+<li><strong>Deterministic.</strong> Same <code>.md</code>, same diagrams, same CSS and same tool version give byte-identical HTML. Rebuilding with no changes leaves the git diff empty, so CI can fail when a committed HTML file is stale.</li>
+<li><strong>Stylable per project.</strong> karpathy.app reports look like karpathy.app. Another repo using the same tool gets its own look from its own CSS.</li>
+<li><strong>Readable without the build.</strong> The <code>.md</code> should still read well on GitHub, in Obsidian and in this app's own editor.</li>
+</ul>
+<p><strong>Non-goals:</strong> a static-site generator (no routing, no dev server, no blog features), WYSIWYG editing, and interactive widgets in the core.</p>
+<h2 id="today">2. Where we are today</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Source</th>
+<th>How the HTML is made</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Features (#02)</td>
+<td><code>feature-report.md</code> (182 KB)</td>
+<td><span class="v partial">generated</span> by a report-specific <code>marked</code> script with inline CSS and JS (filters, stars, scatter chart); 265 KB of HTML</td>
+</tr>
+<tr>
+<td>Browser-only (#03)</td>
+<td>none</td>
+<td><span class="v no">hand-written</span> HTML; research notes in <code>.md</code></td>
+</tr>
+<tr>
+<td>V1 plan (#04)</td>
+<td>none</td>
+<td><span class="v no">hand-written</span> HTML</td>
+</tr>
+<tr>
+<td>Prod environment (#05)</td>
+<td>none</td>
+<td><span class="v no">hand-written</span> HTML; notes in <code>notes-*.md</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Each hand-written report copies the same ~55 lines of CSS. The shared parts that already exist (the menu bar and header-block styles) are injected at runtime by <code>reports-nav.js</code>. Every change to the house layout means editing N files. For the AI, editing a report means reading and rewriting HTML, which costs about 1.5× the tokens of the same content in Markdown. The feature report shows this: 182 KB of Markdown against 265 KB of HTML.</p>
+<h2 id="source">3. The source format</h2>
+<p>A report is plain GitHub-flavored Markdown plus a frontmatter block and three directives. The build derives everything else.</p>
+<pre><code>---
+title: "Browser-only karpathy.app: can we drop the server?"
+created: 2026-09-27
+edited: 2026-09-28          # written by hand (or by the AI), never taken from the clock
+status: research            # research | ongoing | implemented
+subtitle: Architecture report for [spec #03](browser_only.md). Research only …
+---
+
+:::tldr
+**Short answer: yes, technically, but it costs more than it saves.** …
+
+**Recommendation:** keep the server architecture for V1.
+:::
+
+## Today: who calls whom {#today}
+
+![Current architecture](../../docs/diagrams/browser-only-today.svg)
+
+| Concern | Today | Browser-only |
+|---|---|---|
+| Sync | `git` CLI | `isomorphic-git` :verdict[works]{tone=go} |
+
+::::cards
+:::card{title=Pros}
+Truly no server to run.
+:::
+:::card{title=Cons}
+No git history on the device.
+:::
+::::
+</code></pre>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Layout element</th>
+<th>Comes from</th>
+<th>New syntax?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reports menu bar</td>
+<td>the list of reports in <code>reports.json</code></td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Title + app icon</td>
+<td><code>title</code> frontmatter, icon from project config</td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Header block (Created / Last edited / Status)</td>
+<td>frontmatter</td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Subtitle</td>
+<td><code>subtitle</code> frontmatter (inline Markdown)</td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Numbered <code>&#x3C;h2></code> sections</td>
+<td><code>##</code> headings, numbered by the build</td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Table of contents</td>
+<td>the <code>##</code> headings, added once the report has 4 or more of them</td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Stable anchors</td>
+<td><code>{#id}</code> after a heading; slug as fallback</td>
+<td><span class="v partial">attribute</span></td>
+</tr>
+<tr>
+<td>Scrolling table frame</td>
+<td>every GFM table</td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>Figure + caption + <code>.mmd</code> source link</td>
+<td>an image on its own line; alt text = caption; <code>.mmd</code> looked up next to the <code>.svg</code></td>
+<td><span class="v go">none</span></td>
+</tr>
+<tr>
+<td>TL;DR card</td>
+<td><code>:::tldr</code> container</td>
+<td><span class="v partial">directive</span></td>
+</tr>
+<tr>
+<td>Cards</td>
+<td><code>::::cards</code> / <code>:::card</code></td>
+<td><span class="v partial">directive</span></td>
+</tr>
+<tr>
+<td>Verdict pills</td>
+<td><code>:verdict[text]{tone=go|partial|no}</code></td>
+<td><span class="v partial">directive</span></td>
+</tr>
+</tbody>
+</table></div>
+<p>The directives follow the <a href="https://talk.commonmark.org/t/generic-directives-plugins-syntax/444">generic directives proposal</a> (<code>remark-directive</code>). On GitHub and in Obsidian they show up as literal <code>:::tldr</code> lines, which is ugly but readable. That is the price of any extension syntax. Keeping the set to three directives keeps it small. Every directive has a closed set of attributes and values, following W12: an unknown name or value is a build error in <code>--check</code> and literal text in the output, never silently dropped (<a href="#w12">§6</a>).</p>
+<h2 id="how">4. How the build works</h2>
+<figure><img src="../../docs/diagrams/md-to-html-pipeline.svg" alt="Build pipeline"><figcaption>Build pipeline (<a class="mmd-src" href="../../docs/diagrams/md-to-html-pipeline.mmd">source</a>)</figcaption></figure>
+<ol>
+<li><strong>Parse</strong> Markdown into an AST (mdast) with GFM tables, frontmatter, directives and heading attributes.</li>
+<li><strong>Transform</strong> the AST, one small function per rule: number the <code>##</code> headings and give them ids, collect the TOC, wrap tables, turn image-only paragraphs into <code>&#x3C;figure></code>, map directives to <code>&#x3C;div class="tldr"></code>, <code>.cards</code>/<code>.card</code> and <code>&#x3C;span class="v go"></code>, and rewrite links to other reports from <code>.md</code> to <code>.html</code>.</li>
+<li><strong>Render</strong> into one fixed template: head, menu bar, header, TL;DR, TOC, body, appendix. The CSS is inlined, so each report is a single file that works over <code>file://</code>, on GitHub Pages, as an email attachment, or published as an artifact.</li>
+<li><strong>Write</strong> the file only if its bytes changed. <code>just reports</code> builds everything, <code>just reports --check</code> fails when any HTML file is stale (for CI and a pre-commit hook), and <code>--watch</code> rebuilds on save.</li>
+</ol>
+<p>The menu bar should be rendered at build time instead of by <code>reports-nav.js</code> at runtime. That way it works without JavaScript and no longer flashes in after load. The catch is that adding a report changes every page, but they are all regenerated anyway.</p>
+<h2 id="tools">5. Tool options</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Fit</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>unified</strong> (remark → rehype) in Node</td>
+<td><span class="v go">recommended</span></td>
+<td>A real AST, so every layout rule is a small, testable transform. Maintained plugins exist for GFM, frontmatter, directives and slugs. Same language and toolchain as the repo (npm workspace, TS). Output is deterministic when versions are pinned.</td>
+</tr>
+<tr>
+<td><strong>markdown-it</strong> + plugins</td>
+<td><span class="v go">fine</span></td>
+<td>Fast and simple, with a <code>container</code> plugin for directives. The token stream is less convenient than an AST for moving whole sections (TOC, TL;DR).</td>
+</tr>
+<tr>
+<td><strong>marked</strong> (today's generator)</td>
+<td><span class="v partial">partial</span></td>
+<td>Already in the repo, but the renderer hooks work one node at a time. The feature report shows the result: section logic done with regexes over raw Markdown.</td>
+</tr>
+<tr>
+<td><strong>Pandoc</strong> + Lua filters + HTML template</td>
+<td><span class="v partial">partial</span></td>
+<td>Very capable, with fenced divs (<code>::: tldr</code>) and attributes built in, and deterministic. But it is an external Haskell binary to install on every machine and in CI, and the filters are in Lua.</td>
+</tr>
+<tr>
+<td><strong>Quarto</strong>, <strong>Astro</strong>, <strong>11ty</strong>, <strong>MkDocs</strong></td>
+<td><span class="v no">no</span></td>
+<td>Site generators with their own layout model, theming system and runtime. Much more than we need, and bending them to the house layout costs more than writing the transforms.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="w12">6. Borrowed from W12</h2>
+<p>W12 is a self-hosted Jira and Confluence replacement. Its wiki stores every page as <strong>canonical Markdown plus <code>remark-directive</code></strong>, with no JSON shadow copy (ADR-012). It is edited in Milkdown and round-tripped through a CLI and a Confluence importer. Our report format is a very small subset of that problem. W12 has already hit most of the pitfalls, so we take its rules and leave its editor.</p>
+<h3 id="what-we-adopt">What we adopt</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>W12 rule</th>
+<th>How it works there</th>
+<th>For our reports</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Directives only, no HTML islands</strong> (ADR-056)</td>
+<td>Everything beyond GFM is a directive. Stray HTML is shown as escaped text, never rendered.</td>
+<td><span class="v go">adopt</span> No raw HTML in reports. Every layout element goes through a directive and the theme.</td>
+</tr>
+<tr>
+<td><strong>One registry keyed by (type, name)</strong></td>
+<td><code>extensionRegistry.ts</code>: each extension declares its directive type, an attribute schema (string / boolean / enum) and allowed children, and has its own folder with a required round-trip test.</td>
+<td><span class="v go">adopt</span> One small entry per directive: <code>{type, attrs, render, text}</code>. The build, the <code>--check</code> linter and (later) the app's editor preview all read the same table.</td>
+</tr>
+<tr>
+<td><strong>Unknown means literal text</strong></td>
+<td><code>directiveFallback.ts</code>: an unregistered or invalid directive is written back as its exact source bytes, sliced by AST position. This fixed a 21.6% blank-page rate caused by prose like <code>16:00</code> or <code>:443</code> being parsed as directives.</td>
+<td><span class="v go">adopt</span> This matters for us too: reports are full of ports, times and ratios. Never drop content; warn in <code>--check</code>.</td>
+</tr>
+<tr>
+<td><strong>Closed values, defaults omitted</strong></td>
+<td><code>:status[In Progress]{colour="green"}</code>, where <code>grey</code> is the default and is never written. Colours come from a closed <code>hue-step</code> grammar resolved in one function to <code>var(--palette-…)</code>. Attributes are written in a fixed order.</td>
+<td><span class="v go">adopt</span> <code>:verdict[works]{tone=go}</code> uses a closed tone set that maps in one place to CSS classes. A <code>fmt</code> step could rewrite a report's Markdown into canonical form.</td>
+</tr>
+<tr>
+<td><strong>Nesting: accept anything, restrict when authoring</strong> (ADR-044)</td>
+<td>The parser never rejects. Only "only X inside Y" constraints are in the schema (<code>columns</code> holds <code>column+</code>).</td>
+<td><span class="v go">adopt</span> <code>::::cards</code> holds <code>:::card+</code>. Anything else renders but warns.</td>
+</tr>
+<tr>
+<td><strong>Closed frontmatter</strong></td>
+<td>Six required keys and a closed set of optional ones. Unknown keys are rejected. Export writes keys in a fixed order.</td>
+<td><span class="v go">adopt</span> <code>title, created, edited, status, subtitle</code> plus optional <code>script</code>. A typo like <code>stauts:</code> fails the build instead of being ignored.</td>
+</tr>
+<tr>
+<td><strong>Byte-stable round trip</strong></td>
+<td>After the first save, <code>stringify(parse(x)) === x</code>. There are 91 golden fixtures in <code>fixtures/cycle-2/</code>, plus a per-extension test.</td>
+<td><span class="v go">adopt</span> The same idea, applied to <code>.md → .html</code>: one golden fixture per directive and edge case.</td>
+</tr>
+<tr>
+<td><strong>Same outer fence with more colons</strong></td>
+<td><code>::::columns</code> / <code>:::column</code>, and <code>:::tabs</code> / <code>:::tab{title="…"}</code>.</td>
+<td><span class="v go">adopt</span> Already used for <code>::::cards</code>.</td>
+</tr>
+<tr>
+<td>WYSIWYG editor as the renderer</td>
+<td>The read view is Milkdown in read-only mode, not a remark→rehype pipeline.</td>
+<td><span class="v no">skip</span> We need static, JS-free HTML, and karpathy.app deliberately edits raw Markdown in CodeMirror.</td>
+</tr>
+<tr>
+<td>Palette JSON → CSS variables</td>
+<td>ADR-020: theme files are data, and one function writes a fixed set of <code>--token</code> names in OKLCH at fixed precision.</td>
+<td><span class="v partial">partly</span> We keep plain CSS but take the closed token list (<a href="#theme">§8</a>).</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="syntax-taken-over-where-we-need-the-same-thing">Syntax taken over, where we need the same thing</h3>
+<pre><code>:::tldr                         ← container, body is Markdown
+::::cards                       ← outer fence gets one more colon
+:::card{title=Pros}
+:::
+::::
+:verdict[works]{tone=go}        ← inline: label + closed tone (W12's :status pattern)
+:::collapse{title="Raw data"}   ← W12's collapse, if a report needs one
+:::
+</code></pre>
+<h3 id="pitfalls-w12-documented-specslearnings">Pitfalls W12 documented (<code>specs/learnings/</code>)</h3>
+<ul>
+<li><strong>Don't regex over Markdown.</strong> Attribute order differs between writers (the CLI and the editor), so substring matches break. Hand-scanning for code spans and fences is also wrong; use the remark AST and its <code>position</code> offsets. Our <code>build-report-html.mjs</code> uses regexes over the raw Markdown today, so this lesson applies directly.</li>
+<li><strong>Colons in prose get parsed as directives.</strong> Escape digit-colons when writing, and fall back to literal text when reading.</li>
+<li><strong>A container's closing fence after a list</strong> can come out indented. It needs its own fixture.</li>
+<li><strong>Only serializer options that actually get used count.</strong> Milkdown bypassed the package's <code>remark-stringify</code> options. For us: pin one pipeline and test the real CLI output, not a helper.</li>
+<li><strong>Patch dependencies only with version pins that fail loudly.</strong> W12 patches <code>micromark-extension-gfm-table</code> because large tables parsed in quadratic time, and the patch script fails on a version mismatch. That matters if reports get big tables.</li>
+</ul>
+<p><strong>Not documented in W12:</strong> how the directive format looks on GitHub or in Obsidian. Their other non-editor renderer (email, in Java) turns block directives into labelled code boxes. That is a fair model for what "readable fallback" means, and we still have to check it ourselves.</p>
+<h2 id="guide">7. Helping humans and the AI write it correctly</h2>
+<p>The <code>:::</code> syntax has three traps:</p>
+<ul>
+<li>A fence that is never closed swallows the rest of the file.</li>
+<li>Nested fences need one more colon on the outer fence.</li>
+<li>A misspelled name (<code>:::tdlr</code>) is not an error to any Markdown parser.</li>
+</ul>
+<p>The answer is the same for people and for the AI: <strong>prevent</strong> mistakes where the text is typed, <strong>detect</strong> them with precise messages, and <strong>fix</strong> the mechanical ones automatically. All three layers are generated from the single directive registry (<a href="#w12">§6</a>), so the docs, the autocomplete and the checks can't drift apart.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>For the human</th>
+<th>For the AI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Start right</strong></td>
+<td><code>just report new &#x3C;slug></code> writes a skeleton: frontmatter with today's date and <code>status: research</code>, a <code>:::tldr</code>, and the standard section headings.</td>
+<td>The same command. The skill says to always start there rather than write the frontmatter from memory.</td>
+</tr>
+<tr>
+<td><strong>Know the syntax</strong></td>
+<td>A one-page cheat sheet, <code>reports syntax</code>, generated from the registry. It lists each directive, its attributes and allowed values, and a copy-paste example. A <strong>kitchen-sink report</strong> uses every directive once and doubles as a golden fixture.</td>
+<td>A <code>write-report</code> skill (<code>.claude/skills/write-report/SKILL.md</code>). Claude Code <em>and</em> opencode both load <code>.claude/skills</code>. It embeds the cheat sheet and the workflow <em>write → check → fix</em>. <code>CLAUDE.md</code> gets a one-line pointer to it instead of today's layout paragraph.</td>
+</tr>
+<tr>
+<td><strong>While typing</strong></td>
+<td>In karpathy.app's CodeMirror editor, the registry drives: autocomplete after <code>:::</code> and <code>{</code> (names, then attributes, then allowed values), a snippet that inserts the matching closing fence, fence highlighting and folding, and in-place previews of TL;DR, cards and pills. In VS Code: a snippets file plus a JSON Schema for the frontmatter.</td>
+<td>No editor involved. The AI gets the equivalent through the skill's examples and the check below.</td>
+</tr>
+<tr>
+<td><strong>Catch mistakes</strong></td>
+<td><code>just reports --check</code> reports errors with <code>file:line:col</code> and a suggestion. Inline squiggles in the editor come from the same linter.</td>
+<td>A <strong>Claude Code <code>PostToolUse</code> hook</strong> runs the check on every edited <code>specs/**/*.md</code> and returns the messages, so the AI fixes its own errors in the same turn. On opencode, the skill tells it to run the check.</td>
+</tr>
+<tr>
+<td><strong>Fix automatically</strong></td>
+<td><code>just reports fmt</code> rewrites the file into canonical form: colon counts per nesting depth, attribute order, defaults removed, frontmatter key order.</td>
+<td>The same. The skill says to run <code>fmt</code> before <code>check</code>, so the AI never has to count colons.</td>
+</tr>
+<tr>
+<td><strong>Backstop</strong></td>
+<td>A pre-commit hook and CI run <code>fmt --check</code> and <code>reports --check</code>. A stale HTML file or an invalid directive cannot land on <code>main</code>.</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="slash">A <code>/</code> menu in the editor (as in W12)</h3>
+<p>W12's editor opens a local menu on <code>/</code> that lists the available blocks. The registry entries carry the menu data for it: <code>keywords</code>, <code>displayOrder</code>, <code>surfaces</code>, <code>insertCommand</code>. <strong>Yes, karpathy.app should have this.</strong> It is the most direct answer to "how does a human know which <code>:::</code> constructs exist?" It is also cheap:</p>
+<ul>
+<li>The editor is CodeMirror 6 (<code>apps/web/src/lib/cm.ts</code>).</li>
+<li>A slash menu there is one completion source for <code>@codemirror/autocomplete</code>, a new but first-party dependency.</li>
+<li>Its <code>snippet()</code> templates insert text with tab stops.</li>
+<li>It fits the chat's slash commands (feature <a href="../02_features/feature-report.html#01-slash-commands-and-one-tap-skill-chips-in-the-chat">F01</a>), so <code>/</code> means "insert something" everywhere in the app.</li>
+</ul>
+<pre><code>## Options
+Sync works through the API /│
+          ┌───────────────────────────────┐
+          │  Cards        ::::cards       │  ← blocks allowed here; typing "/ca" filters by label + keywords
+          │  Card         :::card         │
+          │  Verdict      :verdict[...]   │
+          │  Table        | a | b |       │
+          └──────────── ↑↓ Enter · Esc ───┘
+→ Enter inserts:
+::::cards
+:::card{title=Pros}                  ← first tab stop; Tab jumps into the body
+│
+:::
+::::
+</code></pre>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Design point</th>
+<th>Proposal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it inserts</td>
+<td>Raw Markdown text, never a hidden widget. It is the same text a human or the AI would type, already in canonical form (colon count right for the current nesting depth), so <code>fmt</code> has nothing to do.</td>
+</tr>
+<tr>
+<td>Where the entries come from</td>
+<td>The same registry: each entry gets <code>menu: {label, icon, keywords, snippet}</code>. The menu, the cheat sheet, the lint rules and the AI skill can't disagree.</td>
+</tr>
+<tr>
+<td>Which entries show</td>
+<td>Per file and per vault. For a <strong>report</strong> (a repo with a <code>.remarkrc</code> / reports preset, or report frontmatter): the directives plus generic blocks (table, Mermaid figure, image). For an ordinary <strong>vault note</strong>: no directives, because Obsidian doesn't render them. Offer Obsidian-native items instead: callout <code>> [!note]</code>, <code>[[link]]</code>, table, task, frontmatter property.</td>
+</tr>
+<tr>
+<td>When <code>/</code> triggers</td>
+<td>Only at the start of a line or after whitespace, and never inside code, fences or links. <code>and/or</code>, <code>specs/06</code> and URLs stay untouched. <code>Esc</code>, or <code>/</code> followed by a space, types a literal slash.</td>
+</tr>
+<tr>
+<td>Selected text</td>
+<td>If text is selected, containers <strong>wrap</strong> it (<code>:::tldr</code> around the selection) and inline items use it as the label (<code>:verdict[selection]{tone=go}</code>).</td>
+</tr>
+<tr>
+<td>Nesting</td>
+<td>Inside <code>::::cards</code>, <code>:::card</code> is listed first. Items the lint would reject there are hidden, using ADR-044's "restrict while authoring" rule.</td>
+</tr>
+<tr>
+<td>iPad / phone</td>
+<td>Typing <code>/</code> needs a keyboard layer switch on iOS, so the Markdown toolbar (<a href="../02_features/feature-report.html#07-markdown-toolbar-above-the-on-screen-keyboard">F07</a>) gets a <strong>+</strong> button that opens the same menu.</td>
+</tr>
+<tr>
+<td>Afterwards</td>
+<td>In-place previews render the inserted block, and lint squiggles show if an attribute value is wrong.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Effort:</strong> small. It needs one completion source, the registry export in a form the frontend can import, and an entry per directive. The per-vault switch (report vs. note) is the only real design decision. <span class="v go">recommended</span> as the first editor-side piece of this work, and it is useful even before the HTML build exists, because vault notes get the Obsidian-native entries.</p>
+<h3 id="lintfmt">Treat it like ESLint + Prettier: <code>lint</code> and <code>fmt</code> as standard processes</h3>
+<p>Code already works this way: ESLint finds problems, Prettier rewrites layout, and both run in the editor, in hooks and in CI. Reports should get the same pair. The unified ecosystem already provides both halves. <strong><code>remark-cli</code></strong> lints (<code>remark-lint</code> rules) <em>and</em> formats (<code>remark-stringify</code> with <code>-o</code>). It reads the same plugin chain as our build, so the tool is mostly a <strong>remark preset</strong> rather than a program:</p>
+<pre><code>// .remarkrc.mjs: one per project (like the theme.css)
+import reports from '@karpathy/reports/preset'      // gfm + frontmatter + directive + registry
+export default {
+  plugins: [
+    reports,                                          // parse + canonical stringify settings
+    ['reports/lint-directives', 'error'],            // unknown name / attr / value, unclosed fence, bad nesting
+    ['reports/lint-frontmatter', 'error'],           // closed key set, ISO dates, status enum
+    ['reports/lint-links', 'error'],                 // #fragments and relative files resolve
+    ['remark-lint-no-undefined-references', 'warn'], // a stock rule, severity chosen per project
+  ],
+}
+</code></pre>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Writes files?</th>
+<th>Command</th>
+<th>Runs where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>fmt</strong> (the "Prettier")</td>
+<td>yes</td>
+<td><code>just reports fmt</code> = <code>remark specs -o</code></td>
+<td>Format on save (<code>vscode-remark</code> language server; later CodeMirror in the app), the AI hook, pre-commit</td>
+</tr>
+<tr>
+<td><strong>lint</strong> (the "ESLint")</td>
+<td>no</td>
+<td><code>just reports lint</code> = <code>remark specs --frail</code></td>
+<td>Squiggles in the editor, the AI hook, pre-commit, CI</td>
+</tr>
+<tr>
+<td><strong>build</strong></td>
+<td>yes (HTML)</td>
+<td><code>just reports build</code></td>
+<td>On demand, <code>--watch</code> while writing</td>
+</tr>
+<tr>
+<td><strong>check</strong> (CI)</td>
+<td>no</td>
+<td><code>fmt --check &#x26;&#x26; lint &#x26;&#x26; build --check</code></td>
+<td>CI and <code>just check</code>, next to <code>npm run lint</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Order:</strong> always <code>fmt → lint → build</code>. Formatting first means lint never complains about things a machine can fix, the same split as <code>eslint-config-prettier</code>. The AI hook runs <code>fmt</code> and <code>lint</code> on the edited file and returns only the lint messages that are left.</p>
+<p><strong>Rules for the formatter</strong> (it rewrites human text, so it must be conservative):</p>
+<ul>
+<li><strong>Lossless and idempotent:</strong> <code>fmt(fmt(x)) === fmt(x)</code>, and the rendered HTML is identical before and after <code>fmt</code>. Both are golden tests.</li>
+<li><strong>Never re-wrap prose</strong> (no line-length reflow). It normalizes only fence colons, attribute order and quoting, defaults, frontmatter key order, list markers, and blank lines around blocks.</li>
+<li><strong>Scoped to reports</strong> (<code>specs/**</code>), never to vault content the app edits. Vault notes belong to Obsidian and the user (see <code>CLAUDE.md</code> → Language).</li>
+<li><strong>One-time noise:</strong> the first run will change bullets and escaping in existing <code>.md</code> files. Do that in its own commit, as with introducing Prettier.</li>
+</ul>
+<p><strong>Alternatives:</strong></p>
+<ul>
+<li><code>@eslint/markdown</code> would put Markdown into the existing <code>npm run lint</code>. It is not verified whether it can be taught directives.</li>
+<li><code>markdownlint</code> and <strong>Prettier</strong> don't know directives. Prettier's Markdown formatter could rewrite <code>:::</code> blocks, so it must not touch reports (<code>.prettierignore</code>) if it is ever added. <code>remark-cli</code> is the only one that shares the parser with the build, so lint, format and render can't disagree.</li>
+</ul>
+<h3 id="what-a-good-error-message-looks-like">What a good error message looks like</h3>
+<p>Both audiences fix things fastest when the message names the place, the rule and the fix. For the AI, the message <em>is</em> the documentation it sees at the moment it matters.</p>
+<pre><code>specs/06_md_to_html/md-to-html-report.md:14:1  unknown directive ":::tdlr". Did you mean ":::tldr"?
+specs/06_md_to_html/md-to-html-report.md:41:1  ":::card" opened here is never closed (file ends at line 212)
+specs/06_md_to_html/md-to-html-report.md:57:22 ":verdict" tone="yes" is not allowed. Use go | partial | no
+specs/06_md_to_html/md-to-html-report.md:3:1   frontmatter: unknown key "stauts". Did you mean "status"?
+specs/06_md_to_html/md-to-html-report.md:88:1  ":::card" must be inside "::::cards" (renders, but check fails)
+</code></pre>
+<p>Checks that go beyond syntax:</p>
+<ul>
+<li>A <code>#fragment</code> that doesn't resolve.</li>
+<li>A figure without alt text.</li>
+<li>A <code>.svg</code> without its <code>.mmd</code> next to it.</li>
+<li><code>edited</code> older than <code>created</code>.</li>
+<li>A <code>:::tldr</code> missing from a report with more than one section.</li>
+</ul>
+<h3 id="a-lighter-syntax-where-it-already-exists">A lighter syntax where it already exists</h3>
+<p>For single blocks there is a native alternative: Obsidian's callout syntax. <code>> [!tldr]</code> renders as a styled box in Obsidian, and on GitHub it falls back to a plain blockquote. <code>:::tldr</code> degrades worse: GitHub shows it as literal text. The catch: callouts don't nest well, so cards would still need <code>:::</code>, and two block syntaxes are harder to learn than one. <span class="v partial">recommendation</span> Use <code>:::</code> only. When the linter sees <code>> [!tldr]</code>, it suggests <code>:::tldr</code> and <code>fmt</code> converts it.</p>
+<h2 id="theme">8. Per-project design: just CSS</h2>
+<p>The template and class names are fixed and shared by every project. A project changes the design only through its CSS. That gives three levels, and each project goes only as far as it needs:</p>
+<div class="cards">
+<div class="card"><h4>1. Tokens (most projects)</h4>
+<p>Override custom properties on <code>:root</code>, plus the dark-mode block: <code>--bg</code>, <code>--fg</code>, <code>--accent</code>, <code>--font</code>, <code>--radius</code>, the <code>--go/--partial/--no</code> pill colors, and so on. Ten lines give a different look.</p>
+</div>
+<div class="card"><h4>2. Component CSS</h4>
+<p>Restyle the stable classes (<code>.tldr</code>, <code>.card</code>, <code>.v</code>, <code>figure</code>, <code>nav.toc</code>, <code>h2</code>) to change shapes, spacing or type. For example, a TL;DR bar in the accent color instead of a card.</p>
+</div>
+<div class="card"><h4>3. Config, not templates</h4>
+<p>The few things CSS can't do go in <code>reports.json</code> as data: the icon path, the brand name in the menu bar, and the language. Projects get no template overrides, so the class contract stays the whole API.</p>
+</div>
+</div>
+<pre><code>/* other-project/reports/theme.css: a complete theme */
+:root { --accent: #0a7d6f; --font: "Iowan Old Style", Georgia, serif; --radius: 4px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --accent: #5fd3c2; } }
+:root[data-theme="dark"] { --accent: #5fd3c2; }
+.tldr { border-left: 4px solid var(--accent); border-radius: 0; }
+</code></pre>
+<p>The build emits <code>base.css</code> (shipped with the tool: layout, tokens with the current Apple-like defaults, both color schemes, phone width), then the project's <code>theme.css</code>, in <code>@layer base, theme</code>. The project always wins without specificity fights. A project with no <code>theme.css</code> gets today's design.</p>
+<p><strong>What this means:</strong> the class names and token names become a public contract. Renaming one breaks other projects' themes, so the contract needs a version and a short list in the tool's README. A project that truly needs a different structure (say, a sidebar TOC) is a signal to add an option to the shared template, not to fork it.</p>
+<p><strong>From W12's palette pipeline (ADR-020):</strong> W12 keeps its theme as data (<code>light.json</code> / <code>dark.json</code> with 15 semantic tokens), and one function writes the CSS variables. It fails on a missing token and never invents variable names. We keep plain CSS as the theme format because it is simpler and allows level 2, but borrow the <strong>closed token list</strong>: the build warns when a <code>theme.css</code> sets a custom property that isn't in the contract (usually a typo). Pills stay "label + colour, never colour alone", as in W12's DESIGN.md.</p>
+<h2 id="determinism">9. Determinism</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Source of drift</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clock (<code>new Date()</code>, "generated at")</td>
+<td>Never read it. <em>Created</em> and <em>Last edited</em> come from frontmatter only. The AI updates <code>edited</code> when it edits the content, as it does today.</td>
+</tr>
+<tr>
+<td>File modification times, git log</td>
+<td>Not used. They differ between clones and for uncommitted work.</td>
+</tr>
+<tr>
+<td>Absolute paths, machine names</td>
+<td>All paths in the output are relative to the report.</td>
+</tr>
+<tr>
+<td>Locale, time zone</td>
+<td>Dates stay ISO strings as written. No <code>toLocaleString</code>.</td>
+</tr>
+<tr>
+<td>Iteration order</td>
+<td>Sort directory listings and the report list explicitly.</td>
+</tr>
+<tr>
+<td>Dependency versions</td>
+<td>Exact versions and a lockfile. The tool version is printed in a <code>&#x3C;meta name="generator"></code>, so a version bump shows up as a diff.</td>
+</tr>
+<tr>
+<td>Line endings, Unicode</td>
+<td>Normalize input to LF and NFC. Output uses LF with a final newline.</td>
+</tr>
+<tr>
+<td><strong>Mermaid</strong></td>
+<td>Rendering runs headless Chromium, and font metrics differ between machines, so SVG bytes are not stable. Treat the <code>.svg</code> as a committed input: re-render only when the <code>.mmd</code> changed (by content hash), and never inside the HTML build.</td>
+</tr>
+<tr>
+<td>Network (CDN fonts, runtime Mermaid)</td>
+<td>None at build time. At view time, only the optional local fonts in the theme.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Test:</strong> golden files (fixture <code>.md</code> → expected <code>.html</code>) for each transform, plus a CI job that builds all reports twice in a clean checkout and compares hashes, then runs <code>--check</code> against the committed files.</p>
+<h2 id="hard">10. Challenges</h2>
+<h3 id="expressiveness-vs-plain-markdown">Expressiveness vs. plain Markdown</h3>
+<p>The reports use rich elements: TL;DRs with numbered reasons, cards, pills inside tables, and anchors to sub-options. Every element we add costs new syntax that renders badly everywhere else. The rule has to be <strong>derive first, directive second, never raw HTML</strong>. W12 went the same way (ADR-056, "no HTML islands"): raw HTML in the source is shown as escaped text, so every element goes through the theme and there is no injection path. If something can't be expressed, it earns a new directive in the registry.</p>
+<h3 id="interactive-reports">Interactive reports</h3>
+<p><code>feature-report</code> has filters, a shortlist in <code>localStorage</code>, a sortable table and a scatter chart. A static converter will never cover that, and it shouldn't. Escape hatch: a report can declare <code>script: feature-report.js</code> in its frontmatter, and the build inlines that script after the generated DOM. The script then enhances the stable markup. Data comes from the Markdown itself (tables, a fenced <code>json</code> block), not from regexes over the source.</p>
+<h3 id="migrating-the-existing-reports">Migrating the existing reports</h3>
+<p>Three reports exist only as HTML. Options: convert them once (turndown gets most of the way, then clean up the cards and pills by hand), or freeze them as legacy HTML and only write new reports in Markdown. Converting all three is maybe an hour each and buys a single editing workflow, so it is worth it. <code>browser-only-report</code> is the natural pilot because it is the layout reference.</p>
+<h3 id="tool-location-and-reuse-across-projects">Tool location and reuse across projects</h3>
+<p>For other projects to use the tool, it can't live in <code>specs/</code>. Options: its own repo published as an npm package (<code>npx</code>-able), a git submodule, or copy-paste. An npm package with a pinned version fits best. Each project then has only <code>reports.json</code>, an optional <code>theme.css</code> and its <code>.md</code> files.</p>
+<h3 id="links-and-anchors">Links and anchors</h3>
+<p>Links from one report to another must point to <code>.html</code> in the output while staying <code>.md</code> in the source, so they also work on GitHub. Links to research notes stay <code>.md</code>. Heading slugs change when a title is edited and silently break deep links. Explicit <code>{#id}</code> on sections that others link to avoids that, and the build can check that every <code>#fragment</code> resolves.</p>
+<h3 id="the-generated-html-stays-in-git">The generated HTML stays in git</h3>
+<p>Committed output means double diffs and possible drift. Not committing it means GitHub, <code>file://</code> and phone viewing need a build first. Commit it, and let the <code>--check</code> step in CI (and optionally a pre-commit hook) catch stale files.</p>
+<h3 id="the-ai-has-to-follow-the-new-workflow">The AI has to follow the new workflow</h3>
+<p>The <code>CLAUDE.md</code> rules change from "write HTML with this layout" to "write <code>report.md</code> with this frontmatter, run <code>just reports</code>". That is shorter and harder to get wrong, but the old rule must be removed or the AI will keep hand-writing HTML.</p>
+<h2 id="reco">11. Recommendation and next steps</h2>
+<ol>
+<li><strong>Build the core</strong>: a Node CLI on unified with <code>remark-gfm</code>, <code>remark-frontmatter</code>, <code>remark-directive</code> and <code>rehype-stringify</code>, plus a W12-style registry with one entry per directive (attributes, render, text fallback). Target size: about 300 lines, one fixed template, and <code>base.css</code> taken from today's reports.</li>
+<li><strong>Pilot</strong>: convert <code>browser-only-report</code> to Markdown, rebuild it, and compare the old and new pages in screenshots (light, dark, phone width).</li>
+<li><strong>Lock in determinism</strong>: golden <code>.md → .html</code> fixtures per directive (W12 has 91 for its format), a test that feeds prose colons (<code>16:00</code>, <code>:443</code>) through the build, the build-twice hash check, and <code>just reports --check</code> in CI.</li>
+<li><strong>Prove theming</strong>: a second <code>theme.css</code> (e.g. for another repo) with only token overrides, to validate the class contract.</li>
+<li><strong>Migrate</strong> <code>v1-plan</code> and <code>prod-env-report</code>, then move <code>feature-report</code> onto the core plus its report-local script, and retire <code>build-report-html.mjs</code> and the runtime <code>reports-nav.js</code>.</li>
+<li><strong>Authoring support</strong>: ship the tool as a remark preset so <code>fmt</code> and <code>lint</code> run through <code>remark-cli</code> (<a href="#lintfmt">§7</a>), plus <code>just report new</code>, the <code>write-report</code> skill and the <code>PostToolUse</code> check hook (<a href="#guide">§7</a>). In the karpathy.app editor, a <code>/</code> menu comes from the same registry (<a href="#slash">§7</a>). For vault notes it can ship first, with Obsidian-native entries.</li>
+<li><strong>Update <code>CLAUDE.md</code></strong> "Reports and docs" to the Markdown workflow. Then extract the tool into its own package once a second project uses it.</li>
+</ol>
+<h2 id="appendix">12. Sources</h2>
+<ul>
+<li>House layout rules: <code>CLAUDE.md</code> → "Reports and docs"; reference page <a href="../03_browser_only/browser-only-report.html"><code>browser-only-report.html</code></a></li>
+<li>Existing generator: <a href="../02_features/build-report-html.mjs"><code>specs/02_features/build-report-html.mjs</code></a> (marked, report-specific)</li>
+<li>Shared runtime nav and header styles: <a href="../reports-nav.js"><code>specs/reports-nav.js</code></a></li>
+<li>unified / remark / rehype: <a href="https://unifiedjs.com">unifiedjs.com</a>; directives: <a href="https://github.com/remarkjs/remark-directive">remark-directive</a></li>
+<li>Pandoc fenced divs and templates: <a href="https://pandoc.org/MANUAL.html">pandoc.org/MANUAL.html</a></li>
+<li>W12 (<code>../w12-free</code>): ADR-012 content storage, ADR-044 nesting, ADR-056 directive-only, ADR-020 palette pipeline (<code>specs/architecture/</code>); directive spec <code>specs/modules/editor.md</code>; registry <code>src/editor-schema/src/extensionRegistry.ts</code>, fallback <code>directiveFallback.ts</code>; golden fixtures <code>src/frontend/src/components/editor/__tests__/fixtures/cycle-2/</code>; lessons in <code>specs/learnings/</code></li>
+<li>Diagram: <code>docs/diagrams/md-to-html-pipeline.{mmd,svg}</code></li>
+</ul>
+<p>Sizes measured in this repo on 2026-09-30. The tool comparison is desk knowledge, not spiked. The first build step should confirm the plugin choice.</p>
+</main>
+</body>
+</html>

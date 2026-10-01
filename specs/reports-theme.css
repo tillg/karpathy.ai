@@ -1,0 +1,14 @@
+/* karpathy.app theme for md2html reports. Layered after md2html's base.css.
+ * base.css already is the karpathy.app house style (Apple-like, light + dark), so this file
+ * only holds deliberate deviations from it.
+ */
+
+/* Diagrams are drawn for a white background: keep the whole figure frame white in dark mode too,
+ * as in the hand-written reports. */
+figure { background: var(--figure-bg); }
+figcaption { color: #5f6368; }
+
+/* ```text blocks are ASCII wireframes (feature report): box-drawing lines must touch, so use a
+ * real monospace font and a tight line height on the <pre> itself (the line box comes from it). */
+pre:has(> code.language-text) { font: 12.5px/1.22 "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }
+pre > code.language-text { font: inherit; }

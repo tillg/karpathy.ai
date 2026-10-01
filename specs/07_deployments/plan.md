@@ -64,11 +64,16 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       (`gh release create --generate-notes deploy/compose.yml`, the compose file as release asset).
       Images carry the `org.opencontainers.image.source` label. Pre-release tags (`-rc.N`) don't move
       `:latest` and are created with `--prerelease`.
-- [ ] `just release <X.Y.Z[-rc.N]>`: refuses a dirty tree; for a final version also a HEAD that isn't
+- [x] `just release <X.Y.Z[-rc.N]>`: refuses a dirty tree; for a final version also a HEAD that isn't
       on `main` (an RC may come from any commit); tags, pushes, prints the run URL. **Check:** an RC from
       a non-`main` commit gets released; a final tag pushed by hand on such a commit fails in `check`.
-      (Built and used for rc.1–rc.3, all cut from `main`. Open: the non-`main` cases need a branch,
-      i.e. your OK to create one.)
+      (2026-10-01 on the throwaway branch `test/release-guard` (user OK):
+      - `just release 0.0.2` refused ("HEAD is not on origin/main");
+      - `v0.0.1-rc.6` from the branch was released as a pre-release;
+      - `v0.0.2` pushed by hand failed in `guard`, and build, manifest and release were skipped
+        (no release, no image).
+
+      Then the `v0.0.2` tag and the branch were deleted.)
 - [x] Dry run with `v0.0.1-rc.1`. Make the three GHCR packages public. **Check:**
       `docker manifest inspect ghcr.io/tillg/karpathy.app-backend:0.0.1-rc.1` lists amd64 and arm64;
       an anonymous `docker pull` works; the image reports `version: 0.0.1-rc.1`; GitHub shows the

@@ -12,21 +12,21 @@
     that: ansible_facts.getent_passwd | dict2items | rejectattr('value', 'none') | map(attribute='key') | list in [[], [deploy_user]]
     fail_msg: "uid {{ deploy_uid }} belongs to another user; the images and /srv/vaults need it for {{ deploy_user }}"
 
-- name: Look up gid {{ deploy_uid }}
+- name: Look up gid {{ deploy_gid }}
   ansible.builtin.getent:
     database: group
-    key: "{{ deploy_uid }}"
+    key: "{{ deploy_gid }}"
     fail_key: false
 
-- name: Gid free or already the deploy group, gid {{ deploy_uid }}
+- name: Gid free or already the deploy group, gid {{ deploy_gid }}
   ansible.builtin.assert:
     that: ansible_facts.getent_group | dict2items | rejectattr('value', 'none') | map(attribute='key') | list in [[], [deploy_user]]
-    fail_msg: "gid {{ deploy_uid }} belongs to another group; the images and /srv/vaults need it for {{ deploy_user }}"
+    fail_msg: "gid {{ deploy_gid }} belongs to another group; the images and /srv/vaults need it for {{ deploy_user }}"
 
 - name: Deploy group
   ansible.builtin.group:
     name: "{{ deploy_user }}"
-    gid: "{{ deploy_uid }}"
+    gid: "{{ deploy_gid }}"
 
 - name: Deploy user
   ansible.builtin.user:
@@ -51,6 +51,12 @@
     content: "{{ deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
     mode: "0440"
     validate: visudo -cf %s
+
+# Hardening ends root and password logins: on a server, deploy's key must be in place first.
+- name: The deploy user can log in before root and passwords are switched off
+  ansible.builtin.assert:
+    that: target == 'local' or deploy_authorized_keys | length > 0
+    fail_msg: "deploy_authorized_keys is empty: hardening sshd now would lock you out of {{ target }}"
 
 # sshd uses the first value it reads: 10- comes before cloud-init's 50-cloud-init.conf.
 - name: Harden sshd

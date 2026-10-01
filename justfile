@@ -99,8 +99,10 @@ deploy-e2e target *args:
     mkdir -p tmp/local && umask 077
     (cd deploy/ansible && ansible-vault view --vault-id local@vault-pass-client.sh inventories/local/group_vars/all/vault.yml </dev/null 2>/dev/null) \
       | sed -n 's/^vault_bearer_token: "\(.*\)"$/\1/p' > tmp/local/bearer_token
+    [ -s tmp/local/bearer_token ] || { echo "no bearer token from the local vault (Keychain item karpathy-ansible-local?)" >&2; exit 1; }
     url=https://localhost:9444
-    version=$(curl -sfk -H "Authorization: Bearer $(cat tmp/local/bearer_token)" $url/api/health | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+    # The release the PWA and the server must report: E2E_EXPECT_VERSION, else what the server runs.
+    version=${E2E_EXPECT_VERSION:-$(curl -sfk -H "Authorization: Bearer $(cat tmp/local/bearer_token)" $url/api/health | jq -r .version)}
     echo "e2e against $url, release $version"
     E2E_BASE_URL=$url E2E_TOKEN_FILE=tmp/local/bearer_token E2E_EXPECT_VERSION="$version" \
       E2E_DOCKER="limactl shell karpathy-vm sudo docker" E2E_BACKEND_CONTAINER=karpathy-app-backend-1 \

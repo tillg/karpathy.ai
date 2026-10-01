@@ -7,6 +7,7 @@
     # uid/gid 1000: the images and /srv/vaults assume it (APP_UID/APP_GID).
     deploy_user: deploy
     deploy_uid: 1000
+    deploy_gid: 1000
   roles:
     - { role: base, tags: [host] }
     - { role: tailscale, tags: [host], when: tailscale_enabled }

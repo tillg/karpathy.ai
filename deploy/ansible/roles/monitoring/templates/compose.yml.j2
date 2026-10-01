@@ -25,7 +25,7 @@ services:
     volumes:
       - agent-data:/var/lib/beszel-agent
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - {{ vaults_fs_mount | default('/srv/vaults') }}:/extra-filesystems/vaults:ro
+      - {{ vaults_fs_mount }}:/extra-filesystems/vaults:ro
     security_opt: [no-new-privileges:true]
     logging: *logs
 {% if gatus_enabled %}

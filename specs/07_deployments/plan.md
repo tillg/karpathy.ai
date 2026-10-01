@@ -100,9 +100,12 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       suffix makes Ansible pass `--vault-id <target>`, so one script serves both targets'
       Keychain items `karpathy-ansible-{local,hetzner}`. The `hetzner` vault holds placeholders until
       Phase 7. `just deploy` wraps `deploy/ansible/deploy.sh`.)
-- [ ] `ci.yml`: an `ansible` job (`ansible-galaxy collection install -r requirements.yml`,
+- [x] `ci.yml`: an `ansible` job (`ansible-galaxy collection install -r requirements.yml`,
       `ansible-lint`, `ansible-playbook --syntax-check` for both inventories, using a dummy vault
-      password so the encrypted files load). **Check:** CI green on a PR.
+      password so the encrypted files load). **Check:** CI green on a PR. (Green on `main`, which is
+      where this went (user, 2026-10-01). The collections go to `~/.ansible/collections` explicitly:
+      the runner's preinstalled Ansible hides them from pipx's ansible-lint. Syntax checks don't
+      decrypt the vaults.)
 - [x] Role `base`: deploy user uid 1000, sshd hardening, unattended-upgrades. **Check:** on the VM,
       `id deploy` → uid 1000, `sshd -T | grep -i passwordauthentication` → no; a second run reports
       `changed=0`.
@@ -148,10 +151,17 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       running turn per vault" fail too: they need a turn in flight, which only passed on prodtest
       because the unreachable model hung instead of failing. Tagged as well, 6 titles = 12 tests in
       total. All 12 pass on the dev stack with the model.)
-- [ ] `just deploy-e2e local`: copies the `local` bearer token from the vault to
+- [x] `just deploy-e2e local`: copies the `local` bearer token from the vault to
       `tmp/local/bearer_token` (0600, gitignored), then runs `playwright test --grep-invert @llm` with
       `E2E_BASE_URL=https://localhost:9444`. **Check:** green, and the run reports the number of tests
-      passed. That number must equal the suite total minus the `@llm` tests.
+      passed. That number must equal the suite total minus the `@llm` tests. (On rc.4: 186 passed +
+      2 skipped = 188 = 202 − 14 `@llm`. Also sets `E2E_EXPECT_VERSION` from `/api/health` and
+      `E2E_DOCKER=limactl shell karpathy-vm sudo docker` for the one test that execs into the backend
+      (`backendExec`, user OK 2026-10-01 to change `fix-reload-same-text`). Later `@llm` tag: "Stop
+      aborts a running turn" (a race without a model). Known flake: webkit "push failure" fails about
+      1 run in 3 on the VM; the Mac-side rename of the bare repo shows up late through virtiofs.
+      Found and fixed along the way: the backend lacked an init, and ~300 zombie `git` processes
+      piled up per e2e run (dev, prodtest, VM); `init: true` since rc.4.)
 
 ## Phase 6: monitoring
 
@@ -190,7 +200,10 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       `/fail` → healthchecks.io alert (Beszel ignores stopped containers); stopping the Beszel hub → the
       same `/fail` alert; `fallocate` `/srv/vaults` past
       80 % → disk alert, then freed → "below threshold"; the same on `/`; stopping the timer →
-      missed-heartbeat alert after the grace period.
+      missed-heartbeat alert after the grace period. (Done: backend frozen (SIGSTOP as uid 1000) →
+      "Unhealthy container karpathy-app-backend-1 on local 🔴" after 105 s, "healthy ✅" 63 s after
+      it resumed; `/srv/vaults` → above/below threshold. Open: the three heartbeat cases need a
+      healthchecks.io test check URL; `/` skipped: ~28 GB to fill, the Mac has 36 GiB free.)
 
 ## Phase 7: Hetzner (once the server exists)
 
@@ -215,7 +228,31 @@ phase.
 - [ ] README: "Deploying" section (`just release`, `just deploy`, `just vm`, the Keychain password
       setup, rollback). Prod-env report §8: replace 8.3–8.10 with a pointer to `just deploy` and keep
       the manual account and booking steps; bump `edited`.
-- [ ] `CONTEXT.md`: an "Operations" section with the terms from [domain.md](domain.md).
-- [ ] `/spec:adversarial-code-review` against this spec; fix findings.
+- [x] `CONTEXT.md`: an "Operations" section with the terms from [domain.md](domain.md).
+- [x] `/spec:adversarial-code-review` against this spec; fix findings. (Run 2026-10-01 over
+      `9e492d4..0c13769`. Fixed:
+      - **Hetzner certificates:** the proxy (root without CAP_DAC_OVERRIDE) couldn't read a
+        1000-owned DNS token; it's root-owned now.
+      - **Fail closed:** app and monitoring assert a non-empty `bind_ip`; `base` refuses to harden
+        sshd on a server with no deploy keys.
+      - **`deploy-check`:** works against another version (smoke check skipped in check mode; image
+        check from the Mac).
+      - **Pull first:** images are pulled before `current` switches.
+      - **Retention:** counts the most recently *deployed* releases and also removes their images.
+      - **Releases:** `:latest` and "Latest" only move forward (hotfixes on older lines don't take
+        them); workflow permissions are read-only except for the push and release jobs.
+      - **Boot:** `nofail` on the vaults mount, and Docker `RequiresMountsFor=/srv/vaults`.
+      - **Small ones:** `deploy` accepts `v0.3.0`; `.env` quoting; Gatus honours `https_port`;
+        `deploy_gid`; `deploy-e2e` stops on a missing token and takes `E2E_EXPECT_VERSION`; a clear
+        message when there is no final release yet.
+
+      Not changed:
+      - No automatic rollback: §5.2 decided that.
+      - Beszel has no off switch yet: not needed for either target.
+      - The Beszel token travels in a query string to the local hub.
+      - `gatus.yaml` (with the ntfy topic) stays 0644 until Phase 7 shows which user Gatus runs as.
+      - The `release` and `just release` version rules are duplicated.
+      - For you: the prod-env report now names GoDaddy for DNS, but the proxy image bakes in
+        Cloudflare (architecture §2). Settle that in Phase 7.)
 
 System docs are updated at `/spec:archive`.

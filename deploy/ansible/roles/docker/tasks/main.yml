@@ -15,24 +15,23 @@
     state: present
     update_cache: true
 
+- name: Drop-in directory for docker.service
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
 # Published ports bind to the tailnet IP, which exists only once tailscaled is up.
 - name: Start Docker after tailscaled
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/after-tailscale.conf
+    content: |
+      [Unit]
+      After=tailscaled.service
+      Wants=tailscaled.service
+    mode: "0644"
   when: tailscale_enabled
-  block:
-    - name: Drop-in directory
-      ansible.builtin.file:
-        path: /etc/systemd/system/docker.service.d
-        state: directory
-        mode: "0755"
-    - name: Drop-in
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/docker.service.d/after-tailscale.conf
-        content: |
-          [Unit]
-          After=tailscaled.service
-          Wants=tailscaled.service
-        mode: "0644"
-      notify: Restart docker
+  notify: Restart docker
 
 - name: Docker running and enabled
   ansible.builtin.service:

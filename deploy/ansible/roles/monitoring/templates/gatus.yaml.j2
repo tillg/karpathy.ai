@@ -11,7 +11,7 @@ alerting:
 
 endpoints:
   - name: app
-    url: https://{{ domain }}/
+    url: https://{{ domain }}{{ '' if https_port | int == 443 else ':' ~ https_port }}/
     interval: 5m
     conditions:
       - "[STATUS] == 200"

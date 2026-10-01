@@ -283,9 +283,9 @@ sequenceDiagram
   A->>H: get_url release asset compose.yml into releases/vX (if missing)
   A->>H: render shared/.env (APP_VERSION=X.Y.Z), compose.target.yml, secrets
   A->>R: docker compose pull (via H)
-  A->>H: current → releases/vX, then docker_compose_v2 state=present, pull=always, build=never, wait=true
+  A->>H: current → releases/vX, then docker_compose_v2 state=present, pull=missing, build=never, wait=true
   A->>H: smoke check: uri https://DOMAIN:PORT/api/health (Bearer), assert version == X.Y.Z
-  A->>H: keep the newest 5 releases, docker image prune -f
+  A->>H: keep the 5 most recently deployed releases (and their images), docker image prune -f
 ```
 
 - `wait: true` blocks until every service is healthy; the compose healthchecks are already there.

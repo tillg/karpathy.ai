@@ -1,4 +1,10 @@
 # Beszel (hub + agent), Gatus and the heartbeat (architecture §4). A compose project of its own.
+# The hub UI binds to bind_ip; empty would mean every interface.
+- name: The hub binds to a known address
+  ansible.builtin.assert:
+    that: bind_ip | length > 0
+    fail_msg: "bind_ip is empty (on hetzner: the tailnet IP, known only after the tailscale role ran)"
+
 - name: Monitoring directory
   ansible.builtin.file:
     path: "{{ monitoring_root }}"

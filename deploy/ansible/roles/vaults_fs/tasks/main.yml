@@ -20,12 +20,23 @@
     src: "{{ vaults_fs_image }}"
     path: "{{ vaults_fs_mount }}"
     fstype: ext4
-    opts: loop,defaults
+    # nofail: a broken image must not stop the boot (SSH stays reachable); Docker waits for it below.
+    opts: loop,defaults,nofail
     state: mounted
 
 - name: Owned by the app user
   ansible.builtin.file:
     path: "{{ vaults_fs_mount }}"
     owner: "{{ deploy_uid }}"
-    group: "{{ deploy_uid }}"
+    group: "{{ deploy_gid }}"
     mode: "0755"
+
+# Without the mount, Docker would start the stack on an empty /srv/vaults on the root disk.
+- name: Docker needs the vaults filesystem
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/requires-vaults.conf
+    content: |
+      [Unit]
+      RequiresMountsFor={{ vaults_fs_mount }}
+    mode: "0644"
+  notify: Reload systemd

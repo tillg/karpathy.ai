@@ -17,4 +17,4 @@ volumes:
   # The vaults live on the loop-mounted filesystem (role vaults_fs), not in Docker's volume dir.
   vaults:
     driver: local
-    driver_opts: { type: none, o: bind, device: {{ vaults_fs_mount | default('/srv/vaults') }} }
+    driver_opts: { type: none, o: bind, device: {{ vaults_fs_mount }} }

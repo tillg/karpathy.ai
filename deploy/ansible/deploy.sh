@@ -11,7 +11,7 @@ while [ $# -gt 0 ]; do
     --only) tags=(--tags "$2"); shift 2 ;;
     --bootstrap) echo "--bootstrap comes with the Hetzner server (plan Phase 7)" >&2; exit 1 ;;
     -*) echo "unknown option $1" >&2; exit 1 ;;
-    *) version=$1; shift ;;
+    *) version=${1#v}; shift ;;  # 0.3.0 or v0.3.0
   esac
 done
 [ -d "inventories/$target" ] || { echo "unknown target: $target (have: $(ls inventories | xargs))" >&2; exit 1; }

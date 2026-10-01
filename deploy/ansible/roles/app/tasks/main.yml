@@ -10,16 +10,32 @@
   become: false
   run_once: true
   check_mode: false
+  failed_when: false
+
+- name: There is a release to deploy
+  ansible.builtin.assert:
+    that: app_version | length > 0 or app_latest.status == 200
+    fail_msg: "no final release on GitHub yet (pre-releases don't count): pass a version, e.g. just deploy {{ target }} 0.0.1-rc.4"
 
 - name: Release to deploy
   ansible.builtin.set_fact:
-    app_release: "{{ app_version if app_version | length > 0 else app_latest.json.tag_name | regex_replace('^v', '') }}"
+    app_release: "{{ (app_version if app_version | length > 0 else app_latest.json.tag_name) | regex_replace('^v', '') }}"
 
+# An empty BIND_IP would make compose publish on every interface (`${BIND_IP:-0.0.0.0}`).
+- name: The proxy binds to a known address
+  ansible.builtin.assert:
+    that: bind_ip | length > 0
+    fail_msg: "bind_ip is empty (on hetzner: the tailnet IP, known only after the tailscale role ran)"
+
+# From the Mac, so it also works in check mode against a host without Docker yet.
 - name: GHCR images exist for {{ app_release }}
   ansible.builtin.command: docker manifest inspect {{ app_registry }}-{{ item }}:{{ app_release }}
   loop: "{{ app_images }}"
   changed_when: false
   check_mode: false
+  delegate_to: localhost
+  become: false
+  run_once: true
 
 - name: Release and shared directories
   ansible.builtin.file:
@@ -50,26 +66,27 @@
     dest: "{{ app_root }}/shared/compose.target.yml"
     mode: "0644"
 
-# Compose bind-mounts secret files as they are: readable by the app user (uid 1000) only.
+# Compose bind-mounts secret files as they are: each readable only by the container that uses it
+# (backend: uid 1000; proxy: Caddy as root without CAP_DAC_OVERRIDE, so root must own its token).
 - name: Secrets directory
   ansible.builtin.file:
     path: "{{ app_root }}/shared/secrets"
     state: directory
     owner: "{{ deploy_uid }}"
-    group: "{{ deploy_uid }}"
+    group: "{{ deploy_gid }}"
     mode: "0700"
 
 - name: Secrets
   ansible.builtin.copy:
     dest: "{{ app_root }}/shared/secrets/{{ item.name }}"
     content: "{{ item.value }}\n"
-    owner: "{{ deploy_uid }}"
-    group: "{{ deploy_uid }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
     mode: "0600"
   loop:
-    - { name: bearer_token, value: "{{ bearer_token }}" }
-    - { name: github_token, value: "{{ github_token }}" }
-    - { name: dns_api_token, value: "{{ dns_api_token }}" }
+    - { name: bearer_token, value: "{{ bearer_token }}", owner: "{{ deploy_uid }}", group: "{{ deploy_gid }}" }
+    - { name: github_token, value: "{{ github_token }}", owner: "{{ deploy_uid }}", group: "{{ deploy_gid }}" }
+    - { name: dns_api_token, value: "{{ dns_api_token }}", owner: 0, group: 0 }
   loop_control: { label: "{{ item.name }}" }
   no_log: true
 
@@ -79,6 +96,22 @@
     content: "# Rendered by Ansible (role app): provider API keys, opencode only.\n{% for k, v in opencode_env.items() %}{{ k }}={{ v }}\n{% endfor %}"
     mode: "0600"
   no_log: true
+
+- name: Release compose file on the host
+  ansible.builtin.stat:
+    path: "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
+  register: app_compose_file
+
+# Pull before switching `current`, so a failed pull leaves it on the running release.
+# (In check mode on a release not downloaded yet, there is nothing to pull or start.)
+- name: Pull the images of v{{ app_release }}
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ app_root }}/shared"
+    project_name: karpathy-app
+    files:
+      - "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
+      - "{{ app_root }}/shared/compose.target.yml"
+  when: app_compose_file.stat.exists
 
 - name: Current release → v{{ app_release }}
   ansible.builtin.file:
@@ -96,15 +129,22 @@
       - "{{ app_root }}/current/compose.yml"
       - "{{ app_root }}/shared/compose.target.yml"
     state: present
-    pull: always
+    pull: missing
     build: never
     remove_orphans: true
     wait: true
     wait_timeout: 300
+  when: app_compose_file.stat.exists
 
+# The live stack still runs the old release in check mode: nothing to check.
 - name: Smoke check
-  ansible.builtin.import_tasks: smoke.yml
-  tags: [smoke]
+  ansible.builtin.include_tasks: smoke.yml
+  when: not ansible_check_mode
+
+# Retention counts the most recently *deployed* releases, so a rollback target stays.
+- name: Mark the release as just deployed, v{{ app_release }}
+  ansible.builtin.command: touch {{ app_root }}/releases/v{{ app_release }}
+  changed_when: false
 
 - name: Release directories beyond the newest {{ app_keep_releases }}
   ansible.builtin.shell: |
@@ -122,6 +162,14 @@
     path: "{{ app_root }}/releases/{{ item }}"
     state: absent
   loop: "{{ app_old_releases.stdout_lines }}"
+
+# `image prune` only takes dangling images; the tagged images of removed releases go here.
+- name: Remove the images of old releases
+  ansible.builtin.command: docker image rm {{ app_registry }}-{{ item.1 }}:{{ item.0 | regex_replace('^v', '') }}
+  loop: "{{ app_old_releases.stdout_lines | product(app_images) | list }}"
+  register: app_rmi
+  changed_when: app_rmi.rc == 0
+  failed_when: app_rmi.rc != 0 and 'No such image' not in app_rmi.stderr
 
 - name: Prune unused images
   ansible.builtin.command: docker image prune -f

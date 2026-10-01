@@ -38,6 +38,8 @@ services:
     image: ghcr.io/tillg/karpathy.app-backend:${APP_VERSION:-dev}
     build: { context: .., dockerfile: deploy/backend/Dockerfile }
     restart: unless-stopped
+    # PID 1 is `npm exec`, which doesn't reap orphans: without an init every git child stayed a zombie.
+    init: true
     user: *app-user
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

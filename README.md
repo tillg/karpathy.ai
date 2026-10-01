@@ -110,6 +110,8 @@ To run the e2e suite against the **prod images** (https://localhost:9443, next t
 stack): `just prodtest`, `just prodtest e2e`, `just prodtest down`; details in the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL`, `E2E_TOKEN_FILE` and `E2E_BACKEND_CONTAINER`
 point Playwright at it.
 
+Tests that need a real model turn are tagged `@llm` in their title; `--grep-invert @llm` skips them.
+
 Accessibility: `e2e/a11y.spec.ts` runs axe-core (WCAG 2.1 AA + best practice) over the main
 screens in light and dark mode and fails on serious/critical findings; `e2e/a11y-keyboard.spec.ts`
 covers dialog focus trapping, menu/radio-group keys and phone touch-target sizes.
@@ -117,6 +119,38 @@ covers dialog focus trapping, menu/radio-group keys and phone touch-target sizes
 Layout: `apps/backend` (Express 5, Node/TS), `apps/web` (Vite + React PWA),
 `packages/shared` (API types), `deploy/` (compose, Dockerfiles, Caddy, opencode config),
 `e2e/` (Playwright).
+
+## Deploying
+
+A release is a tag `vX.Y.Z` (or `vX.Y.Z-rc.N`). The release workflow builds the three images for
+amd64 and arm64, pushes them to GHCR and attaches `deploy/compose.yml` to the GitHub release.
+A deployment installs a release on a target with Ansible (`deploy/ansible`), from the Mac; nothing is
+built on a target. Design: [`specs/07_deployments`](specs/07_deployments/architecture.md).
+
+```sh
+just release 0.3.0              # tag + push v0.3.0 (final: HEAD must be on main; -rc.N from anywhere)
+just deploy local [0.3.0]       # deploy to a target (default: the newest release); log in tmp/deploy-*.log
+just deploy local --only app    # only the app (or: monitoring); the host roles ran before
+just deploy-check local         # dry run with diff
+just deploy-e2e local           # Playwright suite (minus @llm) against the local target
+just vm up|down|reset|ssh       # the local target: a Lima VM, https://localhost:9444
+```
+
+Targets: `local` (a Lima VM sized like the server, for testing the whole playbook) and `hetzner`
+(finished once the server exists). **Rollback** = deploy the older version: `just deploy <target>
+<previous> --only app`.
+
+Secrets are per target in an encrypted Ansible Vault (`inventories/<target>/group_vars/all/vault.yml`).
+Its password lives in the macOS Keychain under `karpathy-ansible-<target>`; keep a copy in your
+password manager. To set one up or edit a vault:
+
+```sh
+security add-generic-password -a "$USER" -s karpathy-ansible-local -w      # prompts for the password
+cd deploy/ansible && ansible-vault edit --vault-id local@vault-pass-client.sh inventories/local/group_vars/all/vault.yml
+```
+
+Monitoring comes with every deploy: Beszel (hub on port 8090; `local`: http://localhost:9090),
+Gatus (8091; `hetzner` only) and a heartbeat to healthchecks.io. Alerts go to an ntfy topic.
 
 ## Development
 

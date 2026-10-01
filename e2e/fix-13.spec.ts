@@ -2,7 +2,7 @@ import { expect, openApp, test } from './helpers';
 
 // #13: a queued prompt is visible while it waits; stopping it puts the text back into the
 // composer, and the never-used chat doesn't stay behind in the list.
-test('queued prompt: visible bubble, stop restores it, no orphan chat', async ({ page, vault }) => {
+test('@llm queued prompt: visible bubble, stop restores it, no orphan chat', async ({ page, vault }) => {
   test.setTimeout(10 * 60_000);
   page.on('dialog', (d) => void d.accept());
   await openApp(page, vault.id);
@@ -47,7 +47,7 @@ test('queued prompt: visible bubble, stop restores it, no orphan chat', async ({
 
 // #13 (reopened): the queued prompt comes from the server, so it survives a reload / another
 // device; the chat list marks running/queued chats and titles them by their first prompt.
-test('queued prompt survives a reload; list shows markers; stop restores it', async ({ page, vault }) => {
+test('@llm queued prompt survives a reload; list shows markers; stop restores it', async ({ page, vault }) => {
   test.setTimeout(10 * 60_000);
   page.on('dialog', (d) => void d.accept());
   await openApp(page, vault.id);

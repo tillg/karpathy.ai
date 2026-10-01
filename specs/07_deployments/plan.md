@@ -55,22 +55,31 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
 
 ## Phase 3: release workflow
 
-- [ ] `ci.yml`: add `on: workflow_call`. **Check:** CI green on a PR; the `nightly` job stays skipped
-      when called from another workflow.
-- [ ] `.github/workflows/release.yml` with `permissions: { contents: write, packages: write }`:
+- [x] `ci.yml`: add `on: workflow_call`. **Check:** CI green on a PR; the `nightly` job stays skipped
+      when called from another workflow. (Pushed straight to `main` (user, 2026-10-01): CI green there,
+      and `nightly` skipped inside the release runs.)
+- [x] `.github/workflows/release.yml` with `permissions: { contents: write, packages: write }`:
       `check` (reusable ci + guard that final tags are on `main`; `-rc.N` from any commit), `build` matrix image × {ubuntu-24.04,
       ubuntu-24.04-arm} push by digest, `manifest` (imagetools → `:X.Y.Z` from `${GITHUB_REF_NAME#v}`, `:latest`), `release`
       (`gh release create --generate-notes deploy/compose.yml`, the compose file as release asset).
       Images carry the `org.opencontainers.image.source` label. Pre-release tags (`-rc.N`) don't move
-      `:latest` and are created with `--prerelease`.- [ ] `just release <X.Y.Z[-rc.N]>`: refuses a dirty tree; for a final version also a HEAD that isn't
+      `:latest` and are created with `--prerelease`.
+- [ ] `just release <X.Y.Z[-rc.N]>`: refuses a dirty tree; for a final version also a HEAD that isn't
       on `main` (an RC may come from any commit); tags, pushes, prints the run URL. **Check:** an RC from
       a non-`main` commit gets released; a final tag pushed by hand on such a commit fails in `check`.
-- [ ] Dry run with `v0.0.1-rc.1`. Make the three GHCR packages public. **Check:**
+      (Built and used for rc.1–rc.3, all cut from `main`. Open: the non-`main` cases need a branch,
+      i.e. your OK to create one.)
+- [x] Dry run with `v0.0.1-rc.1`. Make the three GHCR packages public. **Check:**
       `docker manifest inspect ghcr.io/tillg/karpathy.app-backend:0.0.1-rc.1` lists amd64 and arm64;
       an anonymous `docker pull` works; the image reports `version: 0.0.1-rc.1`; GitHub shows the
       release as "Pre-release", not "Latest", and the packages are linked to the repo; the release page
       has `compose.yml` and `docker compose -f compose.yml config -q` passes on it in an empty dir
-      (its `build:` contexts don't exist on a host, and pull-only must not need them).
+      (its `build:` contexts don't exist on a host, and pull-only must not need them). (Done with
+      **rc.2**: rc.1 stopped in `check` (the CI ansible job didn't find its collections) before any
+      image was built, so it never became a release. All checks pass. The packages could be pulled
+      anonymously right away, so making them public needed no manual step. `config -q` needs the
+      `secrets/` files, which the app role creates.)
+
 ## Phase 4: local VM + Ansible skeleton
 
 - [x] `deploy/lima/karpathy-vm.yaml` (Ubuntu 24.04, vz, 2 CPU / 4 GiB / 40 GiB; forwards only
@@ -105,29 +114,40 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
 
 ## Phase 5: app role on the VM
 
-- [ ] Role `app`: resolve the version (arg or `releases/latest`), assert the images exist, `get_url`
+- [x] Role `app`: resolve the version (arg or `releases/latest`), assert the images exist, `get_url`
       the release asset `compose.yml` into `releases/vX/`, render `shared/` (`.env`, `opencode.env`,
       secrets 0600 `no_log`, `compose.target.yml`), `current` symlink, `docker_compose_v2`
       (`project_src: shared/`, files `current/compose.yml` + `shared/compose.target.yml`,
       `pull: always`, `build: never`, `wait: true`, project `karpathy-app`).
-- [ ] Smoke check task: `uri https://{{ domain }}:{{ https_port }}/api/health` with the Bearer token,
+- [x] Smoke check task: `uri https://{{ domain }}:{{ https_port }}/api/health` with the Bearer token,
       assert `opencode == ok` and `version == X.Y.Z`; `validate_certs` off only for `tls_mode: internal`.
-- [ ] Retention: keep the newest 5 release dirs, `docker image prune -f`.
-- [ ] `local` target: `compose.target.yml` mounts the VM's view of `tmp/dev/remotes` as `/remotes`
-      into the backend and sets `GIT_REMOTE_BASE=file:///remotes/` (architecture §6).
-- [ ] `local` vault: generated test values only (bearer token, dummy GitHub/DNS tokens, Beszel secrets,
+- [x] Retention: keep the newest 5 release dirs, `docker image prune -f`. (Never deletes the release
+      being deployed; only two releases exist so far, so nothing has been removed yet.)
+- [x] `local` target: `compose.target.yml` mounts the VM's view of `tmp/dev/remotes` as `/remotes`
+      into the backend and sets `GIT_REMOTE_BASE=file:///remotes/` (architecture §6). (Plus
+      `safe.directory=/remotes/*` via `GIT_CONFIG_*`: the share is owned by the Mac's uid.)
+- [x] `local` vault: generated test values only (bearer token, dummy GitHub/DNS tokens, Beszel secrets,
       random test ntfy topic, optional LLM key), encrypted like `hetzner` (architecture A13).
-- [ ] **Check:** `just vm reset` then `just deploy local 0.0.1-rc.1` against the fresh VM passes, and the log shows the
+- [x] **Check:** `just vm reset` then `just deploy local 0.0.1-rc.1` against the fresh VM passes, and the log shows the
       time from `just vm up` to a passing smoke check (target: under 15 min); `https://localhost:9444` opens in the browser
       with the token (screenshot in `tmp/`); a second deploy reports `changed=0` for the app role
       apart from the smoke check; cut `v0.0.1-rc.2` with a change to `compose.yml` (e.g. a
       new environment variable), deploy it, then deploy `rc.1` again with the same playbook → the version
       flips back, the stack is healthy and the vault added before is still there (architecture §5.2,
       playbook/release compatibility); the rollback deploy takes under 2 min (`--only app`, timed in
-      the log).
-- [ ] Tag the e2e tests that need a model `@llm`: run the suite against `just prodtest` with the
+      the log). (Run one RC later than planned: fresh VM + `rc.2`. `vm reset` took 252 s and the
+      deploy 206 s + 82 s, ≈ 9 min in total; the deploy ran three times because it uncovered two
+      `deploy.sh`/role bugs. Second deploy `changed=0`. The browser shows the app and "Server
+      0.0.1-rc.2 · App 0.0.1-rc.2" (`tmp/local-app.png`, `tmp/local-admin.png`). `rc.3` adds `TZ` to
+      the backend (tzdata in the image). Rollback rc.3 → rc.2 with `--only app`: 49 s, version back to
+      rc.2, all healthy, the vault added on rc.3 still `ready`.)
+- [x] Tag the e2e tests that need a model `@llm`: run the suite against `just prodtest` with the
       model unreachable, and tag the tests that fail for that reason (and only those). **Check:**
-      `just e2e` against the dev stack is still green with every test, tagged or not.
+      `just e2e` against the dev stack is still green with every test, tagged or not. (Prodtest
+      without a model: `chat.spec` ×2 and `fix-63`. On the VM `fix-13` ×2 and `plan-gaps` "one
+      running turn per vault" fail too: they need a turn in flight, which only passed on prodtest
+      because the unreachable model hung instead of failing. Tagged as well, 6 titles = 12 tests in
+      total. All 12 pass on the dev stack with the model.)
 - [ ] `just deploy-e2e local`: copies the `local` bearer token from the vault to
       `tmp/local/bearer_token` (0600, gitignored), then runs `playwright test --grep-invert @llm` with
       `E2E_BASE_URL=https://localhost:9444`. **Check:** green, and the run reports the number of tests

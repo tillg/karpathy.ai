@@ -60,3 +60,41 @@ _Avoid_: Edit mode, source mode
 **Read mode**:
 A rendered, non-editable view of a note that the user can switch to.
 _Avoid_: Preview
+
+### Operations
+
+Terms for running the app, not for using it (spec `specs/07_deployments`).
+
+**Release**:
+A git tag `vX.Y.Z` together with the three images CI built from it (`ghcr.io/tillg/karpathy.app-{proxy,backend,opencode}:X.Y.Z`) and the `compose.yml` attached to the GitHub release. Never changes once published; a tag whose images failed to build isn't one.
+_Avoid_: Build, deployment
+
+**Pre-release**:
+A release from a `vX.Y.Z-rc.N` tag, from any commit. Deployable by name, but never GitHub's "Latest" or `:latest`, so a deployment without a version never picks it.
+
+**Version**:
+The `X.Y.Z` of a release (the tag without the `v`), as `GET /api/health` reports it. Dev and prodtest builds report `dev`.
+
+**Target**:
+A named place a release can be deployed to: `local` (the Lima VM on the Mac) or `hetzner`. One host, its own settings and secrets.
+_Avoid_: Environment, stage, server
+
+**Deployment**:
+One run of `just deploy <target> [version]`: brings the host to the desired state, starts the release and ends with the smoke check. Failing the smoke check fails the deployment.
+_Avoid_: Rollout, push, ship
+
+**Current release**:
+The release a target runs now (the `current` symlink on the host); earlier ones stay for rollback.
+
+**Rollback**:
+A deployment of an older release, with today's playbook. Not a separate mechanism.
+
+**Smoke check**:
+The end of every deployment: all containers healthy, `/api/health` reachable through the proxy with the target's token, and it reports the requested version.
+
+**Alert**:
+A push message to the operator's phone (ntfy) when something needs a person: disk or memory over the threshold, a container unhealthy or down, the certificate expiring, the heartbeat missing.
+
+**Heartbeat**:
+A ping the server sends to healthchecks.io every 5 minutes; when it stops (or reports a failure), healthchecks.io raises the alert. The only way to notice the whole box is gone.
+_Avoid_: Uptime check

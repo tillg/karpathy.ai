@@ -129,7 +129,7 @@ test.describe('chat in Conflict (plan P5)', () => {
 });
 
 test.describe('one running turn per vault (plan P4)', () => {
-  test('a prompt in a second chat shows "Waiting for other chat…" while the first chat\'s turn runs', async ({ page, vault }) => {
+  test('@llm a prompt in a second chat shows "Waiting for other chat…" while the first chat\'s turn runs', async ({ page, vault }) => {
     test.setTimeout(10 * 60_000);
     page.on('dialog', (d) => void d.accept());
     await openApp(page, vault.id);

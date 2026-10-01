@@ -125,7 +125,7 @@ test('@llm AI write → changed chip, "Open changed page", changes counter incre
   await expect(page.locator('.cm-content')).toContainText('AI note');
 });
 
-test('Stop aborts a running turn', async ({ page }) => {
+test('@llm Stop aborts a running turn', async ({ page }) => {
   await openApp(page, vault.id);
   await page.getByTestId('new-chat').click();
   await send(page, 'Write a very long, detailed essay (at least 2000 words) about the history of note-taking.');

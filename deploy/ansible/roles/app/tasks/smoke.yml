@@ -1,0 +1,20 @@
+# All services healthy (compose wait), /api/health through the proxy, the version is the requested one.
+- name: GET /api/health through the proxy
+  ansible.builtin.uri:
+    url: https://{{ domain }}:{{ https_port }}/api/health
+    headers: { Authorization: "Bearer {{ bearer_token }}" }
+    validate_certs: "{{ tls_mode != 'internal' }}"
+    return_content: true
+  register: app_health
+  until: app_health.status == 200
+  retries: 12
+  delay: 5
+  no_log: true
+  check_mode: false
+
+- name: Running release is v{{ app_release }}
+  ansible.builtin.assert:
+    that:
+      - app_health.json.version == app_release
+      - app_health.json.opencode == 'ok'
+    fail_msg: "health reports {{ app_health.json }}, expected version {{ app_release }} and opencode ok"

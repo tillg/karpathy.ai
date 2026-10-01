@@ -1,0 +1,107 @@
+# Release: a tag vX.Y.Z (or vX.Y.Z-rc.N) → checks → multi-arch images on GHCR → GitHub release
+# with deploy/compose.yml as release asset (specs/07_deployments/architecture.md §2).
+name: Release
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io/tillg/karpathy.app
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  guard:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      # One version string without the v: image tag, APP_VERSION and what /api/health reports.
+      - id: v
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "::error::tag $GITHUB_REF_NAME is not vX.Y.Z or vX.Y.Z-rc.N"; exit 1; }
+          prerelease=false; [[ "$version" == *-rc.* ]] && prerelease=true
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+      # Final releases only from main; release candidates may come from any commit (architecture A9).
+      - if: steps.v.outputs.prerelease == 'false'
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
+
+  build:
+    needs: [check, guard]
+    strategy:
+      matrix:
+        image: [proxy, backend, opencode]
+        arch: [amd64, arm64]
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      # Pushed by digest only; the manifest job puts the version tag on both arches at once.
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/${{ matrix.image }}/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          build-args: APP_VERSION=${{ needs.guard.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.guard.outputs.version }}
+          outputs: type=image,name=${{ env.REGISTRY }}-${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+      - run: mkdir -p digests && echo "${{ steps.build.outputs.digest }}" > "digests/${{ matrix.image }}-${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        with: { name: 'digest-${{ matrix.image }}-${{ matrix.arch }}', path: digests/*, retention-days: 1 }
+
+  manifest:
+    needs: [guard, build]
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        image: [proxy, backend, opencode]
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'digest-${{ matrix.image }}-*', merge-multiple: true, path: digests }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      # Release candidates never move :latest.
+      - env:
+          IMAGE: ${{ env.REGISTRY }}-${{ matrix.image }}
+          VERSION: ${{ needs.guard.outputs.version }}
+          PRERELEASE: ${{ needs.guard.outputs.prerelease }}
+        run: |
+          tags=(-t "$IMAGE:$VERSION")
+          [ "$PRERELEASE" = true ] || tags+=(-t "$IMAGE:latest")
+          mapfile -t refs < <(sed "s|^|$IMAGE@|" digests/*)
+          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+
+  release:
+    needs: [guard, manifest]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # compose.yml is the release asset a deployment downloads (architecture A5).
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ needs.guard.outputs.prerelease }}
+        run: |
+          flags=(--latest); [ "$PRERELEASE" = true ] && flags=(--prerelease --latest=false)
+          gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag "${flags[@]}" deploy/compose.yml

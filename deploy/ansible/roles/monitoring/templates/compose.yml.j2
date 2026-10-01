@@ -1,0 +1,45 @@
+# Rendered by Ansible (role monitoring). Its own compose project: an app deployment never restarts it.
+name: karpathy-monitoring
+
+x-logging: &logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+
+services:
+  hub:
+    image: henrygd/beszel:{{ monitoring_beszel_version }}
+    restart: unless-stopped
+    ports: ["{{ bind_ip }}:8090:8090"]
+    env_file: [./hub.env]
+    volumes:
+      - hub-data:/beszel_data
+      # The vault's hub key, so the agent's KEY is known before the hub starts.
+      - ./id_ed25519:/beszel_data/id_ed25519:ro
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+
+  # Accepted risk: the Docker socket makes the agent root-equivalent on the host (architecture §4.3).
+  agent:
+    image: henrygd/beszel-agent:{{ monitoring_beszel_version }}
+    restart: unless-stopped
+    network_mode: host
+    env_file: [./agent.env]
+    volumes:
+      - agent-data:/var/lib/beszel-agent
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - {{ vaults_fs_mount | default('/srv/vaults') }}:/extra-filesystems/vaults:ro
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+{% if gatus_enabled %}
+
+  gatus:
+    image: twinproduction/gatus:{{ monitoring_gatus_version }}
+    restart: unless-stopped
+    ports: ["{{ bind_ip }}:8091:8080"]
+    volumes: [./gatus.yaml:/config/config.yaml:ro]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+{% endif %}
+
+volumes:
+  hub-data: {}
+  agent-data: {}

@@ -8,6 +8,12 @@
 (tls-internal) {
 	tls internal
 }
+# Container healthcheck (compose): plain HTTP, loopback only, answered by Caddy itself, so
+# "healthy" means Caddy runs, not that the backend does (the backend has its own healthcheck).
+http://:8081 {
+	bind 127.0.0.1
+	respond "ok"
+}
 {$DOMAIN} {
 	import tls-{$TLS_MODE:dns}
 	encode zstd gzip

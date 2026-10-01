@@ -1,0 +1,129 @@
+# Switches the target to a release: its compose.yml (release asset) + GHCR images, the target's
+# settings and secrets in shared/, then the smoke check (architecture §5.2).
+- name: Newest GitHub release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/{{ app_repo }}/releases/latest
+    return_content: true
+  register: app_latest
+  when: app_version | length == 0
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Release to deploy
+  ansible.builtin.set_fact:
+    app_release: "{{ app_version if app_version | length > 0 else app_latest.json.tag_name | regex_replace('^v', '') }}"
+
+- name: GHCR images exist for {{ app_release }}
+  ansible.builtin.command: docker manifest inspect {{ app_registry }}-{{ item }}:{{ app_release }}
+  loop: "{{ app_images }}"
+  changed_when: false
+  check_mode: false
+
+- name: Release and shared directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ app_root }}/releases/v{{ app_release }}"
+    - "{{ app_root }}/shared"
+
+# A published release never changes, so an existing file is kept.
+- name: Release asset compose.yml
+  ansible.builtin.get_url:
+    url: https://github.com/{{ app_repo }}/releases/download/v{{ app_release }}/compose.yml
+    dest: "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
+    mode: "0644"
+    force: false
+
+- name: Compose settings (.env)
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_root }}/shared/.env"
+    mode: "0644"
+
+- name: Target-specific compose file
+  ansible.builtin.template:
+    src: compose.target.yml.j2
+    dest: "{{ app_root }}/shared/compose.target.yml"
+    mode: "0644"
+
+# Compose bind-mounts secret files as they are: readable by the app user (uid 1000) only.
+- name: Secrets directory
+  ansible.builtin.file:
+    path: "{{ app_root }}/shared/secrets"
+    state: directory
+    owner: "{{ deploy_uid }}"
+    group: "{{ deploy_uid }}"
+    mode: "0700"
+
+- name: Secrets
+  ansible.builtin.copy:
+    dest: "{{ app_root }}/shared/secrets/{{ item.name }}"
+    content: "{{ item.value }}\n"
+    owner: "{{ deploy_uid }}"
+    group: "{{ deploy_uid }}"
+    mode: "0600"
+  loop:
+    - { name: bearer_token, value: "{{ bearer_token }}" }
+    - { name: github_token, value: "{{ github_token }}" }
+    - { name: dns_api_token, value: "{{ dns_api_token }}" }
+  loop_control: { label: "{{ item.name }}" }
+  no_log: true
+
+- name: Provider keys (opencode.env)
+  ansible.builtin.copy:
+    dest: "{{ app_root }}/shared/opencode.env"
+    content: "{% for k, v in opencode_env.items() %}{{ k }}={{ v }}\n{% endfor %}"
+    mode: "0600"
+  no_log: true
+
+- name: Current release → v{{ app_release }}
+  ansible.builtin.file:
+    src: releases/v{{ app_release }}
+    dest: "{{ app_root }}/current"
+    state: link
+    force: true
+
+# Relative paths in compose.yml (./secrets, ./opencode.env, .env) resolve in shared/.
+- name: Stack up
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_root }}/shared"
+    project_name: karpathy-app
+    files:
+      - "{{ app_root }}/current/compose.yml"
+      - "{{ app_root }}/shared/compose.target.yml"
+    state: present
+    pull: always
+    build: never
+    remove_orphans: true
+    wait: true
+    wait_timeout: 300
+
+- name: Smoke check
+  ansible.builtin.import_tasks: smoke.yml
+  tags: [smoke]
+
+- name: Release directories beyond the newest {{ app_keep_releases }}
+  ansible.builtin.shell: |
+    set -o pipefail
+    cd {{ app_root }}/releases
+    ls -1t | tail -n +{{ app_keep_releases + 1 }} | grep -vx 'v{{ app_release }}' || true
+  args:
+    executable: /bin/bash
+  register: app_old_releases
+  changed_when: false
+  check_mode: false
+
+- name: Remove old release directories
+  ansible.builtin.file:
+    path: "{{ app_root }}/releases/{{ item }}"
+    state: absent
+  loop: "{{ app_old_releases.stdout_lines }}"
+
+- name: Prune unused images
+  ansible.builtin.command: docker image prune -f
+  register: app_prune
+  changed_when: "'Total reclaimed space: 0B' not in app_prune.stdout"

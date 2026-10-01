@@ -1,0 +1,16 @@
+# Brings a target host to the desired state and switches it to a release
+# (specs/07_deployments/architecture.md §5). Tags: `app`, `monitoring` (`just deploy … --only`).
+- name: Target host
+  hosts: all
+  become: true
+  vars:
+    # uid/gid 1000: the images and /srv/vaults assume it (APP_UID/APP_GID).
+    deploy_user: deploy
+    deploy_uid: 1000
+  roles:
+    - { role: base, tags: [host] }
+    - { role: tailscale, tags: [host], when: tailscale_enabled }
+    - { role: docker, tags: [host] }
+    - { role: vaults_fs, tags: [host] }
+    - { role: app, tags: [app] }
+    - { role: monitoring, tags: [monitoring] }

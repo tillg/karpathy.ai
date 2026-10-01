@@ -1,0 +1,4 @@
+# Finalized with the real server (architecture §5.4, plan Phase 7).
+- name: Tailscale role not implemented yet
+  ansible.builtin.fail:
+    msg: "The tailscale role is built in plan Phase 7, once the Hetzner server exists."

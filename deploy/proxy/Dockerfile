@@ -8,7 +8,9 @@ RUN npm ci --workspace apps/web --include-workspace-root
 COPY packages/shared packages/shared
 COPY apps/web apps/web
 COPY assets assets
-RUN npm run build -w apps/web
+# Release version (git tag without the v), shown in the settings dialog; set by the release workflow.
+ARG APP_VERSION=dev
+RUN APP_VERSION=${APP_VERSION} npm run build -w apps/web
 
 FROM caddy:2.10-builder AS caddy
 ARG DNS_PROVIDER=cloudflare

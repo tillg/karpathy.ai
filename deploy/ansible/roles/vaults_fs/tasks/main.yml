@@ -1,0 +1,31 @@
+# The vaults live on their own loop-mounted ext4: a full vault disk can't fill / (prod-env report).
+# Created once; changing vaults_fs_size later doesn't resize it.
+- name: Vaults filesystem image ({{ vaults_fs_size }})
+  ansible.builtin.shell: |
+    set -e
+    fallocate -l {{ vaults_fs_size }} {{ vaults_fs_image }}.tmp
+    mkfs.ext4 -q -F {{ vaults_fs_image }}.tmp
+    mv {{ vaults_fs_image }}.tmp {{ vaults_fs_image }}
+  args:
+    creates: "{{ vaults_fs_image }}"
+    executable: /bin/bash
+
+- name: Image readable by root only
+  ansible.builtin.file:
+    path: "{{ vaults_fs_image }}"
+    mode: "0600"
+
+- name: Mounted and in fstab at {{ vaults_fs_mount }}
+  ansible.posix.mount:
+    src: "{{ vaults_fs_image }}"
+    path: "{{ vaults_fs_mount }}"
+    fstype: ext4
+    opts: loop,defaults
+    state: mounted
+
+- name: Owned by the app user
+  ansible.builtin.file:
+    path: "{{ vaults_fs_mount }}"
+    owner: "{{ deploy_uid }}"
+    group: "{{ deploy_uid }}"
+    mode: "0755"

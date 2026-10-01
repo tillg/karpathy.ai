@@ -1,0 +1,20 @@
+# Rendered by Ansible (role app): what is specific to target {{ target }}.
+{% if git_remote_base is defined %}
+services:
+  # Local bare repos instead of GitHub (the e2e suite's remotes).
+  backend:
+    environment:
+      GIT_REMOTE_BASE: {{ git_remote_base }}
+      # The VM's /remotes share belongs to the Mac's uid: git refuses it as "dubious ownership".
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /remotes/*
+    volumes:
+      - {{ remotes_dir }}:/remotes
+{% endif %}
+
+volumes:
+  # The vaults live on the loop-mounted filesystem (role vaults_fs), not in Docker's volume dir.
+  vaults:
+    driver: local
+    driver_opts: { type: none, o: bind, device: {{ vaults_fs_mount | default('/srv/vaults') }} }

@@ -8,6 +8,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig(({ command }) => ({
   // Icons live in the repo-level assets folder; served as-is at the site root.
   publicDir: '../../assets/icons',
+  // Release version (git tag without the v), baked in by the proxy image build; `dev` otherwise.
+  define: { __APP_VERSION__: JSON.stringify(process.env.APP_VERSION || 'dev') },
   plugins: [
     react(),
     VitePWA({

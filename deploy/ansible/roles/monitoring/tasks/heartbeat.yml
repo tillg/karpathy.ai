@@ -1,0 +1,30 @@
+# Dead-man's switch: every 5 min a ping to healthchecks.io, /fail when a container of the app or the
+# monitoring isn't running (and healthy). Skipped without heartbeat_url.
+- name: Heartbeat script
+  ansible.builtin.copy:
+    src: karpathy-heartbeat
+    dest: /usr/local/bin/karpathy-heartbeat
+    mode: "0755"
+
+- name: Heartbeat URL
+  ansible.builtin.copy:
+    dest: /etc/karpathy-heartbeat.url
+    content: "{{ heartbeat_url }}\n"
+    mode: "0600"
+  no_log: true
+  when: heartbeat_url | length > 0
+
+- name: Heartbeat units
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop: [karpathy-heartbeat.service, karpathy-heartbeat.timer]
+  register: monitoring_units
+
+- name: Heartbeat timer
+  ansible.builtin.systemd_service:
+    name: karpathy-heartbeat.timer
+    enabled: "{{ heartbeat_url | length > 0 }}"
+    state: "{{ 'started' if heartbeat_url | length > 0 else 'stopped' }}"
+    daemon_reload: "{{ monitoring_units is changed }}"

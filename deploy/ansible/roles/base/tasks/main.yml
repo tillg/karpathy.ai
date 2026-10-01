@@ -1,0 +1,90 @@
+# Deploy user (uid 1000), sshd hardening, unattended upgrades, timezone.
+- name: Look up uid {{ deploy_uid }}
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ deploy_uid }}"
+    fail_key: false
+
+# Another user on 1000 (e.g. a VM's default user) would own the vaults: stop rather than pick another uid.
+- name: Uid free or already the deploy user, uid {{ deploy_uid }}
+  ansible.builtin.assert:
+    # getent keys its result by user name (or by the uid, with value None, when there is none).
+    that: ansible_facts.getent_passwd | dict2items | rejectattr('value', 'none') | map(attribute='key') | list in [[], [deploy_user]]
+    fail_msg: "uid {{ deploy_uid }} belongs to another user; the images and /srv/vaults need it for {{ deploy_user }}"
+
+- name: Look up gid {{ deploy_uid }}
+  ansible.builtin.getent:
+    database: group
+    key: "{{ deploy_uid }}"
+    fail_key: false
+
+- name: Gid free or already the deploy group, gid {{ deploy_uid }}
+  ansible.builtin.assert:
+    that: ansible_facts.getent_group | dict2items | rejectattr('value', 'none') | map(attribute='key') | list in [[], [deploy_user]]
+    fail_msg: "gid {{ deploy_uid }} belongs to another group; the images and /srv/vaults need it for {{ deploy_user }}"
+
+- name: Deploy group
+  ansible.builtin.group:
+    name: "{{ deploy_user }}"
+    gid: "{{ deploy_uid }}"
+
+- name: Deploy user
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    uid: "{{ deploy_uid }}"
+    group: "{{ deploy_user }}"
+    shell: /bin/bash
+    password: "!"
+    update_password: on_create
+
+- name: Deploy user's SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user }}"
+    key: "{{ deploy_authorized_keys | join('\n') }}"
+    exclusive: true
+  when: deploy_authorized_keys | length > 0
+
+# Ansible logs in as deploy on a server: passwordless sudo, as the Lima guest user has on the VM.
+- name: Deploy user may sudo without a password
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/90-deploy
+    content: "{{ deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: visudo -cf %s
+
+# sshd uses the first value it reads: 10- comes before cloud-init's 50-cloud-init.conf.
+- name: Harden sshd
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-karpathy.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+    mode: "0644"
+  notify: Restart sshd
+
+- name: Unattended upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable the periodic upgrade run
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Current timezone
+  ansible.builtin.command: timedatectl show -p Timezone --value
+  register: base_tz
+  changed_when: false
+  check_mode: false
+
+- name: Timezone {{ timezone }}
+  ansible.builtin.command: timedatectl set-timezone {{ timezone }}
+  when: base_tz.stdout != timezone
+  changed_when: true

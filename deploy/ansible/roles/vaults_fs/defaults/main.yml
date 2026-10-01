@@ -1,0 +1,2 @@
+vaults_fs_image: /var/lib/karpathy-vaults.img
+vaults_fs_mount: /srv/vaults

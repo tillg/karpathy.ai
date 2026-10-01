@@ -1,0 +1,47 @@
+# Docker CE + compose plugin from Docker's apt repo (Ubuntu's docker.io lags behind).
+- name: Docker apt repo
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_facts.distribution_release }}"
+    components: stable
+    architectures: "{{ 'arm64' if ansible_facts.architecture == 'aarch64' else 'amd64' }}"
+    signed_by: https://download.docker.com/linux/ubuntu/gpg
+
+- name: Docker packages
+  ansible.builtin.apt:
+    name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin]
+    state: present
+    update_cache: true
+
+# Published ports bind to the tailnet IP, which exists only once tailscaled is up.
+- name: Start Docker after tailscaled
+  when: tailscale_enabled
+  block:
+    - name: Drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        mode: "0755"
+    - name: Drop-in
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/docker.service.d/after-tailscale.conf
+        content: |
+          [Unit]
+          After=tailscaled.service
+          Wants=tailscaled.service
+        mode: "0644"
+      notify: Restart docker
+
+- name: Docker running and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Deploy user in the docker group
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    groups: [docker]
+    append: true

@@ -70,7 +70,8 @@ just dev logs           # also: ps, token
 just dev down
 ```
 
-`just` lists all commands (`brew install just`); they wrap `deploy/dev.sh` and npm.
+`just` lists all commands (`brew install just`); they wrap `deploy/dev.sh` and npm. Deploying
+also needs `brew install lima ansible ansible-lint` (the local target VM and the playbook).
 
 Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Binary files
 (images, PDFs, …) are listed but not editable. A vault whose clone failed can be retried
@@ -106,7 +107,7 @@ npm run typecheck
 `just check` runs lint, typecheck and `npm test` in one go.
 
 To run the e2e suite against the **prod images** (https://localhost:9443, next to the dev
-stack): `just prodtest`, `just prodtest e2e`, `just prodtest down`; details in the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL` and `E2E_TOKEN_FILE`
+stack): `just prodtest`, `just prodtest e2e`, `just prodtest down`; details in the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL`, `E2E_TOKEN_FILE` and `E2E_BACKEND_CONTAINER`
 point Playwright at it.
 
 Accessibility: `e2e/a11y.spec.ts` runs axe-core (WCAG 2.1 AA + best practice) over the main

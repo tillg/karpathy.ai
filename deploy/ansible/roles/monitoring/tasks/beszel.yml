@@ -1,0 +1,175 @@
+# Hub setup through its API, in the order the spike settled (spikes/beszel/RESULTS.md):
+# admin role, permanent universal token, webhook BEFORE the alert rules, then the rules.
+# Idempotent: every write happens only when the hub's state differs.
+- name: Hub answers
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/beszel/first-run"
+  register: monitoring_first_run
+  until: monitoring_first_run.status == 200
+  retries: 30
+  delay: 2
+  check_mode: false
+
+- name: Superuser login (the env user)
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/_superusers/auth-with-password"
+    method: POST
+    body_format: json
+    body: { identity: "{{ monitoring_beszel_email }}", password: "{{ beszel_password }}" }
+  register: monitoring_su
+  no_log: true
+  check_mode: false
+
+- name: Hub users
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/users/records"
+    headers: { Authorization: "{{ monitoring_su.json.token }}" }
+  register: monitoring_users
+  no_log: true
+  check_mode: false
+
+- name: The env user is an admin
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/users/records/{{ monitoring_users.json['items'][0].id }}"
+    method: PATCH
+    headers: { Authorization: "{{ monitoring_su.json.token }}" }
+    body_format: json
+    body: { role: admin }
+  when: monitoring_users.json['items'][0].role != 'admin'
+  changed_when: true
+  no_log: true
+
+- name: User login
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/users/auth-with-password"
+    method: POST
+    body_format: json
+    body: { identity: "{{ monitoring_beszel_email }}", password: "{{ beszel_password }}" }
+  register: monitoring_login
+  no_log: true
+  check_mode: false
+
+- name: Auth header for the hub
+  ansible.builtin.set_fact:
+    monitoring_auth: { Authorization: "{{ monitoring_login.json.token }}" }
+    monitoring_user_id: "{{ monitoring_users.json['items'][0].id }}"
+  no_log: true
+
+- name: Universal token state
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/beszel/universal-token"
+    headers: "{{ monitoring_auth }}"
+  register: monitoring_token
+  no_log: true
+  check_mode: false
+
+- name: Permanent universal token from the vault
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/beszel/universal-token?enable=1&permanent=1&token={{ beszel_token }}"
+    headers: "{{ monitoring_auth }}"
+  when: not (monitoring_token.json.token == beszel_token and monitoring_token.json.active and monitoring_token.json.permanent | default(false))
+  changed_when: true
+  no_log: true
+
+- name: User settings
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/user_settings/records"
+    headers: "{{ monitoring_auth }}"
+  register: monitoring_settings
+  no_log: true
+  check_mode: false
+
+# A hub hook fills in defaults on create, so the webhook is set by the PATCH below.
+- name: Create the user settings record
+  when: monitoring_settings.json['items'] | length == 0
+  block:
+    - name: Create
+      ansible.builtin.uri:
+        url: "{{ monitoring_hub_url }}/api/collections/user_settings/records"
+        method: POST
+        headers: "{{ monitoring_auth }}"
+        body_format: json
+        body: { user: "{{ monitoring_user_id }}", settings: {} }
+      changed_when: true
+      no_log: true
+    - name: Read it back
+      ansible.builtin.uri:
+        url: "{{ monitoring_hub_url }}/api/collections/user_settings/records"
+        headers: "{{ monitoring_auth }}"
+      register: monitoring_settings_created
+      until: monitoring_settings_created.json['items'] | length > 0
+      retries: 15
+      delay: 1
+      no_log: true
+
+# (A skipped task would overwrite a registered variable, hence the second name.)
+- name: The user settings record
+  ansible.builtin.set_fact:
+    monitoring_settings_record: "{{ (monitoring_settings_created if monitoring_settings_created is not skipped else monitoring_settings).json['items'][0] }}"
+  no_log: true
+
+- name: Alerts go to ntfy (and not to e-mail)
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/user_settings/records/{{ monitoring_settings_record.id }}"
+    method: PATCH
+    headers: "{{ monitoring_auth }}"
+    body_format: json
+    body:
+      settings: "{{ monitoring_settings_record.settings | combine({'emails': [], 'webhooks': [monitoring_ntfy_url]}) }}"
+  register: monitoring_webhook
+  when: monitoring_settings_record.settings.webhooks | default([]) != [monitoring_ntfy_url]
+         or monitoring_settings_record.settings.emails | default([]) != []
+  changed_when: true
+  no_log: true
+
+- name: Webhook is set
+  ansible.builtin.assert:
+    that: monitoring_webhook.json.settings.webhooks == [monitoring_ntfy_url]
+    fail_msg: the hub did not keep the ntfy webhook
+  when: monitoring_webhook is not skipped
+
+- name: Agent registered and up
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/systems/records?filter={{ ('name=\"' ~ target ~ '\"') | urlencode }}"
+    headers: "{{ monitoring_auth }}"
+  register: monitoring_system
+  until: monitoring_system.json['items'] | selectattr('status', 'equalto', 'up') | list | length > 0
+  retries: 30
+  delay: 2
+  no_log: true
+  check_mode: false
+
+- name: Current alert rules
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/collections/alerts/records"
+    headers: "{{ monitoring_auth }}"
+  register: monitoring_current_alerts
+  no_log: true
+  check_mode: false
+
+- name: Alert rules
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/beszel/user-alerts"
+    method: POST
+    headers: "{{ monitoring_auth }}"
+    body_format: json
+    body: "{{ item | combine({'systems': [monitoring_system.json['items'][0].id], 'overwrite': true}) }}"
+  loop: "{{ monitoring_alerts }}"
+  when: >-
+    monitoring_current_alerts.json['items']
+    | selectattr('system', 'equalto', monitoring_system.json['items'][0].id)
+    | selectattr('name', 'equalto', item.name)
+    | selectattr('value', 'equalto', item.value)
+    | selectattr('min', 'equalto', item.min) | list | length == 0
+  changed_when: true
+
+- name: Test notification to ntfy (when the webhook was just set)
+  ansible.builtin.uri:
+    url: "{{ monitoring_hub_url }}/api/beszel/test-notification"
+    method: POST
+    headers: "{{ monitoring_auth }}"
+    body_format: json
+    body: { url: "{{ monitoring_ntfy_url }}" }
+  when: monitoring_webhook is not skipped
+  changed_when: true
+  no_log: true

@@ -1,0 +1,46 @@
+# Beszel (hub + agent), Gatus and the heartbeat (architecture §4). A compose project of its own.
+- name: Monitoring directory
+  ansible.builtin.file:
+    path: "{{ monitoring_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ monitoring_root }}/compose.yml"
+    mode: "0644"
+
+- name: Gatus config
+  ansible.builtin.template:
+    src: gatus.yaml.j2
+    dest: "{{ monitoring_root }}/gatus.yaml"
+    mode: "0644"
+  when: gatus_enabled
+
+- name: Hub and agent settings, hub key
+  ansible.builtin.copy:
+    dest: "{{ monitoring_root }}/{{ item.name }}"
+    content: "{{ item.content }}"
+    mode: "0600"
+  loop:
+    - { name: hub.env, content: "{{ lookup('template', 'hub.env.j2') }}" }
+    - { name: agent.env, content: "{{ lookup('template', 'agent.env.j2') }}" }
+    - { name: id_ed25519, content: "{{ beszel_hub_key | trim }}\n" }
+  loop_control: { label: "{{ item.name }}" }
+  no_log: true
+
+- name: Monitoring stack up
+  community.docker.docker_compose_v2:
+    project_src: "{{ monitoring_root }}"
+    state: present
+    pull: missing
+    remove_orphans: true
+    wait: true
+    wait_timeout: 120
+
+- name: Beszel provisioning
+  ansible.builtin.import_tasks: beszel.yml
+
+- name: Heartbeat
+  ansible.builtin.import_tasks: heartbeat.yml

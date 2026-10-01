@@ -117,6 +117,17 @@ function SettingsForm() {
   );
 }
 
+/** Server and PWA version: after a deploy, shows whether the new release and its service worker are live. */
+function Versions() {
+  const [server, setServer] = useState('…');
+  useEffect(() => { api.health().then((h) => setServer(h.version), () => setServer('unreachable')); }, []);
+  return (
+    <p className="muted">
+      Server <span data-testid="version-server">{server}</span> · App <span data-testid="version-pwa">{__APP_VERSION__}</span>
+    </p>
+  );
+}
+
 export function Admin() {
   const { vaults, reloadVaults, setAdminOpen, setActiveId, activeId } = useApp();
   const [form, setForm] = useState<Form>(emptyForm);
@@ -148,6 +159,8 @@ export function Admin() {
       </form>
       <div className="gh">Settings</div>
       <SettingsForm />
+      <div className="gh">Version</div>
+      <Versions />
     </Modal>
   );
 }

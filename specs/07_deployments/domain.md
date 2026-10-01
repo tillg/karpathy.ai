@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Domain: releases, targets and deployments"
-status: proposed
+status: applying
 order: 2
 created: 2026-10-01
 edited: 2026-10-01

@@ -26,6 +26,8 @@ COPY packages/shared packages/shared
 COPY apps/backend apps/backend
 USER ${APP_UID}:${APP_GID}
 WORKDIR /app/apps/backend
-ENV NODE_ENV=production PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config
+# Release version (git tag without the v), reported by GET /api/health; set by the release workflow.
+ARG APP_VERSION=dev
+ENV NODE_ENV=production PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config APP_VERSION=${APP_VERSION}
 EXPOSE 8787
 CMD ["npx", "tsx", "src/main.ts"]

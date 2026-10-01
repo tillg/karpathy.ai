@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Architecture: tag → GHCR → Ansible → target"
-status: proposed
+status: applying
 order: 3
 created: 2026-10-01
 edited: 2026-10-01
@@ -219,7 +219,8 @@ flowchart LR
 deploy/ansible/
   ansible.cfg                  # inventory=inventories/local, pipelining, vault id script
   requirements.yml             # community.docker (≥5.3, docker_compose_v2), ansible.posix (mount)
-  vault-pass.sh                # reads the vault password from the macOS Keychain
+  vault-pass-client.sh         # reads the target's vault password from the macOS Keychain (-client: Ansible passes --vault-id)
+  deploy.sh                    # behind `just deploy` / `just deploy-check`: args → ansible-playbook, log to tmp/
   site.yml                     # all roles, in order
   inventories/
     local/hosts.yml            # karpathy-vm via Lima's ssh config
@@ -318,7 +319,7 @@ None of them is needed in GitHub: the release workflow pushes to GHCR with the b
 
 - One Ansible Vault file per inventory (`group_vars/all/vault.yml`, encrypted, committed). Its
   variables are named `vault_*` and mapped to plain names in `main.yml`, so `grep` still finds them.
-- The vault password is in the macOS Keychain. `vault-pass.sh` runs
+- The vault password is in the macOS Keychain. `vault-pass-client.sh --vault-id <target>` runs
   `security find-generic-password -s karpathy-ansible-<target> -w`. A different password per target keeps a
   leaked local password from opening prod.
 - On the host, secrets are written with `0600` and `no_log: true`.
@@ -350,18 +351,22 @@ Settled against the real server later:
   target) runs with `just vm reset` in Phase 5 and before the first Hetzner deploy. Ansible connects through
   the ssh config Lima writes (`limactl show-ssh` / `~/.lima/karpathy-vm/ssh.config`).
 - **Users:** Ansible logs in as the Lima guest user, which has passwordless sudo, and `base` creates
-  `deploy` as on Hetzner. Lima derives the guest user's uid from the Mac user. Plan Phase 4 checks
-  that uid 1000 is still free for `deploy`; if Lima took it, `base` fails with a clear message
-  rather than picking another uid, because the images and `/srv/vaults` assume 1000.
+  `deploy` as on Hetzner. Lima derives the guest user's uid from the Mac user, so uid 1000 is free,
+  but cloud-init gives that user's group gid 1000, and Lima can't set a gid. A `system` provision
+  script in `karpathy-vm.yaml` moves the group to 1999 on boot (Phase 4 finding). `base` asserts
+  that uid **and** gid 1000 are free or already `deploy`, and fails with a clear message rather than
+  picking other ids, because the images and `/srv/vaults` assume 1000:1000.
 - **Ports:** only the ones listed in `karpathy-vm.yaml` are forwarded to the Mac: 443 → 9444,
   8090 → 9090 (Beszel), 8091 → 9091 (Gatus). Lima's automatic forwarding is turned off, so nothing
   collides with ports the Mac already uses.
 - It's arm64 on Apple silicon, hence the arm64 images. Rancher Desktop also uses Lima internally; a
-  separate `brew install lima` doesn't interfere with it [to verify in plan Phase 0].
+  separate `brew install lima` (2.2) doesn't interfere with it (verified in plan Phase 0).
 - **e2e:** the e2e suite builds its test vaults as bare repos in the Mac's `tmp/dev/remotes` and
   expects the backend to clone them from `/remotes` (as the dev and prodtest stacks do). The VM gets the
   same: `karpathy-vm.yaml` mounts `tmp/dev/remotes` writable, and the `local` target's
-  `compose.target.yml` mounts it into the backend with `GIT_REMOTE_BASE=file:///remotes/`. So the
+  `compose.target.yml` mounts it into the backend with `GIT_REMOTE_BASE=file:///remotes/`. The share
+  is owned by the Mac's uid, which git rejects as "dubious ownership", so the same file sets
+  `safe.directory=/remotes/*` for the backend through `GIT_CONFIG_*` env vars. So the
   whole suite runs against `https://localhost:9444` unchanged, except the specs that need a model.
   Those get the `@llm` tag and are left out (`--grep-invert @llm`), because the VM has no Ollama. If
   `vault_llm_key` is set for `local`, they can run too.

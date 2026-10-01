@@ -1,0 +1,28 @@
+# Target settings for `hetzner` (architecture §5.1). Secrets: vault.yml (vault_*), mapped here.
+target: hetzner
+tailscale_enabled: true
+timezone: Europe/Berlin
+deploy_authorized_keys: []
+vaults_fs_size: 20G
+
+# The tailnet IP, from the tailscale role (finalized in plan Phase 7).
+bind_ip: "{{ ansible_facts.tailscale0.ipv4.address | default('') }}"
+https_port: 443
+domain: app.karpathy.app
+tls_mode: dns
+gatus_enabled: true
+git_author_name: karpathy.app user  # set with the real server (Phase 7)
+git_author_email: user@karpathy.app
+default_model: openrouter/z-ai/glm-5.3
+
+bearer_token: "{{ vault_bearer_token }}"
+github_token: "{{ vault_github_token }}"
+dns_api_token: "{{ vault_dns_api_token }}"
+# Provider API keys for opencode, e.g. { OPENROUTER_API_KEY: … }; empty = no hosted model.
+opencode_env: "{{ vault_opencode_env }}"
+ntfy_topic: "{{ vault_ntfy_topic }}"
+heartbeat_url: "{{ vault_heartbeat_url }}"
+beszel_password: "{{ vault_beszel_password }}"
+beszel_hub_key: "{{ vault_beszel_hub_key }}"
+beszel_hub_pubkey: "{{ vault_beszel_hub_pubkey }}"
+beszel_token: "{{ vault_beszel_token }}"

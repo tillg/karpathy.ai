@@ -10,7 +10,7 @@ test.describe('stack (plan P1)', () => {
   test('/api/health reports backend + opencode ok inside the stack', async ({ api }) => {
     const res = await api.ctx.get('/api/health');
     expect(res.status()).toBe(200);
-    expect(await res.json()).toEqual({ backend: 'ok', opencode: 'ok' });
+    expect(await res.json()).toEqual({ backend: 'ok', opencode: 'ok', version: expect.any(String) });
   });
 
   test('compose ps: every service with a healthcheck is healthy; only the proxy publishes a port; opencode not reachable from the host', async () => {

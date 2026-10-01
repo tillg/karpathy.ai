@@ -17,6 +17,8 @@ export interface AppDeps {
   opencodeHealthy?: () => Promise<boolean>;
   /** `provider/model` ids the harness can run right now (configured + credentials). */
   availableModels?: () => Promise<string[]>;
+  /** Release version (APP_VERSION, baked into the image); `dev` for dev and prodtest builds. */
+  version?: string;
 }
 
 // Branch names reach git as arguments: only plain ref names (git check-ref-format rules),
@@ -86,7 +88,7 @@ export function createApp(d: AppDeps) {
 
   api.get('/health', async (_req, res) => {
     const opencode = d.opencodeHealthy ? await d.opencodeHealthy().catch(() => false) : false;
-    res.json({ backend: 'ok', opencode: opencode ? 'ok' : 'down' });
+    res.json({ backend: 'ok', opencode: opencode ? 'ok' : 'down', version: d.version ?? 'dev' });
   });
 
   api.get('/settings', (_req, res) => {

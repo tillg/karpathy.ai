@@ -2,26 +2,46 @@
 name: karpathy-app
 
 x-app-user: &app-user "${APP_UID:-1000}:${APP_GID:-1000}"
+# Bounded container logs (json-file, 3 × 10 MB per container).
+x-logging: &logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+# Images: a release runs the GHCR images of its version (APP_VERSION, no v); prodtest builds them as :dev.
 
 services:
   proxy:
+    image: ghcr.io/tillg/karpathy.app-proxy:${APP_VERSION:-dev}
     build: { context: .., dockerfile: deploy/proxy/Dockerfile }
     restart: unless-stopped
-    ports: ["443:443", "80:80"]
+    # No port 80: certificates come via DNS-01. BIND_IP is the tailnet IP on a server.
+    ports: ["${BIND_IP:-0.0.0.0}:${HTTPS_PORT:-443}:443"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    logging: *logs
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      TLS_MODE: ${TLS_MODE:-dns}
       DNS_PROVIDER: ${DNS_PROVIDER:-cloudflare}
       DNS_API_TOKEN_FILE: /run/secrets/dns_api_token
     secrets: [dns_api_token]
     volumes: [caddy-data:/data]
+    # Caddy's own plain-HTTP health site inside the container (Caddyfile); independent of the backend.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
     depends_on:
       backend: { condition: service_healthy }
     networks: [edge, internal]
 
   backend:
+    image: ghcr.io/tillg/karpathy.app-backend:${APP_VERSION:-dev}
     build: { context: .., dockerfile: deploy/backend/Dockerfile }
     restart: unless-stopped
     user: *app-user
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *logs
     environment:
       BEARER_TOKEN_FILE: /run/secrets/bearer_token
       GITHUB_TOKEN_FILE: /run/secrets/github_token
@@ -39,8 +59,12 @@ services:
     networks: [internal]
 
   opencode:
+    image: ghcr.io/tillg/karpathy.app-opencode:${APP_VERSION:-dev}
     build: { context: .., dockerfile: deploy/opencode/Dockerfile }
     restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *logs
     # opencode as PID 1 ignores SIGTERM (every stop was a SIGKILL after 10 s, #38).
     init: true
     user: *app-user

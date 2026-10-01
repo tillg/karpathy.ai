@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Plan: releases, Ansible targets, monitoring"
-status: proposed
+status: applying
 order: 4
 created: 2026-10-01
 edited: 2026-10-01
@@ -13,38 +13,45 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
 
 ## Phase 0: tools
 
-- [ ] Install `lima`, `ansible-core` and `ansible-lint` on the Mac (`brew install lima ansible-core
-      ansible-lint`; the collections come from `requirements.yml` in Phase 4); add them to the README
-      prerequisites. **Check:** `limactl --version`, `ansible --version`, `ansible-lint --version`;
+- [x] Install `lima`, `ansible-core` and `ansible-lint` on the Mac (`brew install lima ansible
+      ansible-lint`: Homebrew has no `ansible-core` formula, `ansible` brings core 2.21; the collections
+      come from `requirements.yml` in Phase 4); add them to the README prerequisites. **Check:** `limactl --version`, `ansible --version`, `ansible-lint --version`;
       Rancher Desktop still starts and `just dev` works.
 
 ## Phase 1: version in the app
 
-- [ ] Test first: backend test that `GET /api/health` returns `version` from `APP_VERSION`, `dev`
+- [x] Test first: backend test that `GET /api/health` returns `version` from `APP_VERSION`, `dev`
       when it's unset. **Check:** fails.
-- [ ] Backend reads `APP_VERSION`; Dockerfiles take `ARG APP_VERSION=dev` → `ENV`. **Check:** test
-      passes, `just check` green.
-- [ ] Settings dialog ("Vaults & settings"): a line with the server version (from `/api/health`) and the
+- [x] Backend reads `APP_VERSION`; Dockerfiles take `ARG APP_VERSION=dev` → `ENV`. **Check:** test
+      passes, `just check` green. (Backend: `ENV` in the `prod` stage; proxy: build arg for the PWA
+      build. The opencode image doesn't report a version, so it needs none.)
+- [x] Settings dialog ("Vaults & settings"): a line with the server version (from `/api/health`) and the
       PWA's own version (baked in at build time) (architecture A17). **Check:** e2e on the dev stack shows
       both as `dev`; a screenshot of the dialog at 1× in `tmp/`.
 
 ## Phase 2: compose hardening
 
-- [ ] `deploy/compose.yml`: `image:` with `${APP_VERSION:-dev}` per service, proxy ports
+- [x] `deploy/compose.yml`: `image:` with `${APP_VERSION:-dev}` per service, proxy ports
       `${BIND_IP:-0.0.0.0}:${HTTPS_PORT:-443}:443`, remove `80:80`, json-file log rotation,
       `no-new-privileges`, `cap_drop: [ALL]` (+ `NET_BIND_SERVICE` on the proxy). **Check:**
       `docker compose config -q` for dev, prodtest and plain; `just dev` and `just prodtest` come up
-      healthy; `just e2e` and `just prodtest e2e` green.
-- [ ] `deploy/compose.dev.yml`: own `image:` for `backend` and `opencode` (`karpathy-app-dev/…`), so
+      healthy; `just e2e` and `just prodtest e2e` green. (Also `TLS_MODE: ${TLS_MODE:-dns}` on the
+      proxy, so a target's `.env` selects the TLS mode. Result: dev 200 passed; prodtest 197 passed,
+      one flaky webkit a11y run (6/6 on rerun) and `fix-reload-same-text` ×2, which `docker exec`s
+      into the dev stack's `karpathy-app-backend-1` and so can never pass against prodtest.)
+- [x] `deploy/compose.dev.yml`: own `image:` for `backend` and `opencode` (`karpathy-app-dev/…`), so
       dev and prodtest builds never share a tag. **Check:** after `just dev` and `just prodtest`,
       `docker inspect` of the running backend containers shows two different image IDs, and the
       dev backend still hot-reloads.
-- [ ] Fix whatever `cap_drop: [ALL]` broke with a commented `cap_add`, or note why none was needed.
-      **Check:** the same runs green.
-- [ ] Proxy healthcheck in `compose.yml`: a plain-HTTP health endpoint in the Caddyfile, checked from
+- [x] Fix whatever `cap_drop: [ALL]` broke with a commented `cap_add`, or note why none was needed.
+      **Check:** the same runs green. (None needed: backend and opencode run as uid 1000 and git,
+      ripgrep and opencode need no capabilities; Caddy runs as root and needs only
+      `NET_BIND_SERVICE`.)
+- [x] Proxy healthcheck in `compose.yml`: a plain-HTTP health endpoint in the Caddyfile, checked from
       inside the container (architecture A11). **Check:** `docker compose ps` shows the proxy `healthy` on
       dev and prodtest; stopping the backend turns it `unhealthy` only if the endpoint depends on it (decide
-      and note which).
+      and note which). (Decided: independent. `http://127.0.0.1:8081` is answered by Caddy itself;
+      the backend has its own healthcheck. With the prodtest backend stopped the proxy stayed `healthy`.)
 
 ## Phase 3: release workflow
 
@@ -66,28 +73,34 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       (its `build:` contexts don't exist on a host, and pull-only must not need them).
 ## Phase 4: local VM + Ansible skeleton
 
-- [ ] `deploy/lima/karpathy-vm.yaml` (Ubuntu 24.04, vz, 2 CPU / 4 GiB / 40 GiB; forwards only
+- [x] `deploy/lima/karpathy-vm.yaml` (Ubuntu 24.04, vz, 2 CPU / 4 GiB / 40 GiB; forwards only
       443 → 9444, 8090 → 9090, 8091 → 9091, automatic forwarding off; `tmp/dev/remotes` mounted
       writable) and `just vm up|down|reset|ssh` (`down` stops, `reset` deletes and recreates). **Check:**
       `just vm up` then `just vm ssh -- uname -m` prints `aarch64`; `just vm ssh -- id -u` shows the guest
       user's uid and `getent passwd 1000` is empty (uid 1000 free for `deploy`), otherwise stop and adjust
       `karpathy-vm.yaml`; a file written to `tmp/dev/remotes` on the Mac is visible in the VM; after
       `just vm down` + `just vm up` a file created in the VM is still there; after `just vm reset` it's gone.
-- [ ] `deploy/ansible/`: `ansible.cfg`, `requirements.yml` (community.docker ≥ 5.3, ansible.posix),
+      (uid 1000 was free, but cloud-init gave the guest user's **group** gid 1000, and Lima can't set a
+      gid. `karpathy-vm.yaml` now has a boot provision script that moves that group to 1999; `base`
+      asserts both uid and gid 1000.)
+- [x] `deploy/ansible/`: `ansible.cfg`, `requirements.yml` (community.docker ≥ 5.3, ansible.posix),
       `vault-pass.sh` (Keychain), `site.yml`, `inventories/{local,hetzner}`; the vault files encrypted.
       `just deploy <target> [version] [--only app|monitoring]` (roles tagged `app` / `monitoring`) and
       `just deploy-check`, logging to `tmp/deploy-*.log`. **Check:** `ansible -i inventories/local all
-      -m ping` succeeds against the VM.
+      -m ping` succeeds against the VM. (The vault script is `vault-pass-client.sh`: the `-client`
+      suffix makes Ansible pass `--vault-id <target>`, so one script serves both targets'
+      Keychain items `karpathy-ansible-{local,hetzner}`. The `hetzner` vault holds placeholders until
+      Phase 7. `just deploy` wraps `deploy/ansible/deploy.sh`.)
 - [ ] `ci.yml`: an `ansible` job (`ansible-galaxy collection install -r requirements.yml`,
       `ansible-lint`, `ansible-playbook --syntax-check` for both inventories, using a dummy vault
       password so the encrypted files load). **Check:** CI green on a PR.
-- [ ] Role `base`: deploy user uid 1000, sshd hardening, unattended-upgrades. **Check:** on the VM,
+- [x] Role `base`: deploy user uid 1000, sshd hardening, unattended-upgrades. **Check:** on the VM,
       `id deploy` → uid 1000, `sshd -T | grep -i passwordauthentication` → no; a second run reports
       `changed=0`.
-- [ ] Role `docker`: Docker apt repo, docker-ce + compose plugin, user in the `docker` group, drop-in
+- [x] Role `docker`: Docker apt repo, docker-ce + compose plugin, user in the `docker` group, drop-in
       ordering after `tailscaled` when Tailscale is enabled. **Check:** `docker compose version` ≥ 2.24
-      on the VM; idempotent.
-- [ ] Role `vaults_fs`: loop-mounted ext4 of `vaults_fs_size` at `/srv/vaults`, owned by 1000.
+      on the VM; idempotent. (Compose v5.5.1.)
+- [x] Role `vaults_fs`: loop-mounted ext4 of `vaults_fs_size` at `/srv/vaults`, owned by 1000.
       **Check:** `df -h /srv/vaults` shows the size; after `just vm ssh -- sudo reboot` it's mounted again.
 
 ## Phase 5: app role on the VM
@@ -127,25 +140,31 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       KEY/TOKEN, (3) set the alert rules through the hub API, (4) make the agent report `/` **and**
       `/srv/vaults`, (5) send a test alert to ntfy? **Result: all five yes**, run in Docker on Rancher
       Desktop because there's no VM yet ([RESULTS.md](spikes/beszel/RESULTS.md), [`run.sh`](spikes/beszel/run.sh)).
-- [ ] Vault entries for `local` (and later `hetzner`): Beszel user password, hub private key
+- [x] Vault entries for `local` (and later `hetzner`): Beszel user password, hub private key
       (`ssh-keygen -t ed25519`), universal token (UUID), ntfy topic.
-- [ ] Role `monitoring`: compose project `karpathy-monitoring` with the beszel hub (`bind_ip:8090`,
+- [x] Role `monitoring`: compose project `karpathy-monitoring` with the beszel hub (`bind_ip:8090`,
       the vault's `id_ed25519` in its data dir), beszel-agent (host network, read-only docker.sock,
       `/srv/vaults` at `/extra-filesystems/vaults:ro`, `KEY`/`TOKEN`/`SYSTEM_NAME`, `HUB_URL` to the hub
       on the host), gatus (`bind_ip:8091`, templated `config.yaml`, ntfy alerting); off switches per
       target. **Check:** the hub UI shows the VM `up` with its containers and both filesystems;
-      `docker stats` RAM of the monitoring project < 150 MB.
-- [ ] Beszel provisioning tasks, in the spike's order (architecture §4.3): promote the env user to
+      `docker stats` RAM of the monitoring project < 150 MB. (Hub API: system `local` `up`, `/` and the
+      vaults filesystem (`efs.loop0`) reported; app containers show once Phase 5 deploys them. RAM:
+      hub 12 MB + agent 7 MB. The agent's own listener is on `127.0.0.1:45876`.)
+- [x] Beszel provisioning tasks, in the spike's order (architecture §4.3): promote the env user to
       admin, set the permanent universal token, POST then PATCH `user_settings` webhooks (assert the
       ntfy URL is there), wait for the system `up`, then the alert rules via `user-alerts` with
       `overwrite` (disk > 80 %, memory > 85 % for 10 min, ContainerHealth, Status), then a test
       notification. **Check:** a second run reports no changes and creates no duplicate alerts; the
-      test notification arrives on the ntfy topic.
+      test notification arrives on the ntfy topic. (Every write is guarded by a read of the hub's
+      state, so the second run is `changed=0`; the test notification goes out only when the webhook
+      was just set.)
 - [ ] Heartbeat: systemd service + timer (5 min) pinging `heartbeat_url`, `/fail` when any container
       of `karpathy-app` **or** `karpathy-monitoring` isn't running (and healthy, if it has a healthcheck);
       skipped when unset (on `local`, set it to a separate
       healthchecks.io test check for the alert test below). **Check:** `systemctl list-timers` shows it;
-      `systemd-analyze verify` clean.
+      `systemd-analyze verify` clean. (Built; `verify` clean; with a throwaway local listener as the URL,
+      the script posts `/fail` with "karpathy-app: no containers". Open: `list-timers` needs a
+      `heartbeat_url`, i.e. the healthchecks.io test check.)
 - [ ] **Check (alerts, on the VM with the test ntfy topic):** a `karpathy-app` container made
       unhealthy → Beszel ContainerHealth alert; `docker stop karpathy-app-backend-1` → heartbeat
       `/fail` → healthchecks.io alert (Beszel ignores stopped containers); stopping the Beszel hub → the

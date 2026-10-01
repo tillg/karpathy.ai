@@ -60,7 +60,7 @@ async function userAgents(raw: ReturnType<typeof createOpencodeClient>, dir: str
 describe('chat API against a real opencode container', () => {
   it('health reports opencode ok', async () => {
     const t = await setup();
-    expect((await t.api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok' });
+    expect((await t.api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: 'dev' });
   });
 
   it('sessions of vault A never appear under vault B', async () => {

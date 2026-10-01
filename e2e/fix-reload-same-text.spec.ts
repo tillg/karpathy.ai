@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { expect, openApp, openNote, test, typeAtEnd, waitSaved } from './helpers';
+import { backendExec, expect, openApp, openNote, test, typeAtEnd, waitSaved } from './helpers';
 
 // Found on the demo vault: after typing (saved), a reload that brings back the text the note was
 // opened with (discard, the AI reverting it, another device) left the typed text in the editor.
@@ -26,7 +25,7 @@ test.describe('editor follows a reload back to the opened text', () => {
     await typeAtEnd(page, '\nTYPED-THEN-REVERTED');
     await waitSaved(page);
     // Straight on the vault volume, like opencode's file tools (API saves count as the editor's own).
-    execFileSync('docker', ['exec', 'karpathy-app-backend-1', 'git', '-C', `/vaults/${vault.id}`, 'checkout', '--', 'Ideas.md']);
+    backendExec('git', '-C', `/vaults/${vault.id}`, 'checkout', '--', 'Ideas.md');
     await expect(page.getByTestId('toast')).toContainText('Updated by AI or another device');
     await expect(page.locator('.cm-content')).not.toContainText('TYPED-THEN-REVERTED');
     // Typing on must not resurrect the reverted text.

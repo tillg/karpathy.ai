@@ -1,0 +1,21 @@
+# Rendered by Ansible (role monitoring). HTTPS and certificate checks; alerts to ntfy.
+alerting:
+  ntfy:
+    url: https://ntfy.sh
+    topic: "{{ ntfy_topic }}"
+    priority: 4
+    default-alert:
+      failure-threshold: 2
+      success-threshold: 1
+      send-on-resolved: true
+
+endpoints:
+  - name: app
+    url: https://{{ domain }}/
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"
+      # Caddy renews at 30 days: under 14 means renewal failed.
+      - "[CERTIFICATE_EXPIRATION] > 336h"
+    alerts:
+      - type: ntfy

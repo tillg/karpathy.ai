@@ -45,7 +45,7 @@ const v = (id: string) => `/vaults/${encodeURIComponent(id)}`;
 const q = (path: string) => `path=${encodeURIComponent(path)}`;
 
 export const api = {
-  health: () => json<{ backend: string; opencode: string }>('GET', '/health'),
+  health: () => json<{ backend: string; opencode: string; version: string }>('GET', '/health'),
   settings: () => json<Settings>('GET', '/settings'),
   patchSettings: (s: Partial<Settings>) => json<Settings>('PATCH', '/settings', s),
 

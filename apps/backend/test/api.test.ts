@@ -32,7 +32,12 @@ describe('auth', () => {
 
   it('health reports backend + opencode', async () => {
     const { api } = await makeApp('file:///nowhere/', { opencodeHealthy: async () => true });
-    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok' });
+    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: 'dev' });
+  });
+
+  it('health reports the release version (APP_VERSION)', async () => {
+    const { api } = await makeApp('file:///nowhere/', { opencodeHealthy: async () => true, version: '0.3.0' });
+    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: '0.3.0' });
   });
 });
 

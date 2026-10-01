@@ -1,0 +1,14 @@
+monitoring_root: /opt/karpathy-monitoring
+monitoring_beszel_version: 0.20.0
+monitoring_gatus_version: v5.26.0
+monitoring_beszel_email: admin@karpathy.app
+# The hub listens on bind_ip; on a server that's the tailnet IP, so the agent and Ansible use it too.
+monitoring_hub_host: "{{ '127.0.0.1' if bind_ip == '0.0.0.0' else bind_ip }}"
+monitoring_hub_url: http://{{ monitoring_hub_host }}:8090
+monitoring_ntfy_url: ntfy://ntfy.sh/{{ ntfy_topic }}
+# Alert rules (architecture §4.3): value = threshold, min = minutes it must hold.
+monitoring_alerts:
+  - { name: Disk, value: 80, min: 1 }
+  - { name: Memory, value: 85, min: 10 }
+  - { name: Status, value: 0, min: 1 }
+  - { name: ContainerHealth, value: 0, min: 1 }

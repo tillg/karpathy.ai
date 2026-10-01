@@ -1,3 +1,12 @@
+---
+feature: 02_features
+title: "Decisions & assumptions — feature research run (2026-09-26)"
+status: applied
+order: 1
+created: 2026-09-27
+edited: 2026-09-27
+---
+
 # Decisions & assumptions — feature research run (2026-09-26)
 
 Autonomous run: research similar projects → ≥20 GitHub feature requests → ranked report with diagrams.

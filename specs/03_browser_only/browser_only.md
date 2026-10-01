@@ -1,3 +1,12 @@
+---
+feature: 03_browser_only
+title: "Browser Only"
+status: applied
+order: 1
+created: 2026-09-27
+edited: 2026-09-28
+---
+
 # Browser Only
 
 Note: This is a research project only, we don't build it yet!!! 

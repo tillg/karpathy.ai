@@ -1,3 +1,12 @@
+---
+feature: 01_mvp
+title: "MVP plan — verification status"
+status: applied
+order: 3
+created: 2026-09-26
+edited: 2026-09-26
+---
+
 # MVP plan — verification status
 
 Status of every `step → verify` row of Phases 0–5 in [`plan.md`](plan.md), as of 2026-09-25.

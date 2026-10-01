@@ -1,3 +1,12 @@
+---
+feature: 01_mvp
+title: "MVP — Implementation Plan"
+status: applied
+order: 2
+created: 2026-09-25
+edited: 2026-09-28
+---
+
 # MVP — Implementation Plan
 
 Phased plan for [`mvp.md`](mvp.md) (terms: [`CONTEXT.md`](../../CONTEXT.md)). Each phase ends

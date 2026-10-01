@@ -1,3 +1,12 @@
+---
+feature: 05_prod_env
+title: "Decisions & assumptions — autonomous run (2026-09-28)"
+status: applying
+order: 2
+created: 2026-09-28
+edited: 2026-10-01
+---
+
 # Decisions & assumptions — autonomous run (2026-09-28)
 
 Task: `/autonomous` + `/implement spec #05` ([`prod_env.md`](prod_env.md)).
@@ -32,6 +41,10 @@ option, not prod. Backed by 4 desk-research notes (`notes-*.md`, primary sources
 | D16 | Report §8 "Guide: book, install and set up Hetzner", for today's repo with no code changes: Cloudflare DNS (the proxy image is built with that module; a token can be limited to one zone); a temporary SSH firewall rule until Tailscale is up, then no inbound rules at all; a server-only `deploy/compose.hetzner.yml` that publishes 443 on the tailnet IP only, drops port 80, rotates logs and bind-mounts `vaults` to `/srv/vaults`; a Docker drop-in that starts Docker after Tailscale; images built on the server. | The override was validated with `docker compose config` against `compose.yml`, and the hcloud flags against hetznercloud/cli docs. `DNS_PROVIDER` is a build arg the compose file doesn't pass, so Hetzner DNS would need `build.args`. The Hetzner DNS token controls the whole project, so it would need its own project. |
 | D17 | `/vaults` on a **20 GB loop-mounted ext4 file on the server disk** instead of a Hetzner Volume. | Keeps the fixed-size filesystem from the disk research, costs nothing, and Hetzner server backups include it. They don't include Volumes, which would make restic mandatory. Total drops to €8.44 incl. VAT. |
 | D18 | **User decision (2026-09-29): no encryption at rest.** Report §5.3 states it; LUKS removed from the paranoid extras, work item 7 and the open decisions. | LUKS doesn't protect against the host of a running VM and costs a manual unlock after every reboot. restic backups stay encrypted (restic can't turn it off). `notes-security.md` left as-is (research record). |
+| D19 | **User decision (2026-10-01): GoDaddy DNS instead of Cloudflare** for `karpathy.app`, like the user's other domains. Report §8.1/8.7/8.8, TL;DR decision, §5.5 and §5.6 updated: classic Production API key + secret as `dns_api_token` (`<key>:<secret>`), `DNS_PROVIDER=godaddy` in `.env` **and** as `build.args` in `compose.hetzner.yml`, a `curl` eligibility test before setup. | Advised against first (key controls the whole account, can't be limited to one zone; DNS API reportedly limited to accounts with ≥ 10 domains or Domain Pro); user has > 10 domains and chose it. Verified 2026-10-01: Caddy 2.10 builds with `caddy-dns/godaddy` and validates a `dns godaddy {file.…}` block; the override renders the build arg in `docker compose config`; `libdns/godaddy` sends `Authorization: sso-key …` to `/v1/domains/…/records` only, and GoDaddy's auth docs mark classic keys "deprecated for Domains (through 2026)" — the module has no PAT support, so renewals may break when GoDaddy turns classic keys off. Fallback: Cloudflare nameservers (D16). Not tested: issuing a real certificate via GoDaddy. |
+
+| D20 | **User decision (2026-10-01): LLM = a Chinese open-weight model via OpenRouter, not served from China.** GLM-5.3 (`openrouter/z-ai/glm-5.3`); `deploy/opencode/opencode.json` gets a per-model `options.provider` block: `only`/`order` Mistral (`mistral/zdr` first, EU), Fireworks, Together, Parasail; `zdr: true`, `data_collection: "deny"`. Report §7 open decision 3 closed, §8.1 and §8.8 updated (`OPENROUTER_API_KEY`, `DEFAULT_MODEL`). | User asked for "cheaper than Anthropic, but well usable". Live OpenRouter API (2026-10-01): GLM-5.3 $1.40/$4.40 on list-price hosts vs Sonnet 5 $2/$10; Kimi K3 is pricier than Sonnet; Qwen 3.8 Max is Alibaba-only. Direct Z.ai/DeepSeek would send vault content to China, against §5. Verified: opencode 1.18.25 knows the model id and loads the block (`opencode debug config`); the four hosts are on OpenRouter's ZDR endpoint list for GLM-5.3. Tested with the user's key (2026-10-01): a direct API call with the block was served by **Mistral** and returned a correct tool call ($0.00035); opencode 1.18.25 forwards the block (a bogus `only` list makes `opencode run` fail with "No allowed providers", the real config answers). Not tested: tool-call quality over a long agent session on Mistral's `nvfp4` copy. |
+
 ## Assumptions / open for the user
 
 - Guide not run end to end against a real Hetzner account (no account or credentials here). The risky

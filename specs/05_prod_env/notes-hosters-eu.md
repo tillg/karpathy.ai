@@ -1,3 +1,12 @@
+---
+feature: 05_prod_env
+title: "Notes: German / European hosters for karpathy.app prod"
+status: applying
+order: 3
+created: 2026-09-28
+edited: 2026-09-28
+---
+
 # Notes: German / European hosters for karpathy.app prod
 
 Desk research, fetched **2026-09-28** (all URLs below fetched that day unless noted). Primary

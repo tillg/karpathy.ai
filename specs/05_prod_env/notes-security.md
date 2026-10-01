@@ -1,3 +1,12 @@
+---
+feature: 05_prod_env
+title: "Prod security — desk notes"
+status: applying
+order: 5
+created: 2026-09-28
+edited: 2026-09-28
+---
+
 # Prod security — desk notes
 
 Desk research for spec #05 (prod env). All sources fetched **2026-09-28**; source IDs `[Sn]` resolve

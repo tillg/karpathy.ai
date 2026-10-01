@@ -1,3 +1,12 @@
+---
+feature: 05_prod_env
+title: "Hosting notes: global / non-European providers"
+status: applying
+order: 4
+created: 2026-09-28
+edited: 2026-09-28
+---
+
 # Hosting notes: global / non-European providers
 
 Desk research, fetched **2026-09-28** (all URLs below fetched that day unless marked otherwise).

@@ -1,3 +1,12 @@
+---
+feature: 01_mvp
+title: "MVP implementation — autonomous decisions & assumptions"
+status: applied
+order: 4
+created: 2026-09-25
+edited: 2026-09-28
+---
+
 # MVP implementation — autonomous decisions & assumptions
 
 Log of decisions and assumptions made while implementing the MVP unattended

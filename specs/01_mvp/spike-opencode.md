@@ -1,3 +1,12 @@
+---
+feature: 01_mvp
+title: "Spike: de-risk opencode (Phase 0)"
+status: applied
+order: 5
+created: 2026-09-25
+edited: 2026-09-25
+---
+
 # Spike: de-risk opencode (Phase 0)
 
 Run on 2026-09-25 against `ghcr.io/anomalyco/opencode:1.18.25` (source checked at tag

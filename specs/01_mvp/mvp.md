@@ -1,3 +1,12 @@
+---
+feature: 01_mvp
+title: "MVP — karpathy.app"
+status: applied
+order: 1
+created: 2026-09-25
+edited: 2026-09-28
+---
+
 # MVP — karpathy.app
 
 A mobile-friendly web app that unites a Markdown vault (Obsidian'ish) with an AI dialog over the same vault.

@@ -1,7 +1,7 @@
 ---
 title: "Production environment: where and how to host karpathy.app"
 created: 2026-09-28
-edited: 2026-09-30
+edited: 2026-10-01
 status: research
 subtitle: "Research report for [spec #05](prod_env.md). Research only; nothing gets built. Written 2026-09-28. Evidence: primary-source desk research on about 35 hosters ([EU notes](notes-hosters-eu.md), [global notes](notes-hosters-global.md)), [security notes](notes-security.md) and [disk notes](notes-disk.md), plus **six spikes** against the prod images and the real demo vault (`mylife_wiki`: 5,604 files, 2.9 GB as a clone). Prices were checked on the vendor pages on 2026-09-28 and change often (Hetzner changed prices in April and June 2026)."
 description: "Where and how to host karpathy.app in production: hosters and free tiers, OVH vs Hetzner vs IONOS (decided: Hetzner), security, disk space, Hetzner setup guide; with spike results (2026-09-28)."
@@ -16,7 +16,7 @@ description: "Where and how to host karpathy.app in production: hosters and free
 4. **Security is mostly about the network, not the app** ([§5](#security)). The app layer is already hardened: bearer token, strict CSP, and opencode reachable only inside compose. What changes is the MVP's assumption of a *home server behind a VPN*. With **Tailscale** (free) the VPS keeps that property: zero open ports, and the installed iPad app works unchanged. Tailscale is the "install something on each device" step the spec is willing to accept, and it works. Cloudflare Access is a poor fit: Cloudflare would see every note in plain text, and installed PWAs get stuck when the Access login expires. To get in, an attacker has to go around the server: through prompt injection in content you ingest, a stolen device, or your accounts ([§5.6](#threats)).
 5. **Disk: check before adding a vault, and cap the clone itself** ([§6](#disk)). Two GitHub API calls predict the clone size within about 1 %. If the estimate exceeds free space minus a reserve, refuse the vault. Otherwise clone onto its own filesystem, with a file-size limit and a timeout as a hard stop. Switching to a partial clone (`--filter=blob:none`) cuts 21 % and breaks nothing. Sparse checkout would cut the demo vault from 2.9 GB to 324 MB, which makes it a good per-vault option.
 
-**Decision:** **Hetzner CX23** (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, `/vaults` on a 20 GB loop-mounted filesystem that the backups include, Tailscale with Tailnet Lock, a Let's Encrypt certificate for `app.karpathy.app` via Cloudflare DNS, and a fine-grained GitHub token: **about €8.44 a month incl. VAT**. [§8](#guide) is the step-by-step guide. The runner-ups: OVH VPS-1, about €2.70 a month cheaper with daily backup, and Oracle Always Free at €0 ([§4.1](#oracle)), which works if you accept that the account might vanish. [§7](#reco) lists the work items.
+**Decision:** **Hetzner CX23** (x86, 2 vCPU / 4 GB / 40 GB, Nuremberg or Falkenstein) with backups, `/vaults` on a 20 GB loop-mounted filesystem that the backups include, Tailscale with Tailnet Lock, a Let's Encrypt certificate for `app.karpathy.app` via GoDaddy DNS, and a fine-grained GitHub token: **about €8.44 a month incl. VAT**. [§8](#guide) is the step-by-step guide. The runner-ups: OVH VPS-1, about €2.70 a month cheaper with daily backup, and Oracle Always Free at €0 ([§4.1](#oracle)), which works if you accept that the account might vanish. [§7](#reco) lists the work items.
 :::
 
 ## What we have to host (measured) {#need}
@@ -211,7 +211,7 @@ opencode keeps this a config choice. OVH, Hetzner and IONOS are not directly sub
 
 1. EU VPS; provider firewall with no inbound rules.
 2. Tailscale on the server, iPad, iPhone and Mac. VPN On Demand on iOS. ACL: your devices → server `tcp:443` (and `22`). Tailnet Lock on, Funnel off.
-3. DNS record → Tailscale IP; Caddy DNS-01 with a DNS token limited to one zone; no port 80.
+3. DNS record → Tailscale IP; Caddy DNS-01 with a DNS API key (ideally limited to one zone; GoDaddy's key can't be, see [§8.1](#guide)); no port 80.
 4. Bearer token of 32 bytes; fine-grained GitHub token.
 5. SSH only through the tailnet, keys only; unattended-upgrades; containers without root, with `no-new-privileges` and `cap_drop: ALL`.
 6. Nightly encrypted **restic** backup of config, opencode data and the vault clones, which hold uncommitted edits (ADR 0001).
@@ -238,7 +238,7 @@ With zero open ports, a scan of the server finds nothing. An attacker has to go 
 | --- | --- | --- | --- | --- |
 | 1 | **Prompt injection** through vault content | Get text into a source you ingest (web clip, email, PDF, Instagram caption) with hidden instructions, so the AI changes notes or leaks content. | Tailscale and the token don't help here. opencode can't run shell commands or fetch URLs (`bash`, `webfetch` and `websearch` are denied), and the CSP (`img-src 'self'`) stops a remote image in a note from sending data out in the app. **Left open:** the AI can still edit any note in the vault. Once pushed, Obsidian on the Mac or iPad loads remote images in notes, which our CSP doesn't cover. Your review of the changes before you commit is the only real check. | :verdict[partial]{tone="partial"} |
 | 2 | **Stolen or infected device** | An unlocked iPad or iPhone, or malware on the Mac. The device is already in your Tailscale network and the installed app has the token saved. | Device passcode and FileVault. Afterwards, remove the device in the Tailscale admin console and rotate the token. One token per device (optional extra) makes rotating easier. | :verdict[partial]{tone="partial"} |
-| 3 | **Account takeover** | Your Google/GitHub login, which Tailscale, GitHub and possibly Hetzner use, through phishing or a stolen session cookie. | **GitHub:** reaches the vault repos directly, without touching the server. **Hetzner:** the console, rescue mode and snapshots give the unencrypted disk ([§5.3](#rest)). **Tailscale:** Tailnet Lock blocks new devices unless a trusted device signs them. **Cloudflare:** changing DNS gains nothing, because the IP only answers inside the tailnet. **Passkeys or hardware keys on all four accounts** close most of this route. | :verdict[with passkeys]{tone="partial"} |
+| 3 | **Account takeover** | Your Google/GitHub login, which Tailscale, GitHub and possibly Hetzner use, through phishing or a stolen session cookie. | **GitHub:** reaches the vault repos directly, without touching the server. **Hetzner:** the console, rescue mode and snapshots give the unencrypted disk ([§5.3](#rest)). **Tailscale:** Tailnet Lock blocks new devices unless a trusted device signs them. **GoDaddy:** changing this record gains nothing, because the IP only answers inside the tailnet; but the account holds all your domains, and its API key sits on the server ([§8.1](#guide)). **Passkeys or hardware keys on all four accounts** close most of this route. | :verdict[with passkeys]{tone="partial"} |
 | 4 | **Supply chain** | A malicious update of an npm package, the opencode image, Caddy or Tailscale. It runs inside the stack. | Pinned versions, `autoupdate: false` in opencode, containers without root and with `cap_drop: ALL`. The compromised code can still read the vaults and the GitHub token. | :verdict[partial]{tone="partial"} |
 | 5 | **Stolen tokens** | The GitHub PAT from the server or a backup; the LLM key from `opencode.env`. | The PAT reaches only the selected repos, with Contents access and an expiry date, but can force-push. Your Obsidian clones act as an informal backup. The LLM key has a spending cap. | :verdict[partial]{tone="partial"} |
 | 6 | **Provider side** | A Hetzner insider, a court order, or the LLM provider, which sees every chat turn. | Nothing technical: you're trusting the provider and its contract. Zero data retention helps on the LLM side ([§5.4](#security)). | :verdict[accepted]{tone="no"} |
@@ -288,21 +288,29 @@ The demo vault is a **media vault**: its Markdown is 5.2 MB of 1,174 MB, and 89 
 
 1. ~~OVH, Hetzner or Oracle?~~ **Decided: Hetzner CX23** (2026-09-28). OVH (about €2.70 a month cheaper) and Oracle Always Free (€0, [§4.1](#oracle)) stay documented as fallbacks.
 2. **Tailscale required on every device?** This is the "clumsy install" the spec is willing to accept. The alternative is public 443 with a bearer token and rate limiting. My pick: Tailscale.
-3. **Paranoid extras:** OpenRouter with zero data retention instead of Anthropic direct? (~~LUKS~~: decided against, 2026-09-29, [§5.3](#rest).)
+3. ~~**Paranoid extras:** OpenRouter with zero data retention instead of Anthropic direct?~~ **Decided: OpenRouter, GLM-5.3 on non-Chinese hosts with zero data retention** (2026-10-01, [§8.1](#guide)). (~~LUKS~~: decided against, 2026-09-29, [§5.3](#rest).)
 4. **Media-heavy vaults:** keep full media on the server (2.3 GB for the demo vault), or make "skip large media" (324 MB) the default for new vaults?
 
 ## Guide: book, install and set up Hetzner {#guide}
 
-This is a runbook for the decided setup: **Hetzner CX23**, reachable only through **Tailscale**, a Let's Encrypt certificate via **Cloudflare DNS** (DNS-01), `/vaults` on its own filesystem. Plan about 1–2 hours. It uses today's repo as-is: images are built on the server, because the CI image build (work item 3) doesn't exist yet. Replace placeholders in `<angle brackets>`.
+This is a runbook for the decided setup: **Hetzner CX23**, reachable only through **Tailscale**, a Let's Encrypt certificate via **GoDaddy DNS** (DNS-01), `/vaults` on its own filesystem. Plan about 1–2 hours. It uses today's repo as-is: images are built on the server, because the CI image build (work item 3) doesn't exist yet. Replace placeholders in `<angle brackets>`.
 
 ### 8.1 Have ready
 
 - An **SSH key** on the Mac (`~/.ssh/id_ed25519.pub`; `ssh-keygen -t ed25519` if you have none).
 - A free **Tailscale** account (sign in with GitHub, Google, Apple, …).
-- **DNS for karpathy.app at Cloudflare** (free plan): add the domain in Cloudflare and point the nameservers at your registrar to the two Cloudflare names it shows. The proxy image is built with the Cloudflare DNS module, and a Cloudflare token can be limited to editing this one zone.\
-  If you would rather use Hetzner DNS, build the proxy with `DNS_PROVIDER=hetzner`: it's a build arg, so it needs `build.args` in the override, as well as `DNS_PROVIDER=hetzner` in `deploy/.env`. Put the zone in a **separate Hetzner project**, because a Hetzner API token controls everything in its project, including the server.
+- **DNS for karpathy.app at GoDaddy** (user decision 2026-10-01: same place as your other domains). Caddy writes a `_acme-challenge` TXT record through the GoDaddy API at every renewal (about every 60 days), so you need a **classic GoDaddy API key + secret** for *Production* (developer.godaddy.com → API Keys; not *OTE*, the test environment). The proxy is then built with `DNS_PROVIDER=godaddy` (8.8). Know the trade-offs:
+  - **The key controls the whole GoDaddy account**: every domain, its DNS, contacts and transfers. It can't be limited to one zone, and it sits in `deploy/secrets/` on the server. Whoever takes over the server can take over all your domains. Turn on 2FA and domain lock in GoDaddy, and rotate the key if the server is ever compromised.
+  - **Eligibility:** GoDaddy has limited the DNS API to some accounts (reported: 10 or more domains, or a Domain Pro plan). Test the key first, from the Mac: `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: sso-key <key>:<secret>' https://api.godaddy.com/v1/domains/karpathy.app/records/A` must print `200`. A `403` means the account can't use the API; then fall back to Cloudflare DNS (nameservers only, the domain stays registered at GoDaddy).
+  - **End of life:** the Caddy module (`caddy-dns/godaddy` → `libdns/godaddy`) only speaks the classic `sso-key` auth on the v1 DNS endpoints. GoDaddy marks classic keys "deprecated for Domains (through 2026)" in favour of personal access tokens, which the module doesn't support. If GoDaddy switches them off, renewals fail and the certificate expires within 90 days. Caddy's log shows the failed renewals; the fallback is the same as above.
+  - Built and validated here (2026-10-01): `xcaddy build --with github.com/caddy-dns/godaddy` with Caddy 2.10, and `caddy validate` of a `dns godaddy {file.…}` block. Not tested: a real certificate against GoDaddy.
 - A **GitHub fine-grained personal access token**: Settings → Developer settings → Fine-grained tokens. Repository access: *only select repositories* (your vault repos). Permissions: *Contents: read and write*. Expiry: at most a year.
-- An **LLM API key**, e.g. `ANTHROPIC_API_KEY`, ideally with a spending limit.
+- An **OpenRouter API key** for the LLM (user decision 2026-10-01: a Chinese open-weight model, cheaper than Anthropic, but not served from China). The model is **GLM-5.3** (Zhipu, `openrouter/z-ai/glm-5.3`), strong at tool calls, at $1.40 in / $4.40 out per million tokens, against $2 / $10 for Claude Sonnet 5 (OpenRouter API, 2026-10-01).
+  - Sign up at openrouter.ai, buy credits, and create a key under *Keys* with a **credit limit** (e.g. $20 a month).
+  - *Settings → Privacy*: turn off **training on your data** and turn on **Zero Data Retention endpoints only** for the account. This is the safety net in case the app's own routing is ever missing.
+  - The app pins the hosts itself in `deploy/opencode/opencode.json` (`provider.openrouter.models["z-ai/glm-5.3"].options.provider`): `only` Mistral (EU, `mistral/zdr` first), then Fireworks, Together, Parasail (US), with `zdr: true` and `data_collection: "deny"`. That keeps out the Chinese hosts (Z.AI, Alibaba, Baidu, SiliconFlow, StreamLake) and the unknown cheap ones. Mistral serves GLM-5.3 as `nvfp4`, a compressed copy; if tool calls go wrong, drop `mistral` from the list.
+  - Cheaper alternative: `openrouter/deepseek/deepseek-v4-pro-0813` on DeepInfra, Together, CoreWeave or Parasail (all US, all zero data retention) at $1.30 in / $2.60–3.96 out. It needs its own `options.provider` entry.
+  - Checked here (2026-10-01): opencode 1.18.25 lists `openrouter/z-ai/glm-5.3` and loads the routing block (`opencode debug config`); OpenRouter lists `mistral/zdr`, Fireworks, Together and Parasail as zero-data-retention endpoints for GLM-5.3. With a real key, a tool call was served by Mistral, and opencode forwards the block: a bogus host list makes `opencode run` fail with "No allowed providers".
 
 ### 8.2 Book the server
 
@@ -402,8 +410,8 @@ df -h /srv/vaults                 # ~20G
 
 ### 8.7 DNS record and token (before the first start)
 
-1. In Cloudflare → `karpathy.app` → DNS, add an **A record** `app` → `100.x.y.z` (the Tailscale IP), **Proxy status: DNS only** (grey cloud). The address only works inside your tailnet.
-2. Under My Profile → API Tokens → *Create token*, pick the template **Edit zone DNS** with *Zone resources: Include → Specific zone → karpathy.app*. You'll need the token in the next step.
+1. In GoDaddy → My Products → `karpathy.app` → **DNS**, add an **A record**: name `app`, value `100.x.y.z` (the Tailscale IP), TTL 1 hour. The address only works inside your tailnet. Leave the `_acme-challenge` records to Caddy.
+2. At **developer.godaddy.com → API Keys**, create a key for **Production** and note key and secret (the secret is shown only once). Run the `curl` test from 8.1. You'll need both in the next step, joined as `<key>:<secret>`.
 
 ### 8.8 Install the app
 
@@ -414,18 +422,18 @@ cd /opt/karpathy.app/deploy
 install -d -m 700 secrets
 printf %s "$(openssl rand -base64 32)" > secrets/bearer_token     # the app's login token
 printf %s '<github-fine-grained-token>' > secrets/github_token
-printf %s '<cloudflare-dns-token>'      > secrets/dns_api_token
+printf %s '<godaddy-key>:<godaddy-secret>' > secrets/dns_api_token  # no newline
 chmod 600 secrets/*
 cat > .env <<'EOF'
 DOMAIN=app.karpathy.app
-DNS_PROVIDER=cloudflare
+DNS_PROVIDER=godaddy
 GIT_AUTHOR_NAME=<Your Name>
 GIT_AUTHOR_EMAIL=<you@example.com>
-DEFAULT_MODEL=anthropic/claude-sonnet-5
+DEFAULT_MODEL=openrouter/z-ai/glm-5.3
 APP_UID=1000
 APP_GID=1000
 EOF
-printf 'ANTHROPIC_API_KEY=%s\n' '<key>' > opencode.env && chmod 600 opencode.env
+printf 'OPENROUTER_API_KEY=%s\n' '<openrouter-key>' > opencode.env && chmod 600 opencode.env
 ```
 
 Next comes the server-only override, `deploy/compose.hetzner.yml`. It stays on the server and isn't committed. I checked it with `docker compose config` against today's `compose.yml`:
@@ -434,6 +442,9 @@ Next comes the server-only override, `deploy/compose.hetzner.yml`. It stays on t
 # deploy/compose.hetzner.yml — server-only overrides
 services:
   proxy:
+    # Build Caddy with the GoDaddy DNS module: DNS_PROVIDER in .env only sets the
+    # runtime env, compose.yml doesn't pass it as a build arg.
+    build: { args: { DNS_PROVIDER: godaddy } }
     # Only the tailnet IP, and no port 80 (DNS-01 doesn't need it).
     ports: !override ["100.x.y.z:443:443"]
     logging: &logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }

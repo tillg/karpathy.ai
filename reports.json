@@ -35,7 +35,7 @@
   "specs": {
     "sources": [
       "specs/*/*.md",
-      "specs/*/spikes/*/*.md"
+      "specs/07_deployments/spikes/*/*.md"
     ]
   }
 }

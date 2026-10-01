@@ -1,3 +1,12 @@
+---
+feature: 03_browser_only
+title: "Browser-only variant — desk research notes"
+status: applied
+order: 3
+created: 2026-09-28
+edited: 2026-09-28
+---
+
 # Browser-only variant — desk research notes
 
 Date: 2026-09-27. Scope: can karpathy.app (vault = GitHub repo, git sync, ripgrep search, opencode agent

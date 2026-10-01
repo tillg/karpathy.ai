@@ -1,3 +1,12 @@
+---
+feature: 05_prod_env
+title: "Disk space for karpathy.app prod — desk notes + spikes"
+status: applying
+order: 6
+created: 2026-09-28
+edited: 2026-09-28
+---
+
 # Disk space for karpathy.app prod — desk notes + spikes
 
 2026-09-28. Spec requirement (`prod_env.md`): *"Having many .md vaults on the server might result in

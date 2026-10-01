@@ -1,3 +1,12 @@
+---
+feature: 03_browser_only
+title: "Decisions & assumptions — autonomous run (2026-09-27)"
+status: applied
+order: 2
+created: 2026-09-28
+edited: 2026-09-28
+---
+
 # Decisions & assumptions — autonomous run (2026-09-27)
 
 Tasks: (1) implement spec #03 (browser-only research report), (2) ingest `/Users/tgartner/git/mylife_wiki`

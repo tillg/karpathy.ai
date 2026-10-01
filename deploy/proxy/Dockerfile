@@ -13,7 +13,7 @@ ARG APP_VERSION=dev
 RUN APP_VERSION=${APP_VERSION} npm run build -w apps/web
 
 FROM caddy:2.10-builder AS caddy
-ARG DNS_PROVIDER=cloudflare
+ARG DNS_PROVIDER=godaddy
 RUN xcaddy build --with github.com/caddy-dns/${DNS_PROVIDER}
 
 FROM caddy:2.10-alpine

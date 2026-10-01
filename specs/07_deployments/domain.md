@@ -81,7 +81,7 @@ _Avoid_: Uptime check (that's a pull from outside, which can't reach this server
 | **GitHub** | Hosts the source and the tags, runs the release workflow, stores the images (GHCR, public). |
 | **Target host** | Ubuntu 24.04 with SSH. It downloads the release's `compose.yml`, pulls the images, runs the stack and the monitoring agent, and sends heartbeats. |
 | **Tailscale** | The only way into the Hetzner host, for SSH (Ansible) and HTTPS (the app). |
-| **Cloudflare** | DNS record and DNS-01 certificate for `app.karpathy.app` (Hetzner only). |
+| **GoDaddy** | DNS record and DNS-01 certificate for `app.karpathy.app` (Hetzner only). |
 | **ntfy / heartbeat service** | Outside the server: deliver alerts and notice missing heartbeats. |
 
 ```mermaid

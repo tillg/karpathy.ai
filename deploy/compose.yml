@@ -20,7 +20,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-localhost}
       TLS_MODE: ${TLS_MODE:-dns}
-      DNS_PROVIDER: ${DNS_PROVIDER:-cloudflare}
+      DNS_PROVIDER: ${DNS_PROVIDER:-godaddy}
       DNS_API_TOKEN_FILE: /run/secrets/dns_api_token
     secrets: [dns_api_token]
     volumes: [caddy-data:/data]

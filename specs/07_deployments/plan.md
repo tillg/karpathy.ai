@@ -257,7 +257,8 @@ phase.
       - The Beszel token travels in a query string to the local hub.
       - `gatus.yaml` (with the ntfy topic) stays 0644 until Phase 7 shows which user Gatus runs as.
       - The `release` and `just release` version rules are duplicated.
-      - For you: the prod-env report now names GoDaddy for DNS, but the proxy image bakes in
-        Cloudflare (architecture §2). Settle that in Phase 7.)
+      - DNS provider: the prod-env report named GoDaddy, the image had Cloudflare. **Decided GoDaddy**
+        (user, 2026-10-01): image, compose and Caddyfile defaults switched, `caddy validate` of the
+        GoDaddy block passes, and secret files carry no trailing newline.)
 
 System docs are updated at `/spec:archive`.

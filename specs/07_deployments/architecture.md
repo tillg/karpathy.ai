@@ -77,8 +77,10 @@ Three parts, each with one job:
   release keeps images and compose file together, and the host needs no git and no copy of the
   source. A raw `raw.githubusercontent.com/…/vX.Y.Z/deploy/compose.yml` URL would work too, but a tag
   can be moved later; the asset is what was published.
-- The proxy image keeps `DNS_PROVIDER=cloudflare` baked in (§8.1 of the prod-env report). Another
-  provider would need a separate image tag; not needed now.
+- The proxy image has the **GoDaddy** DNS module baked in (`DNS_PROVIDER=godaddy`, user 2026-10-01;
+  prod-env report §8.1). The token is `<key>:<secret>` of a classic GoDaddy production API key,
+  written without a trailing newline. Another provider would need a separate image tag; not needed
+  now.
 - The backend reads `APP_VERSION` (baked in as `ENV`) and returns it from `GET /api/health`:
   `{ backend, opencode, version }`. Dev and prodtest images report `dev`. That's how the smoke check knows
   which release runs.
@@ -308,7 +310,7 @@ sequenceDiagram
 |---|---|---|
 | Bearer token (app login) | backend | `shared/secrets/bearer_token` → compose secret |
 | GitHub fine-grained token (vault repos) | backend | `shared/secrets/github_token` → compose secret |
-| Cloudflare DNS token (`hetzner` only) | proxy, DNS-01 | `shared/secrets/dns_api_token` → compose secret |
+| GoDaddy API key:secret (`hetzner` only) | proxy, DNS-01 | `shared/secrets/dns_api_token` (root, 0600) → compose secret |
 | LLM provider key | opencode | `shared/opencode.env` (env var; opencode reads keys from env) |
 | Tailscale auth key (`hetzner` only, first run) | `tailscale up` | not stored; used once |
 | healthchecks.io ping URL, ntfy topic | heartbeat, Beszel, Gatus | monitoring config files, 0600 |

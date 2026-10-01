@@ -46,13 +46,23 @@
     - "{{ app_root }}/releases/v{{ app_release }}"
     - "{{ app_root }}/shared"
 
-# A published release never changes, so an existing file is kept.
+- name: Release compose file on the host
+  ansible.builtin.stat:
+    path: "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
+  register: app_compose_file
+
+# A published release never changes: downloaded once, so redeploys and rollbacks need no GitHub.
 - name: Release asset compose.yml
   ansible.builtin.get_url:
     url: https://github.com/{{ app_repo }}/releases/download/v{{ app_release }}/compose.yml
     dest: "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
     mode: "0644"
-    force: false
+  when: not app_compose_file.stat.exists
+
+# (In check mode on a release not downloaded yet, there is nothing to pull or start.)
+- name: The release's compose file is in place
+  ansible.builtin.set_fact:
+    app_compose_present: "{{ app_compose_file.stat.exists or not ansible_check_mode }}"
 
 - name: Compose settings (.env)
   ansible.builtin.template:
@@ -79,7 +89,8 @@
 - name: Secrets
   ansible.builtin.copy:
     dest: "{{ app_root }}/shared/secrets/{{ item.name }}"
-    content: "{{ item.value }}\n"
+    # No trailing newline: Caddy's {file.…} hands the DNS token over verbatim.
+    content: "{{ item.value }}"
     owner: "{{ item.owner }}"
     group: "{{ item.group }}"
     mode: "0600"
@@ -88,6 +99,7 @@
     - { name: github_token, value: "{{ github_token }}", owner: "{{ deploy_uid }}", group: "{{ deploy_gid }}" }
     - { name: dns_api_token, value: "{{ dns_api_token }}", owner: 0, group: 0 }
   loop_control: { label: "{{ item.name }}" }
+  register: app_secrets
   no_log: true
 
 - name: Provider keys (opencode.env)
@@ -95,15 +107,10 @@
     dest: "{{ app_root }}/shared/opencode.env"
     content: "# Rendered by Ansible (role app): provider API keys, opencode only.\n{% for k, v in opencode_env.items() %}{{ k }}={{ v }}\n{% endfor %}"
     mode: "0600"
+  register: app_provider_keys
   no_log: true
 
-- name: Release compose file on the host
-  ansible.builtin.stat:
-    path: "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
-  register: app_compose_file
-
 # Pull before switching `current`, so a failed pull leaves it on the running release.
-# (In check mode on a release not downloaded yet, there is nothing to pull or start.)
 - name: Pull the images of v{{ app_release }}
   community.docker.docker_compose_v2_pull:
     project_src: "{{ app_root }}/shared"
@@ -111,7 +118,7 @@
     files:
       - "{{ app_root }}/releases/v{{ app_release }}/compose.yml"
       - "{{ app_root }}/shared/compose.target.yml"
-  when: app_compose_file.stat.exists
+  when: app_compose_present
 
 - name: Current release → v{{ app_release }}
   ansible.builtin.file:
@@ -131,10 +138,12 @@
     state: present
     pull: missing
     build: never
+    # Containers read secrets and env files at start: a rotated one needs a recreate.
+    recreate: "{{ 'always' if app_secrets is changed or app_provider_keys is changed else 'auto' }}"
     remove_orphans: true
     wait: true
     wait_timeout: 300
-  when: app_compose_file.stat.exists
+  when: app_compose_present
 
 # The live stack still runs the old release in check mode: nothing to check.
 - name: Smoke check

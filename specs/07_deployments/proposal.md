@@ -78,7 +78,7 @@ flowchart LR
 
 **Out**
 
-- Booking the Hetzner server and creating the Tailscale, Cloudflare and GitHub accounts and tokens. That stays manual
+- Booking the Hetzner server and creating the Tailscale, GoDaddy API and GitHub accounts and tokens. That stays manual
   ([prod-env-report §8.1–8.2](../05_prod_env/prod-env-report.md#guide)); the playbook starts from
   a fresh Ubuntu server with SSH access.
 - restic off-site backups (work item 6, second half). Hetzner's daily images stay the backup.

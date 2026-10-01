@@ -32,7 +32,7 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "::error::tag $GITHUB_REF_NAME is not vX.Y.Z or vX.Y.Z-rc.N"; exit 1; }
           prerelease=false; [[ "$version" == *-rc.* ]] && prerelease=true
           # :latest and GitHub's "Latest" only move forward: a hotfix on an older line doesn't take them.
-          highest=$(git tag -l 'v*.*.*' | grep -Ev -- '-' | sort -V | tail -n 1)
+          highest=$(git tag -l 'v*.*.*' | grep -Ev -- '-' | sort -V | tail -n 1 || true)
           latest=false; [ "$prerelease" = false ] && [ "$GITHUB_REF_NAME" = "$highest" ] && latest=true
           { echo "version=$version"; echo "prerelease=$prerelease"; echo "latest=$latest"; } >> "$GITHUB_OUTPUT"
       # Final releases only from main; release candidates may come from any commit (architecture A9).

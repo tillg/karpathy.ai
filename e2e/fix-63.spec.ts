@@ -5,7 +5,7 @@ import { expect, openApp, test } from './helpers';
 const TURN = 8 * 60_000;
 test.describe.configure({ timeout: 20 * 60_000 });
 
-test('@iphone a multi-step turn has one header; a failed step\'s error opens on tap', async ({ page, vault }) => {
+test('@iphone @llm a multi-step turn has one header; a failed step\'s error opens on tap', async ({ page, vault }) => {
   const reminder = page.getByTestId('reminder-dialog');
   await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());
   page.on('dialog', (d) => void d.accept());

@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
   await page.addLocatorHandler(reminder, () => reminder.getByRole('button', { name: 'Later' }).click());
 });
 
-test('chat on iPad: send, streaming answer, consulted-file chip; resume on iPhone; delete', async ({ browser }) => {
+test('@llm chat on iPad: send, streaming answer, consulted-file chip; resume on iPhone; delete', async ({ browser }) => {
   const ipad = await newContextPage(browser, { width: 820, height: 1180 });
   const phone = await newContextPage(browser, { width: 390, height: 844 });
   try {
@@ -92,7 +92,7 @@ test('chat on iPad: send, streaming answer, consulted-file chip; resume on iPhon
   }
 });
 
-test('AI write → changed chip, "Open changed page", changes counter increments', async ({ page }) => {
+test('@llm AI write → changed chip, "Open changed page", changes counter increments', async ({ page }) => {
   test.setTimeout(30 * 60_000); // up to three model turns
   // The model sometimes writes several extra files, which can cross the commit-reminder threshold
   await openApp(page, vault.id);

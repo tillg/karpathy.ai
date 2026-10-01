@@ -76,7 +76,7 @@
 - name: Provider keys (opencode.env)
   ansible.builtin.copy:
     dest: "{{ app_root }}/shared/opencode.env"
-    content: "{% for k, v in opencode_env.items() %}{{ k }}={{ v }}\n{% endfor %}"
+    content: "# Rendered by Ansible (role app): provider API keys, opencode only.\n{% for k, v in opencode_env.items() %}{{ k }}={{ v }}\n{% endfor %}"
     mode: "0600"
   no_log: true
 

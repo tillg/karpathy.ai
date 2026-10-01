@@ -1,6 +1,7 @@
 # Backend: Node/TS run via tsx (no build step). git + ripgrep for the git and search APIs.
 FROM node:22-alpine AS base
-RUN apk add --no-cache git ripgrep
+# tzdata: git commit times follow TZ (compose).
+RUN apk add --no-cache git ripgrep tzdata
 ARG APP_UID=1000
 ARG APP_GID=1000
 # Mount points owned by the app user, so fresh named volumes inherit the ownership.

@@ -15,7 +15,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -d "inventories/$target" ] || { echo "unknown target: $target (have: $(ls inventories | xargs))" >&2; exit 1; }
-args=(-i "inventories/$target" --vault-id "$target@vault-pass-client.sh" site.yml "${tags[@]}")
+args=(-i "inventories/$target" --vault-id "$target@vault-pass-client.sh" site.yml ${tags[@]+"${tags[@]}"})
 [ -n "$version" ] && args+=(-e "app_version=$version")
 [ "$mode" = check ] && args+=(--check --diff)
 mkdir -p ../../tmp

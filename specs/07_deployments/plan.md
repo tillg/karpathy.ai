@@ -161,7 +161,12 @@ Each step ends with its check. Steps are in dependency order; the phases can be 
       aborts a running turn" (a race without a model). Known flake: webkit "push failure" fails about
       1 run in 3 on the VM; the Mac-side rename of the bare repo shows up late through virtiofs.
       Found and fixed along the way: the backend lacked an init, and ~300 zombie `git` processes
-      piled up per e2e run (dev, prodtest, VM); `init: true` since rc.4.)
+      piled up per e2e run (dev, prodtest, VM); `init: true` since rc.4. Final run on **rc.5** (after
+      the review fixes): 185 passed, 2 skipped, 1 failed. The failure is webkit `a11y.spec.ts:36`,
+      a test race: it clicks the `Code.md` tree item and then Read immediately, so on a slow target
+      the note opens afterwards in Write mode. 3/3 on the VM, 1/2 on prodtest, 2/2 on dev. The
+      test wasn't changed (needs your OK); the fix would wait for Code.md's heading before clicking
+      Read.)
 
 ## Phase 6: monitoring
 

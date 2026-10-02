@@ -3,7 +3,7 @@ import { expect, openApp, test } from './helpers';
 // #103: a chat is titled with its full first prompt; the list cuts it with CSS ellipsis at the real width.
 const PROMPT = 'Compare Similaun and Cevedale for a trip in late April and tell me which one needs less equipment overall';
 
-test('103 chat list shows the full first prompt, with a tooltip', async ({ page, vault, api }) => {
+test('@llm 103 chat list shows the full first prompt, with a tooltip', async ({ page, vault, api }) => {
   await openApp(page, vault.id);
   await page.getByTestId('new-chat').click();
   await expect(page.getByTestId('chat-messages')).toContainText('New chat');

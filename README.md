@@ -71,8 +71,8 @@ just dev down
 ```
 
 `just` lists all commands (`brew install just`); they wrap `deploy/dev.sh` and npm. Deploying
-also needs `brew install lima ansible ansible-lint qrencode` (the local target VM, the playbook and
-the login QR code).
+also needs `brew install lima ansible ansible-lint qrencode jq` (the local target VM, the playbook,
+the login QR code and the deploy scripts).
 
 Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Binary files
 (images, PDFs, …) are listed but not editable. A vault whose clone failed can be retried
@@ -88,12 +88,8 @@ To clone from GitHub in dev, put a token into `deploy/secrets/github_token`. To 
 offline against local bare repos instead, create them under `tmp/dev/remotes/<owner>/<name>.git`
 and set `GIT_REMOTE_BASE=file:///remotes/` in `deploy/.env`.
 
-**Prod** (home server, reachable via VPN): copy `deploy/.env.example` → `deploy/.env`
-(domain, DNS provider, git author, model) and `deploy/opencode.env.example` →
-`deploy/opencode.env` (provider API keys). Put the secrets into `deploy/secrets/`
-(`bearer_token`, `github_token`, `dns_api_token`), then
-`docker compose -f deploy/compose.yml up -d --build`. Caddy gets a Let's Encrypt
-certificate via DNS-01.
+**Prod** (the Hetzner server `app.karpathy.app`, reachable only over Tailscale) is never built or
+configured by hand: releases go there with `just deploy hetzner`, see [Deploying](#deploying).
 
 ## Tests
 

@@ -66,7 +66,7 @@ managed by Ansible.
 | `just deploy <target> [version]` | Deploys a release (default: the newest final release). Log in `tmp/deploy-<target>-*.log`. |
 | `just deploy <target> [version] --only app` | Only the app role (or `--only monitoring`); assumes a full deploy ran before. The fast path for upgrades and rollbacks. |
 | `just deploy hetzner --bootstrap <public-ip>` | The first run against a fresh server: as `root` on its public IP. Every later run goes as `deploy` over Tailscale. |
-| `just deploy-check <target> [version]` | Dry run with diff; changes nothing. |
+| `just deploy-check <target> [version] [--only app\|monitoring]` | Dry run with diff; changes nothing. Needs a host that was deployed before (a fresh one has no Docker or Tailscale to check against). |
 | `just deploy-e2e local [args]` | The Playwright suite (without the `@llm` tests) against the local target. |
 
 **The local target VM**

@@ -440,8 +440,8 @@ describe('files', () => {
     expect(hits).toEqual({ hits: [{ path: 'notes/n1.md', line: 1, text: 'alpha beta' }], truncated: false });
     // "other" is in the name Other.md and in Home.md's content: content hits win, name-only hits only for files without one.
     expect((await t.api.get(`/vaults/${t.id}/search?q=other`)).body.hits).toEqual([
-      { path: 'Home.md', line: 2, text: 'See [[Other]]' },
       { path: 'Other.md', line: 1, text: 'other' },
+      { path: 'Home.md', line: 2, text: 'See [[Other]]' },
     ]);
   });
 
@@ -456,7 +456,42 @@ describe('files', () => {
     expect(a.truncated).toBe(true);
     expect(a.hits).toHaveLength(200);
     expect(a.hits.filter((h: { line: number }) => h.line === 0).map((h: { path: string }) => h.path)).toEqual(['only-name-needle.md']);
-    expect((await t.api.get(`/vaults/${t.id}/search?q=needle%20two`)).body.truncated).toBe(false);
+    expect((await t.api.get(`/vaults/${t.id}/search?q=%22needle%20two%22`)).body.truncated).toBe(false);
+  });
+
+  it('#99 search lists notes whose file name matches the query before passing mentions', async () => {
+    const t = await vaultApp({
+      'A/mentions.md': 'we went to Similaun once\n',
+      'B/also.md': 'similaun again\n',
+      'Wiki/tours/similaun.md': '# Tour\nthe Similaun tour\n',
+      'Wiki/z-name-only-SIMILAUN-x.md': 'nothing',
+    });
+    const hits = (await t.api.get(`/vaults/${t.id}/search?q=Similaun`)).body.hits as { path: string; line: number }[];
+    expect(hits.map((h) => h.path)).toEqual([
+      'Wiki/z-name-only-SIMILAUN-x.md',
+      'Wiki/tours/similaun.md',
+      'A/mentions.md',
+      'B/also.md',
+    ]);
+  });
+
+  it('#107 multi-word search finds notes containing all words, shows lines of any word; quotes mean exact phrase', async () => {
+    const t = await vaultApp({
+      'a.md': 'Similaun is high\nunrelated\nand Cevedale too\n',
+      'b.md': 'only similaun here\n',
+      'c.md': 'similaun\n\ncevedale\n',
+      'd.md': 'similaun cevedale together\n',
+    });
+    const q = async (s: string) => (await t.api.get(`/vaults/${t.id}/search?q=${encodeURIComponent(s)}`)).body.hits;
+    expect(await q('similaun CEVEDALE')).toEqual([
+      { path: 'a.md', line: 1, text: 'Similaun is high' },
+      { path: 'a.md', line: 3, text: 'and Cevedale too' },
+      { path: 'c.md', line: 1, text: 'similaun' },
+      { path: 'c.md', line: 3, text: 'cevedale' },
+      { path: 'd.md', line: 1, text: 'similaun cevedale together' },
+    ]);
+    expect(await q('"similaun cevedale"')).toEqual([{ path: 'd.md', line: 1, text: 'similaun cevedale together' }]);
+    expect(((await q('similaun')) as unknown[]).length).toBe(4);
   });
 
   it('new file whose path differs only in case from an existing one → 409 exists-case (#6)', async () => {

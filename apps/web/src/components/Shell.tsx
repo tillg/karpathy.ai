@@ -23,6 +23,7 @@ export function Shell() {
     phone ? 'phone' : wide ? 'wide' : 'tablet',
     s.chatOpen && !phone ? 'insp' : '',
     s.sidebarOpen && !phone ? 'sbopen' : '',
+    s.chatMain ? 'chatmain' : '',
   ].join(' ');
   // Phone: push navigation. The tab root is "cur"; an open note is pushed over it.
   const pos = (id: 'sidebar' | 'detail' | 'chat') => {
@@ -65,6 +66,9 @@ export function Shell() {
       pane.querySelector<HTMLElement>('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')?.focus();
   }, [tablet, sidebarOpen, chatOpen]);
 
+  // Wide layout: the swap button on the note/chat divider says what a click does.
+  const swapLabel = s.chatMain ? 'Move note to main column' : 'Move chat to main column';
+
   return (
     <>
       {/* Page heading + banner landmark for screen readers (issue #47); the panes are main/aside. */}
@@ -73,6 +77,10 @@ export function Shell() {
         <Sidebar inert={inert('sidebar')} />
         <NotePane inert={inert('detail')} />
         <ChatPane inert={inert('chat')} />
+        {wide && s.chatOpen && (
+          <button id="main-swap" data-testid="main-swap" aria-pressed={s.chatMain} title={swapLabel} aria-label={swapLabel}
+            onClick={() => s.setChatMain(!s.chatMain)}><Icon n="arrow_right_arrow_left" size={16} /></button>
+        )}
         {phone && (
           <nav id="tabbar" aria-label="Tabs">
             {TABS.map((t) => (

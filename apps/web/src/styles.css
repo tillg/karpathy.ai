@@ -331,6 +331,23 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 #app.wide:not(.sbopen) #sidebar { display: none; }
 #app.wide #chat { flex: 0 0 380px; border-left: .5px solid var(--sep); display: none; }
 #app.wide.insp #chat { display: flex; }
+/* Swap button: on the main/side column divider (the side column is always the rightmost 380 px), in the
+   bar. 44 px tap box, 28 px visible circle; opaque, so the divider hairline doesn't show through (WebKit
+   ignores a backdrop blur on the pseudo-element). */
+#main-swap { position: absolute; top: 4px; right: calc(380px + env(safe-area-inset-right)); transform: translateX(50%); z-index: 10;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: none; color: var(--tint); }
+#main-swap::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--paper);
+  box-shadow: 0 0 0 .5px var(--sep), var(--shadow); }
+#main-swap .f7-icons { position: relative; }
+/* Keep the bar buttons next to the divider out from under the swap button's tap box. */
+#app.wide.insp #detail > .bar { padding-right: 32px; }
+#app.wide.insp #chat > .bar { padding-left: 32px; }
+/* Chat in main: the chat takes the main column, the note the 380 px side column. CSS only, so no DOM
+   node moves (a running turn, typed text, focus, scroll and undo history all stay). */
+#app.wide.insp.chatmain #chat { order: 1; flex: 1 1 0; border-left: none; }
+#app.wide.insp.chatmain #detail { order: 2; flex: 0 0 380px; border-left: .5px solid var(--sep); }
+#app.wide.insp.chatmain #detail > .bar { padding-right: 8px; padding-left: 32px; }
+#app.wide.insp.chatmain #chat > .bar { padding-left: 8px; padding-right: 32px; }
 
 /* ===== tablet (700–1023): editor + overlay sidebar + slide-over chat ===== */
 #app.tablet #sidebar, #app.tablet #chat { position: absolute; top: 0; bottom: 0; z-index: 40; box-shadow: var(--shadow); transition: transform .35s cubic-bezier(.32,.72,0,1); }

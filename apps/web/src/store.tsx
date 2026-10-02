@@ -28,6 +28,7 @@ export interface NoteView {
 interface OpenNote { vault: string; path: string; version: string; saved: string; draft: string; deleted?: boolean; binary?: boolean }
 
 const ACTIVE_KEY = 'karpathy.activeVault';
+const CHAT_MAIN_KEY = 'karpathy.chatMain';
 const AUTOSAVE_MS = 1500;
 const RETRY_MS = 10_000;
 const drafts = () => localStorage;
@@ -334,6 +335,10 @@ function useAppState() {
   const phoneNote = noteTab !== null && noteTab === phoneTab;
   const setPhoneNote = useCallback((on: boolean) => setNoteTab(on ? phoneTab : null), [phoneTab]);
   const [chatOpen, setChatOpen] = useState(() => innerWidth >= 1280);
+  // Wide layout: which of note and chat is in the main column (the other is in the 380 px side column).
+  // Per-browser preference; storage can throw (private mode, blocked site data): default to note in main.
+  const [chatMain, setChatMain] = useState(() => { try { return localStorage.getItem(CHAT_MAIN_KEY) === '1'; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem(CHAT_MAIN_KEY, chatMain ? '1' : '0'); } catch { /* not remembered */ } }, [chatMain]);
   const [sidebarOpen, setSidebarOpen] = useState(wide);
   // Wide: the sidebar is a column (shown by default); tablet: an overlay (hidden by default).
   useEffect(() => setSidebarOpen(wide), [wide]);
@@ -576,7 +581,7 @@ function useAppState() {
     note, openNote, isEditing, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
     keepDeletedNote, closeDeletedNote,
     followLink, exists, readOnly, conflict,
-    section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen,
+    section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen, chatMain, setChatMain,
     sidebarOpen, setSidebarOpen, mode, setMode, adminOpen, setAdminOpen, commitOpen, setCommitOpen, chatId, setChatId,
   };
 }

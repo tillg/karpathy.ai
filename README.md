@@ -56,7 +56,8 @@ live preview and `[[wikilinks]]`, search, uncommitted changes / diff / discard, 
 with an AI-proposed message, conflict resolution, and a streaming AI chat that reads and
 edits the vault through opencode. Ask the AI to show you a note ("open my reading list") and it
 opens notes in the editor through its `open_note` tool (on a phone or a smaller iPad when the reply is
-done; never while you are typing). How it works today: [`specs/system/`](specs/system/) (domain,
+done; never while you are typing). On a wide screen the ⇄ button on the note/chat divider swaps the two
+columns, putting the chat in the large main column; the browser remembers the choice. How it works today: [`specs/system/`](specs/system/) (domain,
 functional, architecture, security, deployment); key decisions: [`docs/adr/`](docs/adr/). The
 original MVP spec, plan, opencode spike and implementation log are in git history
 ([`specs/01_mvp/` at 9c25f72](https://github.com/tillg/karpathy.app/tree/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp)).

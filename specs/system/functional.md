@@ -16,6 +16,11 @@ Built up to the MVP milestone **M4**: a chat that reads and writes configured va
 wiki skills usable in the chat ([Skills](#skills)), at least `query` and `lint` on mobile, and at least one
 non-Claude model tried.
 
+Next to the app there is a public **website** at https://karpathy.app: one static start page that says what the
+app is, that the project ships code and not a running service (self-hosting needs a server, Tailscale and a set of
+secrets and keys), and how to ask for a hosted version (mail to the maintainer). It has no login and holds no user
+data ([deployment.md › Website](deployment.md#website)).
+
 Deliberately not built: an Obsidian clone (no graph view, plugins or canvas), multiple users or real-time
 collaboration, a sync protocol of its own, offline AI, creating GitHub repos from the app.
 

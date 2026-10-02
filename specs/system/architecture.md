@@ -50,7 +50,8 @@ flowchart LR
 | Proxy | Caddy 2.10 built with a `caddy-dns/<provider>` module (GoDaddy) for DNS-01. |
 | Shared | `packages/shared`: TypeScript types for the API (no runtime schemas). |
 | Tests | Vitest (backend projects `default`, `github`, `llm`; web unit tests for `lib/`), Playwright e2e (desktop, iPad, iPhone in Chromium and WebKit), axe-core. |
-| Tooling | npm workspaces (`apps/*`, `packages/*`), ESLint flat config, `just`, GitHub Actions CI. |
+| Website | Plain HTML + CSS in `site/`, no framework or dependencies; tests with `node:test`; GitHub Pages. |
+| Tooling | npm workspaces (`apps/*`, `packages/*`, `site`), ESLint flat config, `just`, GitHub Actions CI. |
 
 ## Components
 
@@ -72,6 +73,17 @@ flowchart LR
   vault?", static, no backend) and a nested confirm `Modal` for missing folders.
 - **Service worker**: precaches the app shell; `vault-api` NetworkFirst cache (5 s timeout) for the vault list, file
   tree and opened notes; auto-update with a re-check whenever the app becomes visible.
+
+### Website (`site/`)
+
+Not part of the app or its stack: the public product page at https://karpathy.app, deployed to GitHub Pages
+on its own ([deployment.md › Website](deployment.md#website)).
+
+- `index.html` (start page: hero with logo, features, how it works, "Code, not a service" with what self-hosting
+  takes, a hosting contact) and `style.css` (the app's `:root` token blocks, copied, plus the page's layout).
+- `build.sh` assembles `_site/` from the page files and `assets/icons/`; all paths are relative, so the page also
+  works under `tillg.github.io/karpathy.app/`.
+- `site.test.mjs` runs the build and checks the output, including token equality with `apps/web/src/styles.css`.
 
 ### Backend (`apps/backend`)
 
@@ -236,7 +248,8 @@ No database. Git is the source of truth for notes; GitHub is the sync hub.
 | GitHub | Vault repos; fine-grained token as an HTTP extra header, never in `.git/config`; `api.github.com/user` for the token test | in use |
 | LLM providers (OpenRouter in production, any via opencode) | Model behind opencode; keys only in `opencode.env` | OpenRouter `z-ai/glm-5.3` on zero-data-retention hosts in production |
 | Ollama | Dev, local prod test and CI LLM tests | in use |
-| Let's Encrypt + GoDaddy DNS | Certificate for `app.karpathy.app` via DNS-01; the A record points at the server's tailnet IP | in use |
+| Let's Encrypt + GoDaddy DNS | Certificate for `app.karpathy.app` via DNS-01; the A record points at the server's tailnet IP. The apex and `www` point at GitHub Pages | in use |
+| GitHub Pages | Hosts the website at `karpathy.app` (with GitHub's own Let's Encrypt certificate) | in use |
 | ghcr.io | The app's release images (public) and opencode's base image | in use |
 | Docker Hub | Base images; Beszel and Gatus | in use |
 | Hetzner Cloud | The production server | in use |
@@ -256,6 +269,8 @@ No database. Git is the source of truth for notes; GitHub is the sync hub.
   the dev stack.
 - **CI** (`.github/workflows/ci.yml`): lint, typecheck, tests, web build, a compose config check, and
   `ansible-lint` + syntax checks of the playbook on every push and PR; nightly GitHub and LLM test suites.
+- **Website** (`.github/workflows/pages.yml`): the site test, then `_site/` to GitHub Pages on every push to `main`
+  that touches `site/`, `assets/icons/` or the app's stylesheet.
 - **Releases and production:** a tag `vX.Y.Z` builds the images (amd64 + arm64) to GHCR; the Ansible playbook
   deploys a release to a **target**: `local` (a Lima VM on the Mac, https://localhost:9444) or `hetzner` (a
   Hetzner CPX22 reachable only over Tailscale, https://app.karpathy.app, running since 2026-10-02), with

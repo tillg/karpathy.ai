@@ -46,6 +46,8 @@ Three parts, each with one job:
    release. Nothing is built on a host, and a host holds no copy of the source.
 3. **Monitoring** (on the host, plus a heartbeat to an outside service) tells the operator when it breaks.
 
+The public website at https://karpathy.app has its own, much simpler pipeline: [Website](#website).
+
 ## Releases
 
 - A **release** is a tag `vX.Y.Z` on `main`; a **pre-release** is `vX.Y.Z-rc.N` from any commit.
@@ -205,6 +207,40 @@ flowchart LR
   packages and doesn't reboot.
 - **Backups:** Hetzner's daily server backup (7 slots) includes the vaults filesystem; no off-site copy.
 
+## Website {#website}
+
+The public product page at **https://karpathy.app** is separate from the app: static, no user data, not
+versioned with a release, hosted on GitHub Pages, live since 2026-10-02.
+
+```mermaid
+flowchart LR
+  subgraph Repo["tillg/karpathy.app (main)"]
+    S[site/<br/>index.html, style.css]
+    I[assets/icons/]
+    W[pages.yml]
+  end
+  S & I -- "push touching site/**,<br/>assets/icons/**, apps/web/src/styles.css" --> W
+  W -- "site test → build.sh → _site/<br/>upload-pages-artifact → deploy-pages" --> GP[GitHub Pages]
+  GP --> K["https://karpathy.app<br/>(www → 301)"]
+  DNS[GoDaddy DNS] -. "apex A ×4 → 185.199.108–111.153<br/>www CNAME → tillg.github.io" .-> K
+  DNS -. "app A → tailnet IP" .-> APP[app.karpathy.app]
+```
+
+- **Source:** `site/` (plain HTML + CSS, its own npm workspace `@karpathy/site`). `site/build.sh` assembles
+  `_site/` (gitignored) from the page files and `assets/icons/`. Preview: `just site` (http://localhost:8099).
+- **Check:** `site/site.test.mjs` (node:test, part of `npm test`, so `ci.yml` covers it) builds `_site/` and
+  checks the title, lang, viewport and repo link, that every local `href`/`src` resolves, that no path is
+  root-absolute, the self-hosting section with the hosting contact, and that the `:root` token blocks in
+  `site/style.css` equal the app's in `apps/web/src/styles.css` (light and dark).
+- **Website deploy:** `.github/workflows/pages.yml` on pushes to `main` that touch the site, the icons or the app's
+  stylesheet, and on manual dispatch. Release tags don't deploy it.
+- **Pages settings:** source "GitHub Actions" (`build_type=workflow`), custom domain `karpathy.app` set in the
+  repo settings (a `CNAME` file is ignored with Actions deploys), HTTPS enforced; GitHub's Let's Encrypt
+  certificate covers `karpathy.app` and `www.karpathy.app`.
+- **DNS:** the apex and `www` point at GitHub; `app.karpathy.app` keeps pointing at the server's tailnet IP.
+  The GoDaddy Website Builder site is an unpublished draft. `.app` is HSTS-preloaded, so the site is reachable
+  only over HTTPS.
+
 ## Key decisions
 
 | Decision | Why |
@@ -219,6 +255,10 @@ flowchart LR
 | ntfy.sh with a random topic | Free; a self-hosted ntfy would die with the server it reports on. |
 | DNS at GoDaddy | Same place as the operator's other domains; the key can't be limited to one zone. |
 | Separate login user `ops` | A breakout of the app's uid must not reach sudo or Docker. |
+| Website on GitHub Pages, deployed by Actions (no `gh-pages` branch) | Free, no server, source next to the code; generated files stay out of git history. |
+| Website as plain HTML + CSS, no generator | One page; revisit when there are more than ~3 pages or shared markup gets copied. |
+| App tokens copied into `site/style.css`, kept equal by a test | Looks like the app without touching the app's build; drift fails CI. |
+| Custom domain set only after the first deploy was checked on `tillg.github.io` | A set custom domain redirects the github.io URL to a domain that still pointed elsewhere. |
 
 ## Known gaps
 
@@ -231,3 +271,8 @@ flowchart LR
 - Gatus has no authentication on the tailnet.
 - Let's Encrypt allows 5 certificates per name per week: repeated rebuilds can run into it.
 - Changing the Beszel password breaks provisioning (the hub reads it only on first start).
+- `karpathy.app` isn't verified as a domain in the GitHub account (TXT record), so another account could claim it
+  if Pages were ever disabled while DNS still points at GitHub.
+- Changing a token in `apps/web/src/styles.css` fails the site test until `site/style.css` gets the same value.
+- GitHub didn't start the certificate for a custom domain set before DNS pointed at it; removing and re-setting
+  the domain started it.

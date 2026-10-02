@@ -98,3 +98,11 @@ A push message to the operator's phone (ntfy) when something needs a person: dis
 **Heartbeat**:
 A ping the server sends to healthchecks.io every 5 minutes; when it stops (or reports a failure), healthchecks.io raises the alert. The only way to notice the whole box is gone.
 _Avoid_: Uptime check
+
+**Website**:
+The public product page at `https://karpathy.app` that describes the app. Static, no login, no user data; its source is `site/`. The app itself runs elsewhere (`app.karpathy.app` on the `hetzner` target).
+_Avoid_: Homepage, landing page, web app
+
+**Website deploy**:
+Publishing the current `site/` from `main` to GitHub Pages. Happens on its own, independent of releases; the website has no version.
+_Avoid_: Release

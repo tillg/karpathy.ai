@@ -114,6 +114,33 @@ describe('@llm AI reads and writes', () => {
     });
   });
 
+  it('open_note shows up as an opened note', async () => {
+    const t = await setup();
+    await withRetry(async () => {
+      const { tools } = await turn(t, 'Use the open_note tool to open the note notes/Todo.md for me. Do nothing else.');
+      if (tools.length === 0) throw new Inconclusive('model made no tool call');
+      const opens = tools.filter((x) => x.tool === 'open_note' && x.status === 'completed');
+      if (opens.length === 0) throw new Inconclusive(`no completed open_note: ${JSON.stringify(tools)}`);
+      expect(opens[0]).toMatchObject({ path: 'notes/Todo.md', opens: true, writes: false });
+    });
+  });
+
+  it('open_note works in conflict (read-only agent)', async () => {
+    const t = await setup();
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Home.md'), 'mine\n');
+    await t.remote.obsidianPush({ 'Home.md': 'theirs\n' });
+    await t.vaults.lock(t.id).withExclusive(() => t.vaults.pullUnlocked(t.id));
+    expect(t.vaults.isConflict(t.id)).toBe(true);
+    await withRetry(async () => {
+      const { tools } = await turn(t, 'Use the open_note tool to open the note notes/Todo.md for me. Do nothing else.');
+      if (tools.length === 0) throw new Inconclusive('model made no tool call');
+      const opens = tools.filter((x) => x.tool === 'open_note');
+      if (opens.length === 0) throw new Inconclusive(`no open_note call: ${JSON.stringify(tools)}`);
+      expect(opens.find((x) => x.status === 'completed')).toMatchObject({ path: 'notes/Todo.md', opens: true });
+      expect(opens.filter((x) => x.status === 'denied')).toEqual([]);
+    });
+  });
+
   it('abort mid-turn → idle, lock released, the next queued prompt starts', async () => {
     const t = await setup();
     const a = (await t.chat.create(t.id)).chatId;

@@ -56,14 +56,16 @@
           "*opencode.json": "deny",
           "*opencode.jsonc": "deny",
           "*.opencode/*": "deny"
-        }
+        },
+        "open_note": "allow"
       }
     },
     "vault-readonly": {
       "mode": "primary",
       "description": "Reads the notes of one vault; cannot change files.",
       "permission": {
-        "edit": "deny"
+        "edit": "deny",
+        "open_note": "allow"
       }
     },
     "commit-message": {

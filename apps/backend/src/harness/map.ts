@@ -16,6 +16,8 @@ export type HarnessEvent =
 
 const DENIED_PREFIX = 'The user has specified a rule which prevents you from using this specific tool call';
 const WRITE_TOOLS = new Set(['edit', 'write', 'apply_patch', 'patch', 'multiedit']);
+/** Tools that ask the UI to show a note (deploy/opencode/tools). */
+const OPEN_TOOLS = new Set(['open_note']);
 
 type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
@@ -48,6 +50,7 @@ export function mapToolPart(part: Json, root: string): ToolCall {
     tool,
     status,
     writes: WRITE_TOOLS.has(tool),
+    opens: OPEN_TOOLS.has(tool),
     ...(path ? { path } : {}),
     ...(str(state.title) ? { title: str(state.title) } : {}),
     ...(error && status === 'error' ? { error } : {}),

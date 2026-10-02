@@ -29,6 +29,21 @@ describe('opencode → harness mapping (real captures)', () => {
     expect(denied!.error).toBeUndefined();
   });
 
+  it('open_note maps to opens: true, writes: false, vault-relative path', () => {
+    const opens = events.flatMap((e) => (e.type === 'part' && e.part.type === 'tool' && e.part.call.tool === 'open_note' ? [e.part.call] : []));
+    expect(opens.find((t) => t.status === 'completed')).toMatchObject({ opens: true, writes: false, path: 'notes/Todo.md' });
+    // Other tools don't open anything.
+    const others = events.flatMap((e) => (e.type === 'part' && e.part.type === 'tool' && e.part.call.tool !== 'open_note' ? [e.part.call] : []));
+    expect(others.length).toBeGreaterThan(0);
+    for (const t of others) expect(t.opens).toBe(false);
+  });
+
+  it('writtenPaths ignores open_note', () => {
+    const parts = raw.filter((e) => e.type === 'message.part.updated' && e.properties.part.tool === 'open_note').map((e) => e.properties.part);
+    expect(parts.some((p) => p.state.status === 'completed')).toBe(true);
+    for (const p of parts) expect(writtenPaths(p, '/vaults/a')).toEqual([]);
+  });
+
   it('file.edited → vault-relative path', () => {
     const fe = events.filter((e) => e.type === 'file-edited');
     expect(fe.length).toBeGreaterThan(0);

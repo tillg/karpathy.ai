@@ -63,6 +63,62 @@ export function changedPaths(parts: ChatPart[]): string[] {
   return out;
 }
 
+/**
+ * The AI's open requests of one chat view: calls already acted on or in the first-loaded history
+ * (`seen`), and, where the open waits for the turn's end (`defer`: layouts that aren't wide), the
+ * turn's latest request.
+ */
+export interface Opens { seen: Set<string>; later: string | null; loaded: boolean }
+export const newOpens = (): Opens => ({ seen: new Set(), later: null, loaded: false });
+
+/** A wanted open: shown now, or kept until the turn ends. Returns the note to show now. */
+function want(o: Opens, path: string | null, defer: boolean): string | null {
+  if (path && defer) o.later = path;
+  return defer ? null : path;
+}
+
+function turnEnded(o: Opens): string | null {
+  const p = o.later;
+  o.later = null;
+  return p;
+}
+
+/**
+ * A (re)loaded chat. The first load only marks its completed opens seen: history never opens a
+ * note. A reload after a dropped stream treats opens completed in the gap as live. Returns the note
+ * to show now.
+ */
+export function opensFromLoad(o: Opens, messages: ChatMessage[], turn: ChatView['turn'], defer: boolean): string | null {
+  let path: string | null = null;
+  for (const m of messages)
+    for (const p of m.parts) {
+      if (p.type !== 'tool' || !p.call.opens || p.call.status !== 'completed') continue;
+      if (o.loaded) path = noteToOpen({ type: 'part', messageId: m.id, part: p }, o.seen) ?? path;
+      else o.seen.add(p.id);
+    }
+  o.loaded = true;
+  const now = want(o, path, defer);
+  return turn === 'idle' ? (turnEnded(o) ?? now) : now;
+}
+
+/** A live stream event. Returns the note to show now. */
+export function opensFromEvent(o: Opens, e: ChatEvent, defer: boolean): string | null {
+  const now = want(o, noteToOpen(e, o.seen), defer);
+  return e.type === 'turn' && e.state === 'idle' ? (turnEnded(o) ?? now) : now;
+}
+
+/**
+ * The note a live stream event asks the UI to show: a completed open call not in `seen` (which it
+ * joins), so a replayed call opens nothing twice (pure apart from `seen`).
+ */
+export function noteToOpen(e: ChatEvent, seen: Set<string>): string | null {
+  if (e.type !== 'part' || e.part.type !== 'tool') return null;
+  const { call } = e.part;
+  if (!call.opens || call.status !== 'completed' || !call.path || seen.has(e.part.id)) return null;
+  seen.add(e.part.id);
+  return call.path;
+}
+
 export type Turn =
   | { role: 'user'; id: string; message: ChatMessage }
   | { role: 'assistant'; id: string; model?: string; parts: ChatPart[]; errors: string[] };

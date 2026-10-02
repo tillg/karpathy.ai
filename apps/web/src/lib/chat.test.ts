@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage } from '@karpathy/shared';
-import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, turns, type ChatView, type PendingPrompt } from './chat';
+import type { ChatEvent, ChatMessage, ToolCall } from '@karpathy/shared';
+import { adoptQueued, applyChatEvent, changedPaths, newOpens, noteToOpen, opensFromEvent, opensFromLoad, settlePending, turnAnnouncement, turns, type ChatView, type PendingPrompt } from './chat';
 
 const empty: ChatView = { id: 'c1', title: 'T', messages: [], turn: 'idle' };
 
@@ -36,6 +36,72 @@ describe('changedPaths', () => {
     const call = (id: string, path: string, writes: boolean, status: 'completed' | 'denied' = 'completed') =>
       ({ type: 'tool' as const, id, call: { id, tool: writes ? 'edit' : 'read', status, path, writes } });
     expect(changedPaths([call('1', 'a.md', true), call('2', 'b.md', false), call('3', 'a.md', true), call('4', 'c.md', true, 'denied')])).toEqual(['a.md']);
+  });
+
+  it('changedPaths excludes opened notes', () => {
+    expect(changedPaths([{ type: 'tool', id: 'o', call: { id: 'o', tool: 'open_note', status: 'completed', path: 'a.md', writes: false, opens: true } }])).toEqual([]);
+  });
+});
+
+describe('noteToOpen', () => {
+  const ev = (id: string, call: Partial<ToolCall> = {}): ChatEvent =>
+    ({ type: 'part', messageId: 'm', part: { type: 'tool', id, call: { id, tool: 'open_note', status: 'completed', path: 'notes/a.md', writes: false, opens: true, ...call } } });
+
+  it('returns the path of a live, completed open call once', () => {
+    const seen = new Set<string>();
+    expect(noteToOpen(ev('o1'), seen)).toBe('notes/a.md');
+    expect(noteToOpen(ev('o1'), seen)).toBeNull();
+  });
+
+  it('ignores running, error, read and write calls, and other events', () => {
+    const seen = new Set<string>();
+    expect(noteToOpen(ev('o1', { status: 'running' }), seen)).toBeNull();
+    expect(noteToOpen(ev('o2', { status: 'error' }), seen)).toBeNull();
+    expect(noteToOpen(ev('r', { tool: 'read', opens: false }), seen)).toBeNull();
+    expect(noteToOpen(ev('w', { tool: 'edit', opens: false, writes: true }), seen)).toBeNull();
+    expect(noteToOpen({ type: 'turn', state: 'idle' }, seen)).toBeNull();
+    // A running part doesn't use up its id: the completed one still opens.
+    expect(noteToOpen(ev('o1'), seen)).toBe('notes/a.md');
+  });
+
+});
+
+describe('opens tracker', () => {
+  const part = (id: string, call: Partial<ToolCall> = {}) => (ev(id, call) as Extract<ChatEvent, { type: 'part' }>).part;
+  const ev = (id: string, call: Partial<ToolCall> = {}): ChatEvent =>
+    ({ type: 'part', messageId: 'm', part: { type: 'tool', id, call: { id, tool: 'open_note', status: 'completed', path: `notes/${id}.md`, writes: false, opens: true, ...call } } });
+  const history = (...parts: ReturnType<typeof part>[]): ChatMessage[] => [{ id: 'm', role: 'assistant', createdAt: 1, parts }];
+  const idle: ChatEvent = { type: 'turn', state: 'idle' };
+
+  it('the first load never opens history, but a call still running then opens when it completes', () => {
+    const o = newOpens();
+    expect(opensFromLoad(o, history(part('o1'), part('o2', { status: 'running' })), 'running', false)).toBeNull();
+    expect(opensFromEvent(o, ev('o1'), false)).toBeNull();
+    expect(opensFromEvent(o, ev('o2'), false)).toBe('notes/o2.md');
+  });
+
+  it('a reload after a dropped stream picks up opens that completed in the gap, once', () => {
+    const o = newOpens();
+    opensFromLoad(o, history(part('o1')), 'running', false);
+    expect(opensFromLoad(o, history(part('o1'), part('o2'), part('o3')), 'running', false)).toBe('notes/o3.md');
+    expect(opensFromLoad(o, history(part('o1'), part('o2'), part('o3')), 'idle', false)).toBeNull();
+    expect(opensFromEvent(o, ev('o3'), false)).toBeNull();
+  });
+
+  it('deferred (layouts that are not wide): the last open of the turn shows when the turn ends', () => {
+    const o = newOpens();
+    opensFromLoad(o, [], 'running', true);
+    expect(opensFromEvent(o, ev('o1'), true)).toBeNull();
+    expect(opensFromEvent(o, ev('o2'), true)).toBeNull();
+    expect(opensFromEvent(o, idle, true)).toBe('notes/o2.md');
+    expect(opensFromEvent(o, idle, true)).toBeNull();
+  });
+
+  it('deferred: a turn that ended while the stream was down shows its open on the reload', () => {
+    const o = newOpens();
+    opensFromLoad(o, [], 'running', true);
+    expect(opensFromEvent(o, ev('o1'), true)).toBeNull();
+    expect(opensFromLoad(o, history(part('o1'), part('o2')), 'idle', true)).toBe('notes/o2.md');
   });
 });
 

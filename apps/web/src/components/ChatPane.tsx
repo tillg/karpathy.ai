@@ -1,7 +1,7 @@
 import type { ChatEvent, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
-import { adoptQueued, applyChatEvent, changedPaths, settlePending, turnAnnouncement, turns, userCount, type ChatView, type PendingPrompt, type Turn } from '../lib/chat';
+import { adoptQueued, applyChatEvent, changedPaths, newOpens, opensFromEvent, opensFromLoad, settlePending, turnAnnouncement, turns, userCount, type ChatView, type PendingPrompt, type Turn } from '../lib/chat';
 import { readNdjson } from '../lib/ndjson';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -23,6 +23,20 @@ function useChat(vaultId: string, chatId: string) {
   const [chat, setChat] = useState<ChatView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ctrl = useRef<AbortController | null>(null);
+  const app = useApp();
+  const ui = useRef(app);
+  ui.current = app;
+  /** The AI's open requests of this chat: only a live one moves the UI, once (lib/chat.ts). */
+  const opens = useRef(newOpens());
+
+  const show = useCallback((path: string | null) => {
+    const a = ui.current;
+    if (!path || a.activeId !== vaultId) return;
+    if (a.isEditing()) a.toast(`AI opened ${path}`);
+    else void a.openNote(path);
+  }, [vaultId]);
+  // Outside the wide layout the note covers the chat (phone tab, tablet overlay): wait for the turn's end.
+  const defer = () => !ui.current.wide;
 
   const attach = useCallback(async () => {
     ctrl.current?.abort();
@@ -34,10 +48,12 @@ function useChat(vaultId: string, chatId: string) {
         if (c.signal.aborted) return;
         setError(null);
         setChat((prev) => ({ ...d, readonly: d.turn === 'idle' ? undefined : prev?.readonly }));
+        // A reload after a dropped stream also picks up opens that completed in the gap.
+        show(opensFromLoad(opens.current, d.messages, d.turn, defer()));
         if (d.turn === 'idle') return;
         const res = await api.chatStream(vaultId, chatId, c.signal);
         attempt = 0;
-        await readNdjson<ChatEvent>(res, (e) => setChat((v) => v && applyChatEvent(v, e)));
+        await readNdjson<ChatEvent>(res, (e) => { setChat((v) => v && applyChatEvent(v, e)); show(opensFromEvent(opens.current, e, defer())); });
         // Stream ended: the turn went idle (or the connection dropped) — reload and check.
       } catch (e) {
         if (c.signal.aborted || (e instanceof ApiError && e.status < 500)) {
@@ -47,7 +63,7 @@ function useChat(vaultId: string, chatId: string) {
         await sleep(Math.min(15_000, 1000 * 2 ** attempt), c.signal);
       }
     }
-  }, [vaultId, chatId]);
+  }, [vaultId, chatId, show]);
 
   useEffect(() => {
     setChat(null);
@@ -73,6 +89,8 @@ function ToolChip({ call, open, onToggle }: { call: ToolCall; open: boolean; onT
       </button>
     );
   }
+  if (call.opens && call.status === 'completed' && call.path)
+    return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="false" data-opens="true" data-path={call.path} onClick={() => void openNote(call.path!)}><Icon n="arrow_up_right_square" size={14} />opened {call.path}</button>;
   if (call.writes && call.status === 'completed' && call.path)
     return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="true" data-path={call.path} onClick={() => void openNote(call.path!)}><Icon n="pencil" size={14} />changed {call.path}</button>;
   const icon = call.status === 'completed' ? <span className="ok"><Icon n="checkmark" size={14} /></span> : <span className="spin" />;

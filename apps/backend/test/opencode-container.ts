@@ -5,7 +5,9 @@ import { join, resolve } from 'node:path';
 
 // Real opencode container for integration tests (no mocks). The vaults dir must be under the
 // repo (Rancher Desktop shares /Users) and is mounted at /vaults, as in compose.
-export const IMAGE = 'ghcr.io/anomalyco/opencode:1.18.25';
+/** The image built from deploy/opencode/Dockerfile, so tests load the same config and tools as prod. */
+export const IMAGE = 'kai-test-opencode';
+const REPO = resolve(import.meta.dirname, '../../..');
 const NET = 'kai-test-net';
 const OLLAMA = 'kai-test-ollama';
 /** Volume that holds the Ollama models (qwen2.5:3b pulled once). */
@@ -15,8 +17,7 @@ export const LLM_MODEL = process.env.LLM_TEST_MODEL ?? 'ollama/qwen2.5:3b';
 export const DEAD_MODEL = 'ollama/kai-no-such-model';
 /** A second declared-but-not-pulled model, to observe a model switch without an LLM. */
 export const DEAD_MODEL_2 = 'ollama/kai-no-such-model-2';
-const CONFIG = resolve(import.meta.dirname, '../../../deploy/opencode/opencode.json');
-export const TEST_ROOT = resolve(import.meta.dirname, '../../../tmp/test-run');
+export const TEST_ROOT = resolve(REPO, 'tmp/test-run');
 
 const docker = (...args: string[]) => execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
@@ -26,6 +27,14 @@ function ensureNetwork() {
   } catch {
     docker('network', 'create', NET);
   }
+}
+
+let built = false;
+/** Builds the opencode image once per test process (layer-cached, so a no-op when nothing changed). */
+function ensureImage() {
+  if (built) return;
+  docker('build', '-q', '-t', IMAGE, '-f', join(REPO, 'deploy/opencode/Dockerfile'), REPO);
+  built = true;
 }
 
 /** Starts (or reuses) the Ollama container on the test network. */
@@ -46,6 +55,7 @@ export function ensureOllama() {
  * turns that fail fast and deterministically (no LLM runs), LLM_MODEL for real ones.
  */
 export async function startOpencode(vaultsDir: string) {
+  ensureImage();
   ensureOllama();
   await mkdir(vaultsDir, { recursive: true });
   const name = `kai-test-oc-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
@@ -67,7 +77,6 @@ export async function startOpencode(vaultsDir: string) {
     '-e', `OPENCODE_CONFIG_CONTENT=${JSON.stringify(providerCfg)}`,
     '--tmpfs', `/home/app:uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000},mode=0700`,
     '--tmpfs', `/data:uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000}`,
-    '-v', `${CONFIG}:/etc/opencode/opencode.json:ro`,
     '-v', `${vaultsDir}:/vaults`,
     IMAGE, 'serve', '--hostname', '0.0.0.0', '--port', '4096',
   );

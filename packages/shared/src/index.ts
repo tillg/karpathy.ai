@@ -130,6 +130,8 @@ export interface ToolCall {
   path?: string;
   /** True when the tool changes files (edit/write/patch). */
   writes: boolean;
+  /** True when the tool asks the UI to show `path` (open_note). */
+  opens?: boolean;
   title?: string;
   error?: string;
 }

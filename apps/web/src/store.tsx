@@ -365,6 +365,12 @@ function useAppState() {
     }
   }, [leave, load, phone, wide, phoneTab]);
 
+  /** The user is editing (checked when an AI open would switch the note): editor focused or unsaved text. */
+  const isEditing = useCallback(() => {
+    const n = noteRef.current;
+    return !!n && (n.draft !== n.saved || !!document.activeElement?.closest('.cm-editor'));
+  }, []);
+
   const dropNote = useCallback(() => {
     clearTimeout(timer.current);
     noteRef.current = null;
@@ -567,7 +573,7 @@ function useAppState() {
     online, phone, wide, toast, toastMsg,
     vaults, reloadVaults, settings, setSettings, active, activeId, setActiveId, usable,
     status, setStatus, files, paths, refreshFiles, changesNonce,
-    note, openNote, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
+    note, openNote, isEditing, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
     keepDeletedNote, closeDeletedNote,
     followLink, exists, readOnly, conflict,
     section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen,

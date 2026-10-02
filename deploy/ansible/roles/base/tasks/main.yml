@@ -69,6 +69,20 @@
     mode: "0644"
   notify: Restart sshd
 
+# A run that wrote the file but died before the handler ran left sshd on the old config, and later
+# runs saw the file unchanged. The marker records that sshd was restarted with the hardening.
+- name: Has sshd been restarted with the hardening
+  ansible.builtin.stat:
+    path: /var/lib/karpathy-sshd-hardened
+  register: base_sshd_marker
+
+- name: Restart sshd still pending
+  ansible.builtin.debug:
+    msg: sshd still runs without the hardening; restarting it at the end of the run
+  when: not base_sshd_marker.stat.exists
+  changed_when: true
+  notify: Restart sshd
+
 - name: Unattended upgrades
   ansible.builtin.apt:
     name: unattended-upgrades

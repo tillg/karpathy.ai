@@ -2,3 +2,10 @@
   ansible.builtin.service:
     name: ssh
     state: restarted
+  notify: Mark sshd hardened
+
+- name: Mark sshd hardened
+  ansible.builtin.file:
+    path: /var/lib/karpathy-sshd-hardened
+    state: touch
+    mode: "0644"

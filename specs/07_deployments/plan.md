@@ -1,10 +1,10 @@
 ---
 feature: 07_deployments
 title: "Plan: releases, Ansible targets, monitoring"
-status: applying
+status: applied
 order: 4
 created: 2026-10-01
-edited: 2026-10-01
+edited: 2026-10-02
 ---
 
 # Plan: releases, Ansible targets, monitoring
@@ -224,23 +224,59 @@ Starts only after the server is booked. First settle the open points from archit
 (bootstrap plays, Tailscale key and `tagOwners`, whether a hand-built server exists) and update this
 phase.
 
-- [ ] Role `tailscale`: official apt repo, `tailscale up --authkey` (tagged, pre-approved), facts for
+- [x] Role `tailscale`: official apt repo, `tailscale up --authkey` (tagged, pre-approved), facts for
       the tailnet IP → `bind_ip`. `just deploy hetzner --bootstrap` path (root on the public IP first,
       then `deploy@karpathy`).
-- [ ] Fill the `hetzner` inventory and vault (tokens from prod-env §8.1, Tailscale key, ntfy topic,
+  - Test first: the first bootstrap run against the fresh server: no `tailscale0` before, so the
+    "Tailnet IP known" assert fails until `tailscale up` works
+  - Verify: `just deploy hetzner 0.0.1-rc.8 --bootstrap 2.28.193.159` → `failed=0`; the server is
+    `karpathy` / `100.116.203.50` in the tailnet; the app binds that IP
+  - (2026-10-02. One play, not two: `--bootstrap <ip>` sets `ansible_host` and `ansible_user=root`
+    for that run, the sshd restart waits for the handlers. Later runs: as `ops@karpathy`, see the
+    review fixes below. Clear errors for a used auth key and a taken tailnet name.)
+- [x] Fill the `hetzner` inventory and vault (tokens from prod-env §8.1, Tailscale key, ntfy topic,
       healthchecks.io UUID). **Check:** `just deploy-check hetzner` runs without errors.
-- [ ] First deploy against the real server (with the user present): bootstrap, then detach
+  - Test first: none — config and secrets; `ansible-lint` and `--syntax-check` gate the files
+  - Verify: `just deploy-check hetzner 0.0.1-rc.9` → `failed=0` (2026-10-02; its one `changed` is
+    the image pull, which check mode always predicts)
+  - (`just secrets hetzner` fills the vault with hidden prompts; it took the GoDaddy, GitHub and
+    OpenRouter keys already entered for the dev stack. The healthchecks.io URL is still empty, so
+    the hetzner heartbeat is off.)
+- [x] First deploy against the real server (with the user present): bootstrap, then detach
       `setup-ssh`. **Check:** the prod-env §8.9 checks (iPad loads the app, off-tailnet times out,
       reboot comes back healthy), `version` correct, the hub shows the server, a test alert reaches the phone.
-- [ ] If the server was already set up by hand following the runbook: run against it with
+  - Test first: the §8.9 checks against the running server
+  - Verify (2026-10-02):
+    - iPad and iPhone load `https://app.karpathy.app` and log in with the QR code.
+    - Public IP: 22, 443 and 8090 are closed.
+    - Reboot: all 6 containers are back after 41 s.
+    - `version` is `0.0.1-rc.9`.
+    - Beszel shows `hetzner` `up` with the vaults filesystem.
+    - The test alert arrived on the hetzner ntfy topic.
+  - Server: **CPX22**; CX23 was sold out in every EU location. `just hetzner-watch` reports when a
+    cheaper one can be booked again.
+  - DNS: the A record `app` → tailnet IP was set through the GoDaddy API, and GoDaddy's slow
+    nameservers needed `propagation_delay 90s` in the Caddyfile (rc.8).
+  - Reboot: reproduced first that a container can't bind the tailnet IP before it exists; fixed
+    with `net.ipv4.ip_nonlocal_bind=1`.
+  - The deploy key in the inventory folder briefly became a phantom second host; the key moved to
+    `keys/hetzner.pub`, and `--bootstrap` now insists on exactly one host.
+- [x] If the server was already set up by hand following the runbook: run against it with
       `deploy-check` first and reconcile the diff (named `vaults` volume vs bind mount, existing
       `/opt/karpathy.app` checkout) before the first real deploy.
+  - Test first: none — not applicable
+  - Verify: none — there was no hand-built server; the playbook set up a fresh one
 
 ## Phase 8: docs
 
-- [ ] README: "Deploying" section (`just release`, `just deploy`, `just vm`, the Keychain password
+- [x] README: "Deploying" section (`just release`, `just deploy`, `just vm`, the Keychain password
       setup, rollback). Prod-env report §8: replace 8.3–8.10 with a pointer to `just deploy` and keep
       the manual account and booking steps; bump `edited`.
+  - Test first: none — docs
+  - Verify: md2html `check` exits 0 (2026-10-02)
+  - (The how-to lives in `deploy/README.md`; the root README's "Deploying" is a short pointer to
+    it. Report §8: 8.1–8.2 kept and updated, 8.3 "Set up with the playbook", 8.4 today's checks,
+    8.5 backups, alerts and updates.)
 - [x] `CONTEXT.md`: an "Operations" section with the terms from [domain.md](domain.md).
 - [x] `/spec:adversarial-code-review` against this spec; fix findings. (Run 2026-10-01 over
       `9e492d4..0c13769`. Fixed:
@@ -267,6 +303,27 @@ phase.
       - The `release` and `just release` version rules are duplicated.
       - DNS provider: the prod-env report named GoDaddy, the image had Cloudflare. **Decided GoDaddy**
         (user, 2026-10-01): image, compose and Caddyfile defaults switched, `caddy validate` of the
-        GoDaddy block passes, and secret files carry no trailing newline.)
+        GoDaddy block passes, and secret files carry no trailing newline.
+
+      Second review 2026-10-02 over `402d1f9..` (the bootstrap and the live server). Fixed:
+      - **Reboot:** Docker could start the stack before the tailnet IP exists (reproduced; fixed
+        with `ip_nonlocal_bind`, reboot-tested).
+      - **Rebuilding the server:** clear errors for a used auth key and a taken tailnet name;
+        `--bootstrap` forgets the IP's old host key; `deploy/README.md` "Rebuilding the server".
+      - **ntfy topic:** the local topic sat in plain text in `hetzner-watch`; it's now read from the
+        vault, and the local topic was rotated (healthchecks.io updated by the user).
+      - **uid 1000:** the login (sudo, docker) is now `ops` (uid 1001); `deploy` (uid 1000) only
+        runs the app. Migrated on the server in two runs.
+      - **One vault reader** (`vault-get.sh`); `just secrets` has no provider hard-coded.
+      - **Docs:** root README prod section, `jq`, `deploy-check` options.
+
+      Still open:
+      - MEDIUM: a secret rotated in a run that then fails isn't picked up by the next run (the
+        recreate only triggers on a change in the same run).
+      - LOWs: `force_handlers`; the Let's Encrypt limit on rebuilds; changing the Beszel password;
+        no automated test of the tailscale role and the reboot path.
+      - Secrets in process lists (smoke check, `tailscale up`).
+      - Gatus without authentication on the tailnet.
+      - Docker and Tailscale aren't covered by unattended-upgrades.)
 
 System docs are updated at `/spec:archive`.

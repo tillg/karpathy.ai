@@ -119,7 +119,7 @@ pre > code.language-text { font: inherit; }
 <nav class="reports-nav" aria-label="Reports"><span class="brand"><img src="../../assets/icons/icon-192.png" alt="">karpathy.app</span><a class="item" href="../02_features/feature-report.html">Features</a><a class="item" href="../03_browser_only/browser-only-report.html">Browser-only</a><a class="item" href="../04_v1/v1-plan.html">V1 plan</a><a class="item" href="prod-env-report.html" aria-current="page">Prod environment</a><a class="item" href="../06_md_to_html/md-to-html-report.html">md → HTML</a></nav>
 <main>
 <header class="top"><h1>Production environment: where and how to host karpathy.app</h1><img class="appicon" src="../../assets/icons/icon-192.png" alt="karpathy.app" width="48" height="48"></header>
-<dl class="report-meta"><div><dt>Created</dt><dd>2026-09-28</dd></div><div><dt>Last edited</dt><dd>2026-10-01</dd></div><div><dt>Status</dt><dd><span class="report-status research">Research</span></dd></div></dl>
+<dl class="report-meta"><div><dt>Created</dt><dd>2026-09-28</dd></div><div><dt>Last edited</dt><dd>2026-10-02</dd></div><div><dt>Status</dt><dd><span class="report-status research">Research</span></dd></div></dl>
 <p class="sub">Research report for <a href="prod_env.md">spec #05</a>. Research only; nothing gets built. Written 2026-09-28. Evidence: primary-source desk research on about 35 hosters (<a href="notes-hosters-eu.md">EU notes</a>, <a href="notes-hosters-global.md">global notes</a>), <a href="notes-security.md">security notes</a> and <a href="notes-disk.md">disk notes</a>, plus <strong>six spikes</strong> against the prod images and the real demo vault (<code>mylife_wiki</code>: 5,604 files, 2.9 GB as a clone). Prices were checked on the vendor pages on 2026-09-28 and change often (Hetzner changed prices in April and June 2026).</p>
 <div class="tldr">
 <p><strong>Decided (2026-09-28): a Hetzner CX23 in Germany, about €8.40 a month with backups. Put it behind Tailscale so no port is open to the internet. Check disk space before each new vault is cloned.</strong></p>
@@ -656,7 +656,7 @@ WantedBy=timers.target
 <li><strong>Estimate before cloning:</strong> <code>GET repos/:r</code> (<code>size</code> in KB) plus <code>GET git/trees/:branch?recursive=1</code> (exact bytes per path, so the root subfolder can be filtered). They predicted the clone within about 1 %: 1,745 MB vs 1,758 MB for <code>.git</code>, and 1,174 MB vs 1,188 MB for the checked-out files. For a partial clone the estimate is 2 × the tree bytes plus 1 MiB. The cost is two calls to the GitHub API the backend already uses. Caveats: <code>size</code> lags after pushes and excludes LFS, and the tree API truncates at 100k entries.</li>
 <li><strong>Reject</strong> the vault if the estimate exceeds free space minus a reserve of max(2 GiB, 10 %), exceeds the 5 GiB per-vault cap, or pushes the total over budget. <strong>Ask for confirmation</strong> above 1 GiB and offer "skip large media".</li>
 <li><strong>Hard stop:</strong> git has no size limit. <code>ulimit -f</code> (1.5 × the estimate) on the clone process limits <em>each file</em>, which catches the one big pack file a clone downloads: in the spike a 200 MB cap stopped a 1.7 GB clone after 4.2 s, and git removed the partial directory itself. It doesn't sum the checked-out files, so add a clone timeout, and optionally a <code>du</code> watchdog (it stopped the same clone at 241 MB). Both reuse the existing clone-failed and retry flow.</li>
-<li><strong>Limit the damage:</strong> put <code>/vaults</code> on <strong>its own filesystem</strong> (a loop-mounted ext4 file on the server disk, which the Hetzner backups include, as in <a href="#guide">§8.6</a>; or a Hetzner Volume, which they don't). A full vault disk then can't take down Docker or the OS.</li>
+<li><strong>Limit the damage:</strong> put <code>/vaults</code> on <strong>its own filesystem</strong> (a loop-mounted ext4 file on the server disk, which the Hetzner backups include, as the playbook sets up (<a href="#guide">§8</a>); or a Hetzner Volume, which they don't). A full vault disk then can't take down Docker or the OS.</li>
 <li><strong>Monitor:</strong> <code>fs.statfs</code> takes 0.02 ms and <code>du</code> of the 5.6k-file vault 18 ms, so the admin area can show free space, per-vault size and the quota next to "Add vault". A host cron job sends an <strong>ntfy</strong> alert at 80 % and 90 %, and it also catches Docker or OS growth. Hetzner's graphs don't show how full the filesystem is.</li>
 <li><strong>Other disk users:</strong> Docker container logs aren't rotated today (no <code>logging:</code> section in compose), and neither is opencode's log. Set 10 MB × 3 per container. Build the images in CI and pull them, rather than building on the server; on this Mac the Docker build cache is 9.6 GB, shared by all projects.</li>
 </ul>
@@ -716,17 +716,17 @@ WantedBy=timers.target
 <li><strong>Media-heavy vaults:</strong> keep full media on the server (2.3 GB for the demo vault), or make "skip large media" (324 MB) the default for new vaults?</li>
 </ol>
 <h2 id="guide">8. Guide: book, install and set up Hetzner</h2>
-<p>This is a runbook for the decided setup: <strong>Hetzner CX23</strong>, reachable only through <strong>Tailscale</strong>, a Let's Encrypt certificate via <strong>GoDaddy DNS</strong> (DNS-01), <code>/vaults</code> on its own filesystem. Plan about 1–2 hours. It uses today's repo as-is: images are built on the server, because the CI image build (work item 3) doesn't exist yet. Replace placeholders in <code>&#x3C;angle brackets></code>.</p>
+<p>How production is set up: a Hetzner server, reachable only through <strong>Tailscale</strong>, a Let's Encrypt certificate via <strong>GoDaddy DNS</strong> (DNS-01), <code>/vaults</code> on its own filesystem. Booking and the accounts are manual (8.1–8.2); everything on the server is done by the Ansible playbook (8.3), which replaced the hand-written runbook that used to be here. Running server since 2026-10-02: a CPX22 in Nuremberg, <code>app.karpathy.app</code>.</p>
 <h3 id="81-have-ready">8.1 Have ready</h3>
 <ul>
-<li>An <strong>SSH key</strong> on the Mac (<code>~/.ssh/id_ed25519.pub</code>; <code>ssh-keygen -t ed25519</code> if you have none).</li>
-<li>A free <strong>Tailscale</strong> account (sign in with GitHub, Google, Apple, …).</li>
-<li><strong>DNS for karpathy.app at GoDaddy</strong> (user decision 2026-10-01: same place as your other domains). Caddy writes a <code>_acme-challenge</code> TXT record through the GoDaddy API at every renewal (about every 60 days), so you need a <strong>classic GoDaddy API key + secret</strong> for <em>Production</em> (developer.godaddy.com → API Keys; not <em>OTE</em>, the test environment). The proxy is then built with <code>DNS_PROVIDER=godaddy</code> (8.8). Know the trade-offs:
+<li>An <strong>SSH key</strong> on the Mac (<code>~/.ssh/id_ed25519.pub</code> or <code>id_rsa.pub</code>; <code>ssh-keygen -t ed25519</code> if you have none). Its public half goes into <code>deploy/ansible/keys/hetzner.pub</code>.</li>
+<li>A free <strong>Tailscale</strong> account (sign in with GitHub, Google, Apple, …), with <code>tag:server</code> in the policy's <code>tagOwners</code> and an <strong>auth key</strong>: tagged <code>tag:server</code>, single-use, 1 day expiry. The tag also turns off key expiry for the server.</li>
+<li><strong>DNS for karpathy.app at GoDaddy</strong> (user decision 2026-10-01: same place as your other domains). Caddy writes a <code>_acme-challenge</code> TXT record through the GoDaddy API at every renewal (about every 60 days), so you need a <strong>classic GoDaddy API key + secret</strong> for <em>Production</em> (developer.godaddy.com → API Keys; not <em>OTE</em>, the test environment). The proxy image is built with the GoDaddy module. Know the trade-offs:
 <ul>
-<li><strong>The key controls the whole GoDaddy account</strong>: every domain, its DNS, contacts and transfers. It can't be limited to one zone, and it sits in <code>deploy/secrets/</code> on the server. Whoever takes over the server can take over all your domains. Turn on 2FA and domain lock in GoDaddy, and rotate the key if the server is ever compromised.</li>
+<li><strong>The key controls the whole GoDaddy account</strong>: every domain, its DNS, contacts and transfers. It can't be limited to one zone, and it sits on the server (<code>/opt/karpathy.app/shared/secrets/</code>, root only). Whoever takes over the server can take over all your domains. Turn on 2FA and domain lock in GoDaddy, and rotate the key if the server is ever compromised.</li>
 <li><strong>Eligibility:</strong> GoDaddy has limited the DNS API to some accounts (reported: 10 or more domains, or a Domain Pro plan). Test the key first, from the Mac: <code>curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: sso-key &#x3C;key>:&#x3C;secret>' https://api.godaddy.com/v1/domains/karpathy.app/records/A</code> must print <code>200</code>. A <code>403</code> means the account can't use the API; then fall back to Cloudflare DNS (nameservers only, the domain stays registered at GoDaddy).</li>
 <li><strong>End of life:</strong> the Caddy module (<code>caddy-dns/godaddy</code> → <code>libdns/godaddy</code>) only speaks the classic <code>sso-key</code> auth on the v1 DNS endpoints. GoDaddy marks classic keys "deprecated for Domains (through 2026)" in favour of personal access tokens, which the module doesn't support. If GoDaddy switches them off, renewals fail and the certificate expires within 90 days. Caddy's log shows the failed renewals; the fallback is the same as above.</li>
-<li>Built and validated here (2026-10-01): <code>xcaddy build --with github.com/caddy-dns/godaddy</code> with Caddy 2.10, and <code>caddy validate</code> of a <code>dns godaddy {file.…}</code> block. Not tested: a real certificate against GoDaddy.</li>
+<li>Tested for real (2026-10-02): the Let's Encrypt certificate for <code>app.karpathy.app</code> was issued through GoDaddy. GoDaddy's nameservers publish a new TXT record only after a while, so Caddy waits 90 s before the validation (<code>propagation_delay</code> in the Caddyfile); without it, Let's Encrypt saw the previous attempt's value.</li>
 </ul>
 </li>
 <li>A <strong>GitHub fine-grained personal access token</strong>: Settings → Developer settings → Fine-grained tokens. Repository access: <em>only select repositories</em> (your vault repos). Permissions: <em>Contents: read and write</em>. Expiry: at most a year.</li>
@@ -747,14 +747,14 @@ WantedBy=timers.target
 <li>Under <em>Firewalls</em>, create two firewalls:
 <ul>
 <li><code>no-inbound</code>: delete all inbound rules. With no inbound rules, all inbound traffic is blocked; outbound stays allowed.</li>
-<li><code>setup-ssh</code>: one inbound rule, TCP 22 from your current public IP only. It's temporary and gets removed in 8.4.</li>
+<li><code>setup-ssh</code>: one inbound rule, TCP 22 from your current public IP only. It's only for the first run and gets detached afterwards (8.3).</li>
 </ul>
 </li>
 <li>Under <em>Servers → Add server</em>:
 <ul>
 <li>Location: <strong>Nuremberg</strong> or <strong>Falkenstein</strong>.</li>
 <li>Image: <strong>Ubuntu 24.04</strong>.</li>
-<li>Type: shared vCPU, x86, <strong>CX23</strong> (2 vCPU / 4 GB / 40 GB).</li>
+<li>Type: shared vCPU, x86, <strong>CX23</strong> (2 vCPU / 4 GB / 40 GB). If Cost-Optimized is sold out (it was everywhere on 2026-10-02), take <strong>CPX22</strong> (same size, €28.43 with backups) and move later: <code>just hetzner-watch</code> reports when CX23 can be booked again (<a href="../../deploy/README.md"><code>deploy/README.md</code></a>, "Rebuilding the server").</li>
 <li>Networking: public <strong>IPv4 + IPv6</strong>. IPv4 is required: github.com has no IPv6.</li>
 <li>Your SSH key, both firewalls, and <strong>Backups on</strong>.</li>
 <li>Name: <code>karpathy</code>. Cost: about €8.44 a month incl. VAT.</li>
@@ -769,127 +769,30 @@ echo '[{"direction":"in","protocol":"tcp","port":"22","source_ips":["&#x3C;your-
 hcloud server create --name karpathy --type cx23 --image ubuntu-24.04 --location nbg1 \
   --ssh-key mac --firewall no-inbound --firewall setup-ssh --enable-backup
 </code></pre>
-<h3 id="83-first-login-and-base-hardening">8.3 First login and base hardening</h3>
-<pre><code>ssh root@&#x3C;public-ip>
-apt update &#x26;&#x26; apt -y full-upgrade
-adduser --disabled-password --gecos "" deploy          # first user → uid 1000 = APP_UID
-usermod -aG sudo deploy
-install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-cp ~/.ssh/authorized_keys /home/deploy/.ssh/ &#x26;&#x26; chown deploy: /home/deploy/.ssh/authorized_keys
-echo 'deploy ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/deploy     # key-only login, no password
-printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/10-hardening.conf
-systemctl restart ssh
-id deploy                                # must say uid=1000
-systemctl is-enabled unattended-upgrades # security updates: on by default on Ubuntu
-</code></pre>
-<p>If <code>id deploy</code> shows a uid other than 1000, set <code>APP_UID</code>/<code>APP_GID</code> in <code>deploy/.env</code> (8.8) and the <code>chown</code> in 8.6 to that uid. Before closing the root session, check in a second terminal that <code>ssh deploy@&#x3C;public-ip></code> works.</p>
-<h3 id="84-tailscale-close-the-last-open-port">8.4 Tailscale: close the last open port</h3>
-<pre><code>curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up                 # open the printed URL, log in
-tailscale ip -4                   # note it: 100.x.y.z
-</code></pre>
+<h3 id="83-set-up-with-the-playbook">8.3 Set up with the playbook</h3>
+<p>Everything from the first login on is one command from the Mac; the full procedure, every <code>just</code> recipe and the troubleshooting notes are in <a href="../../deploy/README.md"><code>deploy/README.md</code></a> ("A new server, start to finish"). In short:</p>
 <ol>
-<li>In the Tailscale admin console → <em>Machines</em> → <code>karpathy</code> → <strong>Disable key expiry</strong>. Otherwise the server drops off the tailnet after 180 days.</li>
-<li>Install Tailscale on the Mac, iPad and iPhone and log in with the same account. On iOS, turn on <strong>VPN On Demand</strong> in the Tailscale app so the tunnel comes up by itself. Only one VPN app can use On Demand at a time.</li>
-<li>From the Mac, over the tailnet: <code>ssh deploy@karpathy</code> (MagicDNS name) or <code>ssh deploy@100.x.y.z</code>.</li>
-<li>Once that works, <strong>detach the <code>setup-ssh</code> firewall</strong> in the Cloud Console (or run <code>hcloud firewall remove-from-resource setup-ssh --type server --server karpathy</code>). From now on nothing on the internet can reach the server. Your break-glass access is Hetzner's web console.</li>
-<li>Optional: turn on <strong>Tailnet Lock</strong> (admin console → Settings → Tailnet Lock, following Tailscale's guide) so that Tailscale's servers can't add machines to your tailnet.</li>
+<li><code>just secrets hetzner</code>: GoDaddy key, GitHub token, provider key, the Tailscale auth key, the healthchecks.io ping URL and the git author, with hidden input. It generates the access token, the Beszel secrets and the ntfy topic.</li>
+<li><code>just deploy hetzner &#x3C;version> --bootstrap &#x3C;public-ip></code>: runs as <code>root</code> on the public IP once. It creates the users (<code>ops</code> to log in, with sudo; <code>deploy</code>, uid 1000, only for the app), hardens SSH (no root, no passwords), installs Tailscale, Docker and the 20 GB vaults filesystem, starts the release and the monitoring, and ends with the smoke check.</li>
+<li>Point the A record <code>app</code> at the server's tailnet IP (GoDaddy, or its API with the same key) and <strong>detach <code>setup-ssh</code></strong>. From then on nothing on the internet reaches the server; break-glass access is Hetzner's web console.</li>
+<li>Every later deployment: <code>just deploy hetzner &#x3C;version></code>, as <code>ops@karpathy</code> over Tailscale.</li>
+<li>Log a device in: <code>just token hetzner --qr</code>, then scan the code (in the home-screen app: "Scan QR code" on the token screen).</li>
 </ol>
-<p><strong>Check:</strong> with Tailscale turned off on the Mac, <code>nc -vz -w 5 &#x3C;public-ip> 22</code> must time out.</p>
-<h3 id="85-docker">8.5 Docker</h3>
-<pre><code>curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker deploy &#x26;&#x26; exit        # log in again for the group
-docker compose version                            # needs ≥ 2.24 (for !override)
-</code></pre>
-<p>Make Docker start after Tailscale, so the proxy can bind the tailnet IP after a reboot:</p>
-<pre><code>sudo mkdir -p /etc/systemd/system/docker.service.d
-sudo tee /etc/systemd/system/docker.service.d/after-tailscale.conf >/dev/null &#x3C;&#x3C;'EOF'
-[Unit]
-After=tailscaled.service
-Wants=tailscaled.service
-[Service]
-# Wait up to 30 s for the tailnet IP, then start anyway.
-ExecStartPre=/bin/sh -c 'for i in $(seq 30); do /usr/bin/tailscale ip -4 >/dev/null 2>&#x26;1 &#x26;&#x26; exit 0; sleep 1; done; exit 0'
-EOF
-sudo systemctl daemon-reload
-</code></pre>
-<h3 id="86-a-fixed-size-filesystem-for-the-vaults">8.6 A fixed-size filesystem for the vaults</h3>
-<p>A 20 GB file on the server disk, mounted as its own ext4 filesystem. A runaway clone then fills this filesystem, not the disk Docker and the OS need. Because the file sits on the server disk, <strong>Hetzner's backups include it</strong>. They don't include a separate Hetzner Volume, which would then need restic.</p>
-<pre><code>sudo fallocate -l 20G /srv/vaults.img
-sudo mkfs.ext4 -F -m 0 /srv/vaults.img
-sudo mkdir -p /srv/vaults
-echo '/srv/vaults.img /srv/vaults ext4 loop 0 2' | sudo tee -a /etc/fstab
-sudo mount /srv/vaults &#x26;&#x26; sudo chown 1000:1000 /srv/vaults
-df -h /srv/vaults                 # ~20G
-</code></pre>
-<h3 id="87-dns-record-and-token-before-the-first-start">8.7 DNS record and token (before the first start)</h3>
-<ol>
-<li>In GoDaddy → My Products → <code>karpathy.app</code> → <strong>DNS</strong>, add an <strong>A record</strong>: name <code>app</code>, value <code>100.x.y.z</code> (the Tailscale IP), TTL 1 hour. The address only works inside your tailnet. Leave the <code>_acme-challenge</code> records to Caddy.</li>
-<li>At <strong>developer.godaddy.com → API Keys</strong>, create a key for <strong>Production</strong> and note key and secret (the secret is shown only once). Run the <code>curl</code> test from 8.1. You'll need both in the next step, joined as <code>&#x3C;key>:&#x3C;secret></code>.</li>
-</ol>
-<h3 id="88-install-the-app">8.8 Install the app</h3>
-<pre><code>sudo install -d -o deploy -g deploy /opt/karpathy.app
-git clone https://github.com/tillg/karpathy.app.git /opt/karpathy.app
-cd /opt/karpathy.app/deploy
-install -d -m 700 secrets
-printf %s "$(openssl rand -base64 32)" > secrets/bearer_token     # the app's login token
-printf %s '&#x3C;github-fine-grained-token>' > secrets/github_token
-printf %s '&#x3C;godaddy-key>:&#x3C;godaddy-secret>' > secrets/dns_api_token  # no newline
-chmod 600 secrets/*
-cat > .env &#x3C;&#x3C;'EOF'
-DOMAIN=app.karpathy.app
-DNS_PROVIDER=godaddy
-GIT_AUTHOR_NAME=&#x3C;Your Name>
-GIT_AUTHOR_EMAIL=&#x3C;you@example.com>
-DEFAULT_MODEL=openrouter/z-ai/glm-5.3
-APP_UID=1000
-APP_GID=1000
-EOF
-printf 'OPENROUTER_API_KEY=%s\n' '&#x3C;openrouter-key>' > opencode.env &#x26;&#x26; chmod 600 opencode.env
-</code></pre>
-<p>Next comes the server-only override, <code>deploy/compose.hetzner.yml</code>. It stays on the server and isn't committed. I checked it with <code>docker compose config</code> against today's <code>compose.yml</code>:</p>
-<pre><code># deploy/compose.hetzner.yml — server-only overrides
-services:
-  proxy:
-    # Build Caddy with the GoDaddy DNS module: DNS_PROVIDER in .env only sets the
-    # runtime env, compose.yml doesn't pass it as a build arg.
-    build: { args: { DNS_PROVIDER: godaddy } }
-    # Only the tailnet IP, and no port 80 (DNS-01 doesn't need it).
-    ports: !override ["100.x.y.z:443:443"]
-    logging: &#x26;logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }
-  backend:
-    logging: *logs
-  opencode:
-    logging: *logs
-volumes:
-  vaults:            # the named volume becomes a bind mount of /srv/vaults
-    driver: local
-    driver_opts: { type: none, o: bind, device: /srv/vaults }
-</code></pre>
-<p>Write this file <strong>before the first <code>up</code></strong>. Docker doesn't change an existing named volume, so if <code>vaults</code> was already created, remove it first with <code>docker volume rm karpathy-app_vaults</code>.</p>
-<pre><code>cd /opt/karpathy.app
-docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml up -d --build
-docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml ps       # all healthy
-docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml logs proxy | grep -i certificate
-</code></pre>
-<p>Tip: <code>echo 'COMPOSE_FILE=deploy/compose.yml:deploy/compose.hetzner.yml' >> ~/.bashrc</code> and run everything from <code>/opt/karpathy.app</code>; then a plain <code>docker compose …</code> uses both files.</p>
-<h3 id="89-verify">8.9 Verify</h3>
+<h3 id="84-verify">8.4 Verify</h3>
+<p>Checked on 2026-10-02:</p>
 <ul>
-<li><strong>iPad</strong> (Tailscale on): open <code>https://app.karpathy.app</code>. The certificate is valid with no warning. Enter the token (<code>cat deploy/secrets/bearer_token</code>), then add a vault and open a note. Install it to the home screen and repeat.</li>
-<li><strong>Off the tailnet</strong> (iPhone on mobile data, Tailscale off): the page doesn't load. <code>nc -vz -w 5 &#x3C;public-ip> 443</code> from outside also times out.</li>
-<li><strong>Reboot test:</strong> <code>sudo reboot</code>. After a minute the app is back, and <code>docker compose ps</code> shows everything healthy. If the proxy is missing because it started before the tailnet IP existed, run <code>docker compose up -d</code>.</li>
-<li><strong>Disk:</strong> after adding the first vault, <code>df -h /srv/vaults</code> shows its size.</li>
+<li><strong>iPad and iPhone</strong> (Tailscale on) open <code>https://app.karpathy.app</code> with a valid certificate and log in with the QR code, also as a home-screen app.</li>
+<li><strong>From the internet:</strong> the public IP answers on none of 22, 443 and 8090.</li>
+<li><strong>Reboot:</strong> all six containers (app and monitoring) are back within about 40 s, with the vaults filesystem mounted.</li>
+<li><strong>Monitoring:</strong> the Beszel hub shows the server with both filesystems, and the test alert arrives on the server's ntfy topic.</li>
 </ul>
-<h3 id="810-backups-alerts-updates">8.10 Backups, alerts, updates</h3>
+<h3 id="85-backups-alerts-updates">8.5 Backups, alerts, updates</h3>
 <ul>
-<li><strong>Hetzner backups</strong> (on since 8.2) take a daily image of the whole server disk, including <code>/srv/vaults.img</code>. They keep 7 slots.</li>
-<li><strong>Off-site copy</strong> (optional): a nightly <code>restic</code> backup of <code>/srv/vaults</code> and the <code>config</code> and <code>opencode-data</code> volumes to a Hetzner Storage Box or B2. Keep the restic password in your password manager.</li>
-<li><strong>Disk alert:</strong> a cron job for the <code>deploy</code> user sends an ntfy push at 80 %:
-<pre><code>*/15 * * * * p=$(df --output=pcent /srv/vaults / | tail -n +2 | tr -dc '0-9\n' | sort -n | tail -1); [ "$p" -ge 80 ] &#x26;&#x26; curl -s -d "karpathy disk ${p}%" https://ntfy.sh/&#x3C;secret-topic>
-</code></pre>
-</li>
-<li><strong>Update the app:</strong> <code>cd /opt/karpathy.app &#x26;&#x26; git pull &#x26;&#x26; docker compose up -d --build &#x26;&#x26; docker image prune -f</code>. Now and then, <code>docker builder prune -f</code> frees the build cache.</li>
-<li><strong>OS reboots:</strong> unattended-upgrades installs security updates but doesn't reboot. When <code>/var/run/reboot-required</code> exists, reboot at a convenient time.</li>
+<li><strong>Hetzner backups</strong> take a daily image of the whole server disk, including the vaults filesystem. They keep 7 slots.</li>
+<li><strong>Off-site copy</strong> (optional, not set up): a nightly <code>restic</code> backup of <code>/srv/vaults</code> and the <code>config</code> and <code>opencode-data</code> volumes to a Hetzner Storage Box or B2.</li>
+<li><strong>Alerts</strong> come with every deploy: Beszel (disk, memory, containers), Gatus (HTTPS and certificate) and a heartbeat to healthchecks.io when its ping URL is set, all to the server's ntfy topic.</li>
+<li><strong>Update the app:</strong> <code>just release &#x3C;version></code>, then <code>just deploy hetzner &#x3C;version> --only app</code>. Rollback is the same with the previous version.</li>
+<li><strong>OS updates:</strong> unattended-upgrades installs Ubuntu's security updates but doesn't reboot, and doesn't cover the Docker and Tailscale packages: a full <code>just deploy hetzner</code> and a reboot now and then (check <code>/var/run/reboot-required</code>).</li>
 </ul>
 <h2 id="tailscale">9. Tailscale explained: how it differs from a classic VPN</h2>
 <p>Tailscale uses the same encryption as a modern VPN (<strong>WireGuard</strong>), but it's built differently. A classic VPN is a gateway that you dial into. Tailscale is a private network of your own devices that talk to each other directly. That difference is why our server can have <strong>no open port at all</strong>.</p>
@@ -958,7 +861,7 @@ docker compose -f deploy/compose.yml -f deploy/compose.hetzner.yml logs proxy | 
 <h3 id="95-what-to-know-in-practice">9.5 What to know in practice</h3>
 <ul>
 <li><strong>Free:</strong> the Personal plan has up to 6 users and unlimited devices.</li>
-<li><strong>Key expiry:</strong> each device has to log in again every 180 days by default, or it drops off. Turn this off for the server (<a href="#guide">§8.4</a>); keep it on for the iPad, iPhone and Mac.</li>
+<li><strong>Key expiry:</strong> each device has to log in again every 180 days by default, or it drops off. The server's tagged auth key turns it off for the server (<a href="#guide">§8.1</a>); keep it on for the iPad, iPhone and Mac.</li>
 <li><strong>Access rules:</strong> write a rule "my devices → server port 443 (and 22)" (<a href="#security">§5.5</a>). Without one, every device in the tailnet can reach every other device.</li>
 <li><strong>Tailnet Lock:</strong> the one thing you have to trust Tailscale Inc. with is who is in your network. With Tailnet Lock, a new device has to be signed by one of your devices, so not even Tailscale's servers can add one.</li>
 <li><strong>iOS:</strong> Tailscale is a VPN profile. Only one VPN can be active at a time, so it clashes with a company VPN. VPN On Demand brings it up by itself.</li>

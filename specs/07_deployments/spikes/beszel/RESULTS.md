@@ -1,7 +1,7 @@
 ---
 feature: 07_deployments
 title: "Beszel spike: results"
-status: applying
+status: applied
 created: 2026-10-01
 edited: 2026-10-01
 ---

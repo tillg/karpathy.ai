@@ -1,10 +1,10 @@
 ---
 feature: 07_deployments
 title: "Architecture: tag → GHCR → Ansible → target"
-status: applying
+status: applied
 order: 3
 created: 2026-10-01
-edited: 2026-10-01
+edited: 2026-10-02
 ---
 
 # Architecture: tag → GHCR → Ansible → target
@@ -65,8 +65,8 @@ Three parts, each with one job:
 - **Permissions:** the workflow sets `permissions: { contents: write, packages: write }` (release +
   GHCR push with the built-in `GITHUB_TOKEN`). Every image gets the label
   `org.opencontainers.image.source=https://github.com/tillg/karpathy.app`, which links the GHCR
-  package to the repo. The first push still creates the package as private; making it public is a
-  one-time manual step (plan Phase 3).
+  package to the repo. Because the repo is public, the packages came out public from the first push
+  (plan Phase 3); no manual step was needed.
 - **One version string, no `v`:** the git tag is `vX.Y.Z`, but the image tag, `APP_VERSION` and the
   version the backend reports are all `X.Y.Z`. The workflow strips the `v` once
   (`${GITHUB_REF_NAME#v}`), so `image: …:${APP_VERSION}` in compose resolves to an image that exists.
@@ -84,7 +84,8 @@ Three parts, each with one job:
 - The backend reads `APP_VERSION` (baked in as `ENV`) and returns it from `GET /api/health`:
   `{ backend, opencode, version }`. Dev and prodtest images report `dev`. That's how the smoke check knows
   which release runs.
-- arm64 is only needed for the `local` VM on Apple silicon; Hetzner CX23 is amd64.
+- arm64 is only needed for the `local` VM on Apple silicon (and a Hetzner CAX server); the running
+  Hetzner server, a CPX22, is amd64.
 
 ## 3. Compose changes
 
@@ -230,7 +231,7 @@ deploy/ansible/
     hetzner/hosts.yml          # karpathy (MagicDNS name)
     hetzner/group_vars/all/{main.yml,vault.yml}
   roles/
-    base/        # deploy user (uid 1000), sshd hardening, unattended-upgrades, timezone
+    base/        # users ops (login, sudo) and deploy (uid 1000, app only), sshd hardening, unattended-upgrades, timezone
     tailscale/   # apt repo, tailscale up --authkey (tag:server, no expiry); skipped when tailscale_enabled=false
     docker/      # docker-ce + compose plugin from Docker's apt repo; drop-in "after tailscaled"
     vaults_fs/   # 20 GB loop-mounted ext4 at /srv/vaults (fstab via ansible.posix.mount)
@@ -312,7 +313,7 @@ sequenceDiagram
 | GitHub fine-grained token (vault repos) | backend | `shared/secrets/github_token` → compose secret |
 | GoDaddy API key:secret (`hetzner` only) | proxy, DNS-01 | `shared/secrets/dns_api_token` (root, 0600) → compose secret |
 | LLM provider key | opencode | `shared/opencode.env` (env var; opencode reads keys from env) |
-| Tailscale auth key (`hetzner` only, first run) | `tailscale up` | not stored; used once |
+| Tailscale auth key (`hetzner` only, first run) | `tailscale up` | not stored on the host; single-use, so the one in the vault is spent after the bootstrap |
 | healthchecks.io ping URL, ntfy topic | heartbeat, Beszel, Gatus | monitoring config files, 0600 |
 | Beszel user password, hub private key (`id_ed25519`), universal token | monitoring | monitoring `.env` and hub data dir, 0600; the agent gets the public key and the token |
 
@@ -326,22 +327,29 @@ None of them is needed in GitHub: the release workflow pushes to GHCR with the b
   leaked local password from opening prod.
 - On the host, secrets are written with `0600` and `no_log: true`.
 
-### 5.4 The `hetzner` target: finalized once the server exists
+### 5.4 The `hetzner` target
 
-The `hetzner` target is designed in outline only. It gets finished once the server is booked (user,
-2026-10-01). What's fixed now: the same roles as `local`, plus `tailscale`; access only over the
-tailnet; the settings in §5.1.
+Settled against the real server (a CPX22, 2026-10-02): the same roles as `local`, plus `tailscale`;
+access only over the tailnet; the settings in §5.1.
 
-Settled against the real server later:
-
-- **Bootstrap:** how the first run gets from `root@<public-ip>` (with the temporary `setup-ssh`
-  firewall) to `deploy@karpathy` over Tailscale. Root login is turned off by `base`, the Ansible
-  connection changes mid-run, and the tailnet IP only exists after `tailscale up`. That probably
-  means two plays and gathering facts again.
-- **Tailscale auth key:** tagged (`tag:server`), pre-approved, single-use, plus the `tagOwners` entry
-  in the tailnet policy.
-- **An existing hand-built server:** whether there is one, and if so, moving the `vaults` named volume
-  to the `/srv/vaults` bind mount.
+- **Bootstrap, one play:** `just deploy hetzner <version> --bootstrap <public-ip>` runs the normal
+  playbook once with `ansible_host=<ip>` and `ansible_user=root` (with the temporary `setup-ssh`
+  firewall). `tailscale` joins and refreshes the network facts, so `bind_ip` (the tailnet IP) is known
+  for the later roles. The sshd hardening takes effect in the handlers at the end of the run, and a
+  marker file makes a later run restart sshd if an earlier one died before that. `--bootstrap`
+  insists on exactly one inventory host, because `ansible_host` applies to all of them.
+- **Users:** Ansible and the operator log in as `ops` (uid 1001, sudo, docker group). `deploy`
+  (uid 1000) is only the app's uid: no login, no sudo, no docker, so a container breakout doesn't
+  land on a sudoer.
+- **Tailscale auth key:** tagged `tag:server` (in the policy's `tagOwners`), single-use. A used key or
+  a leftover device of the same name stops the run with a clear message; rebuilding the server is a
+  short procedure in `deploy/README.md`.
+- **Boot order:** containers publish on the tailnet IP, which may not exist yet when Docker starts at
+  boot; `net.ipv4.ip_nonlocal_bind=1` lets the bind succeed anyway (reproduced and reboot-tested).
+- **DNS-01 with GoDaddy:** Caddy waits 90 s (`propagation_delay`) before the validation, because
+  GoDaddy's nameservers publish the new TXT record late. The A record `app` → tailnet IP is set once by
+  hand (or through the GoDaddy API with the same key).
+- **No hand-built server existed**, so no migration from a named `vaults` volume.
 
 ## 6. The `local` target: a Lima VM
 
@@ -377,13 +385,16 @@ Settled against the real server later:
 
 ```
 just deploy <target> [version]        # version defaults to the newest GitHub release
-just deploy hetzner --bootstrap       # first run against a fresh server (finalized with the server, §5.4)
+just deploy hetzner <version> --bootstrap <public-ip>   # first run against a fresh server, as root (§5.4)
 just deploy <target> [version] --only app         # just the app role (+ smoke check)
 just deploy <target> --only monitoring             # just the monitoring role
 just deploy-check <target> [version]  # --check --diff, changes nothing
 just deploy-e2e local                 # Playwright suite (minus @llm) against the VM
 just vm up|down|reset|ssh             # local VM: start (create once), stop, recreate, shell
 just release <X.Y.Z>                  # tag + push; prints the release workflow URL
+just secrets <target>                 # fill the target's vault with hidden prompts; generates token, Beszel secrets, ntfy topic
+just token <target> [--qr]            # the access token to the clipboard; --qr: a login QR code (#token=… link)
+just hetzner-watch install|uninstall|now   # twice-daily ntfy push when a cheaper Hetzner type is bookable
 ```
 
 `--only` maps to Ansible tags (`--tags app` / `--tags monitoring`); the host roles are skipped in

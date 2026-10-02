@@ -1,0 +1,8 @@
+{
+  "name": "@karpathy/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node site.test.mjs"
+  }
+}

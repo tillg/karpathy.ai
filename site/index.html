@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>karpathy.app — your Markdown vault with an AI that works in it</title>
+  <meta name="description" content="karpathy.app brings your Obsidian-style Markdown vault and an AI that reads, writes and ingests into it to iPad, phone and Mac.">
+  <meta name="theme-color" content="#0f1e33">
+  <link rel="icon" href="icons/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="./"><img src="icons/icon-192.png" alt="" width="28" height="28">karpathy.app</a>
+    <a class="btn g" href="https://github.com/tillg/karpathy.app">GitHub</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <img class="logo" src="icons/icon-512.png" alt="karpathy.app logo" width="160" height="160">
+      <h1>Your notes. Your AI.<br>Everywhere you are.</h1>
+      <p class="lead">karpathy.app puts your Markdown vault and an AI that reads, writes and ingests into it on your
+        iPad, phone and Mac — synced through the GitHub repo you already have.</p>
+      <div class="acts">
+        <a class="btn" href="https://github.com/tillg/karpathy.app">Get the code</a>
+        <a class="btn g" href="#how">How it works</a>
+      </div>
+    </section>
+
+    <section class="features" aria-label="Features">
+      <article class="card">
+        <h2>Your vault, your repo</h2>
+        <p>A vault is a GitHub repo. Obsidian on your desktop and phone keeps working on the same files — no second
+          sync system.</p>
+      </article>
+      <article class="card">
+        <h2>An AI that works in your notes</h2>
+        <p>Chat with any model — Claude, OpenAI, a local one. It searches, reads and edits your Markdown, and you see
+          every file it touches.</p>
+      </article>
+      <article class="card">
+        <h2>Your skills come along</h2>
+        <p>Skills, <code>AGENTS.md</code> and <code>CLAUDE.md</code> in your vault work as they do in the terminal,
+          now from the sofa.</p>
+      </article>
+      <article class="card">
+        <h2>You decide what gets committed</h2>
+        <p>Your edits and the AI's stay uncommitted until you review them and commit. The AI never pushes on its
+          own.</p>
+      </article>
+    </section>
+
+    <section id="how" class="how">
+      <h2 class="lt">How it works</h2>
+      <ol>
+        <li><span><strong>Connect</strong> a GitHub repo as a vault.</span></li>
+        <li><span><strong>Edit and chat</strong> — raw Markdown with live preview, an AI at your side.</span></li>
+        <li><span><strong>Commit</strong> — one tap commits and pushes; Obsidian picks it up.</span></li>
+      </ol>
+    </section>
+
+    <section id="self-host" class="self-host">
+      <h2 class="lt">Code, not a service</h2>
+      <p class="intro">karpathy.app is open source. We ship the code — not a running system. To use it, you run it
+        yourself. That takes:</p>
+      <div class="needs">
+        <article class="card">
+          <h3>A server</h3>
+          <p>A small Linux box (e.g. 2 vCPU, 4 GB RAM) that runs the docker compose stack and holds the clones of
+            your vaults.</p>
+        </article>
+        <article class="card">
+          <h3>Tailscale</h3>
+          <p>The app isn't on the open internet: your iPad, phone and Mac reach it over your own tailnet.</p>
+        </article>
+        <article class="card">
+          <h3>Lots of secrets, tokens and keys</h3>
+          <p>A GitHub token for your vaults, an API key for your LLM provider, the app's access token, a DNS API
+            key for the TLS certificate — and a safe place to keep them.</p>
+        </article>
+      </div>
+      <div class="cta">
+        <h2>Rather have it hosted?</h2>
+        <p>If you'd like karpathy.app as a hosted service, write me at
+          <a href="mailto:till.gartner@gmail.com?subject=Hosted%20karpathy.app">till.gartner@gmail.com</a>.</p>
+        <div class="acts">
+          <a class="btn" href="mailto:till.gartner@gmail.com?subject=Hosted%20karpathy.app">Write me</a>
+          <a class="btn g" href="https://github.com/tillg/karpathy.app">View the source</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2026 karpathy.app · <a href="https://github.com/tillg/karpathy.app">GitHub</a></p>
+  </footer>
+</body>
+</html>

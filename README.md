@@ -2,6 +2,8 @@
 
 # karpathy.app
 
+**Website: [karpathy.app](https://karpathy.app)**
+
 A mobile-friendly web app that combines an Obsidian-style Markdown vault with an
 AI dialog — so that the knowledge (the `.md` files) and the AI assistant that reads,
 writes, and ingests into it can be used **on iPad and phone**, not just in the
@@ -191,6 +193,13 @@ plugin, used only through its skills (no local copy of the tool):
 
 Config: `reports.json` (which files, menu bar, brand, theme); theme: `specs/reports-theme.css`.
 Improvements go into the plugin in the marketplace repo, not into local scripts.
+
+## Website
+
+The product page at [https://karpathy.app](https://karpathy.app) is plain HTML + CSS in [`site/`](site/),
+styled with the app's design tokens (copied from `apps/web/src/styles.css`; `npm test` fails if they
+drift) and the icons from `assets/icons/`. Preview it with `just site` (http://localhost:8099). Every push
+to `main` that touches the site deploys it to GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
 
 ## Name
 

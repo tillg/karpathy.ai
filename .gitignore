@@ -28,3 +28,6 @@ specs/**/*.html
 !specs/01_mvp/layouts/*.html
 !specs/research/browser-only/spikes/**/*.html
 /index.html
+!specs/**/*-report.html
+/DECISIONS.html
+_site/

@@ -31,7 +31,8 @@
     "sources": [
       "specs/system/*.md",
       "specs/changes/*/*.md",
-      "specs/research/*/*.md"
+      "specs/research/*/*.md",
+      "DECISIONS.md"
     ]
   }
 }

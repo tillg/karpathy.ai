@@ -1,0 +1,40 @@
+# Website: test site/, assemble _site/ and deploy it to GitHub Pages (karpathy.app).
+# Runs when the site, its icons or the app's design tokens change on main; manual runs via workflow_dispatch.
+name: Pages
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'assets/icons/**', 'apps/web/src/styles.css', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a running deploy finishes before the next starts.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # The test runs site/build.sh, which leaves the assembled site in _site/.
+      - run: node site/site.test.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: { pages: write, id-token: write }
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

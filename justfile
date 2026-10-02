@@ -14,6 +14,11 @@ install:
 dev action="up":
     deploy/dev.sh {{action}}
 
+# Build the website into _site/ and preview it on http://localhost:<port> (default 8099)
+site port="8099":
+    site/build.sh
+    python3 -m http.server {{port}} --bind 127.0.0.1 -d _site
+
 # Lint, typecheck and unit + integration tests
 check:
     npm run lint

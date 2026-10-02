@@ -1,0 +1,76 @@
+/* Website styles. The two :root blocks are copied from apps/web/src/styles.css; site.test.mjs keeps them equal. */
+:root {
+  --bg: #f2f2f7; --bg2: #fff; --paper: #fff; --sb: #f2f2f7;
+  --label: #0b0d12; --label2: #636366; --label3: #8a8a8e;
+  --sep: rgba(60,60,67,.2); --fill: rgba(120,120,128,.12); --fill2: rgba(120,120,128,.07);
+  --tint: #1f4db8; --tint-soft: rgba(31,77,184,.12); --on-tint: #fff; --brand: #0f1e33; --sel: #0f1e33; --sel-ink: #fff;
+  --mat: rgba(249,249,251,.78); --green: #28a745; --red: #e5484d; --orange: #f59e0b; --purple: #8e44ad;
+  /* Text tones of the status colours (≥4.5:1 on their tinted backgrounds, issue #40); the base ones stay for dots/icons. */
+  --green-ink: #146c33; --red-ink: #b91c1c; --orange-ink: #8f5200; --badge: #c9302c;
+  --add: rgba(40,167,69,.12); --del: rgba(229,72,77,.12); --warn: rgba(245,158,11,.14);
+  --shadow: 0 12px 40px rgba(15,30,51,.18);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --tabh: calc(50px + env(safe-area-inset-bottom));
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000; --bg2: #1c1c1e; --paper: #111113; --sb: #1a1a1c;
+    --label: #f5f5f7; --label2: rgba(235,235,245,.6); --label3: #7c7c80;
+    --sep: rgba(84,84,88,.55); --fill: rgba(120,120,128,.26); --fill2: rgba(120,120,128,.14);
+    --tint: #86abff; --tint-soft: rgba(134,171,255,.16); --on-tint: #0b1530; --brand: #dbe6ff; --sel: #2b4a86; --sel-ink: #fff;
+    --mat: rgba(28,28,30,.74); --green: #3ddc84; --red: #ff7a7a; --purple: #c792ea;
+    --green-ink: #3ddc84; --red-ink: #ff7a7a; --orange-ink: #f59e0b;
+    --add: rgba(61,220,132,.14); --del: rgba(255,107,107,.14); --shadow: 0 12px 40px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--label); font-family: var(--font); -webkit-font-smoothing: antialiased; line-height: 1.5; }
+a { color: var(--tint); }
+code { font-family: var(--mono); font-size: .9em; background: var(--fill); border-radius: 5px; padding: 1px 5px; }
+
+/* top bar: translucent material, like the app's */
+.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  height: 52px; padding: 0 max(16px, env(safe-area-inset-left));
+  background: var(--mat); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 .5px 0 var(--sep); }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px; color: var(--label); text-decoration: none; }
+.brand img { border-radius: 7px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 18px; border-radius: 20px;
+  background: var(--tint); color: var(--on-tint); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.btn.g { background: var(--fill); color: var(--tint); }
+.bar .btn { height: 32px; padding: 0 14px; font-size: 14px; }
+.acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; }
+
+main { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+section { margin: 56px 0; }
+
+.hero { text-align: center; margin-top: 48px; }
+.logo { width: 128px; height: 128px; border-radius: 28px; box-shadow: var(--shadow); }
+h1 { font-size: clamp(32px, 7vw, 54px); line-height: 1.08; letter-spacing: -.5px; margin: 28px 0 14px; color: var(--label); }
+.lead { max-width: 640px; margin: 0 auto; font-size: clamp(17px, 2.4vw, 20px); color: var(--label2); }
+
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.card { background: var(--bg2); border-radius: 16px; padding: 20px; box-shadow: 0 .5px 0 var(--sep); }
+.card h2 { font-size: 17px; margin: 0 0 6px; }
+.card p { margin: 0; font-size: 15px; color: var(--label2); }
+
+.lt { font-size: 28px; font-weight: 700; margin: 0 0 14px; }
+.how ol { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 10px; }
+.how li { counter-increment: step; display: flex; align-items: baseline; gap: 12px; background: var(--bg2); border-radius: 14px; padding: 14px 18px; font-size: 16px; }
+.how li::before { content: counter(step); flex: none; width: 26px; height: 26px; border-radius: 13px; background: var(--tint-soft); color: var(--tint);
+  font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
+
+.self-host .intro { margin: 0 0 16px; font-size: 17px; color: var(--label2); max-width: 680px; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.card h3 { font-size: 17px; margin: 0 0 6px; }
+.cta { text-align: center; background: var(--bg2); border-radius: 20px; padding: 36px 20px; margin-top: 28px; }
+.cta .acts { margin-top: 0; }
+.cta h2 { font-size: 24px; margin: 0 0 6px; }
+.cta p { color: var(--label2); margin: 0 0 20px; }
+
+footer { text-align: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); font-size: 13px; color: var(--label3); }

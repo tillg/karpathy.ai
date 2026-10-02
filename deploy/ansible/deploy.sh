@@ -18,7 +18,12 @@ done
 [ -d "inventories/$target" ] || { echo "unknown target: $target (have: $(ls inventories | xargs))" >&2; exit 1; }
 args=(-i "inventories/$target" --vault-id "$target@vault-pass-client.sh" site.yml ${tags[@]+"${tags[@]}"})
 [ -n "$version" ] && args+=(-e "app_version=$version")
-[ -n "$bootstrap" ] && args+=(-e "ansible_host=$bootstrap" -e ansible_user=root)
+if [ -n "$bootstrap" ]; then
+  # ansible_host applies to every host: with more than one, they would all run against this IP.
+  hosts=$(ansible-inventory -i "inventories/$target" --list </dev/null 2>/dev/null | jq -r '._meta.hostvars | keys | length')
+  [ "$hosts" = 1 ] || { echo "--bootstrap needs exactly one host in inventories/$target, found $hosts" >&2; exit 1; }
+  args+=(-e "ansible_host=$bootstrap" -e ansible_user=root)
+fi
 [ "$mode" = check ] && args+=(--check --diff)
 mkdir -p ../../tmp
 log="../../tmp/deploy-$target-$(date +%Y%m%d-%H%M%S).log"

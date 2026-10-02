@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ancestors, buildTree, loadExpanded, saveExpanded, type TreeNode } from '../lib/tree';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -23,6 +23,14 @@ export function FileTree() {
     if (notePath && ancestors(notePath).some((a) => !exp.set.has(a))) update((s) => ancestors(notePath).forEach((a) => s.add(a)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notePath, exp.vault]);
+  // ...and its row scrolls into view when the open note changes (#100), after the folders rendered open.
+  const selRef = useRef<HTMLButtonElement | null>(null);
+  const scrolledTo = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!notePath || !selRef.current || scrolledTo.current === notePath) return;
+    scrolledTo.current = notePath;
+    selRef.current.scrollIntoView({ block: 'nearest' });
+  });
 
   const create = () => {
     const dir = note?.path.includes('/') ? note.path.slice(0, note.path.lastIndexOf('/') + 1) : '';
@@ -36,6 +44,7 @@ export function FileTree() {
   const render = (nodes: TreeNode[], depth: number) => nodes.map((n) => (
     <div key={n.path}>
       <button
+        ref={note?.path === n.path ? selRef : undefined}
         className={`trow${n.dir ? ' dir' : ''}${note?.path === n.path ? ' sel' : ''}`}
         style={{ paddingLeft: 10 + depth * 16 }}
         data-testid="tree-item" data-path={n.path} data-type={n.dir ? 'dir' : 'file'}

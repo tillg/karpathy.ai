@@ -18,7 +18,7 @@ export function Sidebar({ inert }: { inert?: boolean }) {
         {phone ? <span className="bar-title">{TITLES[current]}</span> : (
           <div className="seg" data-testid="sidebar-sections">
             {(['files', 'search', 'changes'] as const).map((s) => (
-              <button key={s} className={section === s ? 'on' : ''} data-testid={`section-${s}`} onClick={() => setSection(s)}>
+              <button key={s} className={section === s ? 'on' : ''} aria-pressed={section === s} data-testid={`section-${s}`} onClick={() => setSection(s)}>
                 {TITLES[s]}{s === 'changes' && status?.changedCount ? <span className="count">{status.changedCount}</span> : null}
               </button>
             ))}

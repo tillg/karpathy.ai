@@ -337,6 +337,8 @@ function useAppState() {
   const [chatOpen, setChatOpen] = useState(() => innerWidth >= 1280);
   // Wide layout: which of note and chat is in the main column (the other is in the 380 px side column).
   // Per-browser preference; storage can throw (private mode, blocked site data): default to note in main.
+  // Narrowing into the phone layout with a note open keeps the note pushed (#104).
+  useEffect(() => { if (phone && noteRef.current) setNoteTab((t) => t ?? 'files'); }, [phone]);
   const [chatMain, setChatMain] = useState(() => { try { return localStorage.getItem(CHAT_MAIN_KEY) === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem(CHAT_MAIN_KEY, chatMain ? '1' : '0'); } catch { /* not remembered */ } }, [chatMain]);
   const [sidebarOpen, setSidebarOpen] = useState(wide);

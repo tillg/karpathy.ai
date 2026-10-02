@@ -84,7 +84,7 @@ export function Shell() {
         {phone && (
           <nav id="tabbar" aria-label="Tabs">
             {TABS.map((t) => (
-              <button key={t.id} className={phoneTab === t.id ? 'on' : ''} data-testid={`tab-${t.id}`}
+              <button key={t.id} className={phoneTab === t.id ? 'on' : ''} aria-current={phoneTab === t.id ? 'page' : undefined} data-testid={`tab-${t.id}`}
                 onClick={() => { if (phoneTab === t.id) s.setPhoneNote(false); s.setPhoneTab(t.id); }}>
                 <span className="tab-ic"><Icon n={t.icon} size={25} />
                   {t.id === 'changes' && status?.changedCount ? <span className="tab-badge" data-testid="changes-badge-tab">{status.changedCount}</span> : null}

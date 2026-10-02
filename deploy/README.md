@@ -122,6 +122,24 @@ test values only.
 7. `just deploy hetzner` again (over Tailscale) to see it report `changed=0`, then
    `just token hetzner --qr` and scan it on the iPad.
 
+## Rebuilding the server
+
+For a replacement server (a cheaper type, a broken box, a fresh start). The vaults live in GitHub, so
+commit and push everything first; only uncommitted changes would be lost.
+
+1. Book the new server as in step 1 above, with **`setup-ssh` attached** again.
+2. Tailscale admin console → Machines: **delete the old `karpathy`**, or the new one comes up as
+   `karpathy-1` (the playbook stops with that message).
+3. Create a **new auth key** (the old one is used up) and put it in: `just secrets hetzner` (only
+   the Tailscale prompt needs input; Enter keeps the rest).
+4. `ssh-keygen -R karpathy`: the new server has a new host key under the old name.
+5. `just deploy hetzner <version> --bootstrap <new-public-ip>` (it forgets the old host key of that
+   IP by itself).
+6. Point the A record at the new tailnet IP and detach `setup-ssh`, as in steps 5–6 above.
+7. Delete the old server in Hetzner.
+
+Each fresh server requests a new certificate; Let's Encrypt allows 5 for the same name per week.
+
 ## Where things are
 
 ```

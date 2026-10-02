@@ -32,8 +32,18 @@
   ansible.builtin.command: >-
     tailscale up --authkey={{ tailscale_authkey }} --hostname={{ tailscale_hostname }} --ssh=false
   when: tailscale_status.rc != 0 or (tailscale_status.stdout | from_json).BackendState != 'Running'
+  register: tailscale_up
   changed_when: true
+  failed_when: false
   no_log: true
+
+# The key is single-use: a rebuilt server needs a new one (deploy/README.md, "Rebuilding the server").
+- name: Joined the tailnet
+  ansible.builtin.assert:
+    that: tailscale_up is skipped or tailscale_up.rc == 0
+    fail_msg: >-
+      tailscale up failed: the auth key is probably used or expired. Create a new one (tag:server,
+      single-use), put it in with `just secrets {{ target }}` and run again.
 
 # bind_ip (the tailnet IP) comes from the tailscale0 facts, which only exist after `tailscale up`.
 - name: Refresh network facts
@@ -44,3 +54,21 @@
   ansible.builtin.assert:
     that: ansible_facts.tailscale0.ipv4.address is defined
     fail_msg: "tailscale0 has no IPv4 address: is the node approved in the Tailscale admin console?"
+  when: not ansible_check_mode
+
+# A leftover device of the same name (an old server) makes Tailscale call this one karpathy-1, and the
+# inventory's `karpathy` would then reach the old one.
+- name: Tailnet name
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_self
+  changed_when: false
+  check_mode: false
+
+- name: The tailnet name is {{ tailscale_hostname }}
+  ansible.builtin.assert:
+    that: ((tailscale_self.stdout | from_json).Self.DNSName | default('')).startswith(tailscale_hostname ~ '.')
+    fail_msg: >-
+      This server is in the tailnet as {{ (tailscale_self.stdout | from_json).Self.DNSName | default('?') }},
+      not {{ tailscale_hostname }}: delete the old '{{ tailscale_hostname }}' device in the Tailscale admin
+      console (Machines), then rename this one there to {{ tailscale_hostname }}.
+  when: not ansible_check_mode

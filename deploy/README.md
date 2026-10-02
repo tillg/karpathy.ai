@@ -133,7 +133,7 @@ deploy/
   backend/ proxy/ opencode/ web/   Dockerfiles and their config (Caddyfile, opencode.json)
   lima/karpathy-vm.yaml    the local target VM
   ansible/                 the playbook: site.yml, roles/, inventories/{local,hetzner}/,
-                           deploy.sh (just deploy), secrets.py (just secrets), token.sh (just token)
+                           deploy.sh (just deploy), fill_vault.py (just secrets), token.sh (just token)
   hetzner-watch/           the availability check behind `just hetzner-watch`
 ```
 

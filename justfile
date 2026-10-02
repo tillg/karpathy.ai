@@ -145,4 +145,4 @@ hetzner-watch action:
 
 # Fill a target's vault interactively (hidden input; generates token, Beszel secrets, ntfy topic)
 secrets target:
-    PYTHONDONTWRITEBYTECODE=1 "$(head -1 "$(which ansible)" | sed 's/^#!//')" deploy/ansible/secrets.py {{target}}
+    PYTHONDONTWRITEBYTECODE=1 "$(head -1 "$(which ansible)" | sed 's/^#!//')" deploy/ansible/fill_vault.py {{target}}

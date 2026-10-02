@@ -29,13 +29,35 @@ def vault(*args, **kw):
 
 data = yaml.safe_load(vault("view", vault_file)) or {}
 
+# Values already entered for the dev stack (gitignored files): offered as defaults.
+deploy_dir = os.path.dirname(here)
+
+
+def from_file(name):
+    try:
+        return open(os.path.join(deploy_dir, name)).read().strip() or None
+    except OSError:
+        return None
+
+
+def from_env_file(name, key):
+    for line in (from_file(name) or "").splitlines():
+        if line.startswith(f"{key}="):
+            return line.split("=", 1)[1].strip() or None
+    return None
+
 
 def unset(key):
     return data.get(key) in (None, "", PLACEHOLDER)
 
 
-def ask(key, prompt, hidden=True, optional=False):
-    state = "unset" if unset(key) else "set — Enter keeps it"
+def ask(key, prompt, hidden=True, optional=False, found=None):
+    """found: (value, where) of a value entered elsewhere before; Enter takes it."""
+    if unset(key) and found and found[0]:
+        data[key] = found[0]
+        state = f"found in {found[1]} — Enter takes it"
+    else:
+        state = "unset" if unset(key) else "set — Enter keeps it"
     while True:
         read = getpass.getpass if hidden else input
         value = read(f"{prompt} [{state}]: ").strip()
@@ -49,14 +71,18 @@ def ask(key, prompt, hidden=True, optional=False):
 
 
 print(f"Secrets for target '{target}' (input is hidden where it's a secret).\n")
-ask("vault_dns_api_token", "GoDaddy production API key and secret, as <key>:<secret>")
-ask("vault_github_token", "GitHub fine-grained token (vault repos: Contents read/write)")
-key = getpass.getpass("OpenRouter API key [Enter keeps the current one]: ").strip()
-if key:
-    data["vault_opencode_env"] = {"OPENROUTER_API_KEY": key}
-data.setdefault("vault_opencode_env", {})
-if not isinstance(data["vault_opencode_env"], dict):
+ask("vault_dns_api_token", "GoDaddy production API key and secret, as <key>:<secret>",
+    found=(from_file("secrets/dns_api_token"), "deploy/secrets/dns_api_token"))
+ask("vault_github_token", "GitHub fine-grained token (vault repos: Contents read/write)",
+    found=(from_file("secrets/github_token"), "deploy/secrets/github_token"))
+if not isinstance(data.get("vault_opencode_env"), dict):
     data["vault_opencode_env"] = {}
+current = data["vault_opencode_env"].get("OPENROUTER_API_KEY")
+found = from_env_file("opencode.env", "OPENROUTER_API_KEY")
+state = "set — Enter keeps it" if current else ("found in deploy/opencode.env — Enter takes it" if found else "unset, optional")
+key = getpass.getpass(f"OpenRouter API key [{state}]: ").strip() or current or found
+if key:
+    data["vault_opencode_env"]["OPENROUTER_API_KEY"] = key
 ask("vault_tailscale_authkey", "Tailscale auth key (tag:server, pre-approved, single-use)")
 ask("vault_heartbeat_url", "healthchecks.io ping URL of this target's check", hidden=False, optional=True)
 ask("vault_git_author_name", "Git author name for vault commits", hidden=False)

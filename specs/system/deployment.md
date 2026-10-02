@@ -59,6 +59,9 @@ Three parts, each with one job:
 - **One version string without the `v`:** image tag, `APP_VERSION` (baked into the backend image and
   the PWA build) and what `GET /api/health` reports. Dev and prodtest builds report `dev`. Every tag is
   built on its own; a final release on an RC's commit isn't a retag (the version is in the images).
+- **Built and Deployed:** the guard job's time goes into the backend image as `BUILT_AT`; role `app`
+  writes `DEPLOYED_AT` to `shared/.env`, keeping it when the same version is redeployed (an unchanged
+  `.env` recreates nothing). `GET /api/health` reports both as `built` / `deployed` (`null` locally).
 - Images: `ghcr.io/tillg/karpathy.app-{proxy,backend,opencode}`, public (the repo is), pulled
   anonymously. Every version stays in GHCR.
 

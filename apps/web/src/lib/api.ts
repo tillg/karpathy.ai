@@ -59,7 +59,7 @@ const v = (id: string) => `/vaults/${encodeURIComponent(id)}`;
 const q = (path: string) => `path=${encodeURIComponent(path)}`;
 
 export const api = {
-  health: () => json<{ backend: string; opencode: string; version: string }>('GET', '/health'),
+  health: () => json<{ backend: string; opencode: string; version: string; built: string | null; deployed: string | null }>('GET', '/health'),
   settings: () => json<SettingsView>('GET', '/settings'),
   patchSettings: (s: Partial<Settings>) => json<SettingsView>('PATCH', '/settings', s),
   putGithubToken: (token: string) => json<void>('PUT', '/settings/github-token', { token }),

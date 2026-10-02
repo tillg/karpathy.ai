@@ -236,13 +236,26 @@ function GitHubTokenForm() {
   );
 }
 
-/** Server and PWA version: after a deploy, shows whether the new release and its service worker are live. */
+/** ISO timestamp → local `YYYY-MM-DD HH:MM`. */
+function localTime(iso: string) {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** Server and PWA version: after a deploy, shows whether the new release and its service worker are live.
+ *  Built and Deployed come from the server; local builds have neither. */
 function Versions() {
   const [server, setServer] = useState('…');
-  useEffect(() => { api.health().then((h) => setServer(h.version), () => setServer('unreachable')); }, []);
+  const [times, setTimes] = useState<{ built: string | null; deployed: string | null }>({ built: null, deployed: null });
+  useEffect(() => {
+    api.health().then((h) => { setServer(h.version); setTimes({ built: h.built, deployed: h.deployed }); }, () => setServer('unreachable'));
+  }, []);
   return (
     <p className="muted">
       Server <span data-testid="version-server">{server}</span> · App <span data-testid="version-pwa">{__APP_VERSION__}</span>
+      {times.built && <> · Built <span data-testid="version-built">{localTime(times.built)}</span></>}
+      {times.deployed && <> · Deployed <span data-testid="version-deployed">{localTime(times.deployed)}</span></>}
     </p>
   );
 }

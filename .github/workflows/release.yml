@@ -22,6 +22,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
       latest: ${{ steps.v.outputs.latest }}
+      built: ${{ steps.v.outputs.built }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -34,7 +35,9 @@ jobs:
           # :latest and GitHub's "Latest" only move forward: a hotfix on an older line doesn't take them.
           highest=$(git tag -l 'v*.*.*' | grep -Ev -- '-' | sort -V | tail -n 1 || true)
           latest=false; [ "$prerelease" = false ] && [ "$GITHUB_REF_NAME" = "$highest" ] && latest=true
-          { echo "version=$version"; echo "prerelease=$prerelease"; echo "latest=$latest"; } >> "$GITHUB_OUTPUT"
+          # One build time for all images of the release: BUILT_AT, what /api/health reports as `built`.
+          built=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          { echo "version=$version"; echo "prerelease=$prerelease"; echo "latest=$latest"; echo "built=$built"; } >> "$GITHUB_OUTPUT"
       # Final releases only from main; release candidates may come from any commit (specs/system/deployment.md, key decisions).
       - if: steps.v.outputs.prerelease == 'false'
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
@@ -62,7 +65,9 @@ jobs:
           context: .
           file: deploy/${{ matrix.image }}/Dockerfile
           platforms: linux/${{ matrix.arch }}
-          build-args: APP_VERSION=${{ needs.guard.outputs.version }}
+          build-args: |
+            APP_VERSION=${{ needs.guard.outputs.version }}
+            BUILT_AT=${{ needs.guard.outputs.built }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.guard.outputs.version }}

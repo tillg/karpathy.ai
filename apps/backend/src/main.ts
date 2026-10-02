@@ -27,6 +27,8 @@ const env = {
   opencodeVaultsDir: process.env.OPENCODE_VAULTS_DIR ?? '/vaults',
   defaultModel: process.env.DEFAULT_MODEL,
   version: process.env.APP_VERSION || 'dev',
+  built: process.env.BUILT_AT || undefined,
+  deployed: process.env.DEPLOYED_AT || undefined,
 };
 
 const store = await ConfigStore.open(env.configDir, env.defaultModel ? { model: env.defaultModel } : {});
@@ -42,7 +44,7 @@ vaults.beforeRemove = (id) => chat.deleteAllChats(id);
 void chat.init().catch((e) => console.warn('chat init:', (e as Error).message));
 const commitMessages = new OpencodeCommitMessages(vaults, store, harness, (id) => chat.dir(id));
 
-const app = createApp({ token: env.token, vaults, store, githubToken, chat, commitMessages, opencodeHealthy: () => harness.health(), availableModels: () => harness.models(), version: env.version });
+const app = createApp({ token: env.token, vaults, store, githubToken, chat, commitMessages, opencodeHealthy: () => harness.health(), availableModels: () => harness.models(), version: env.version, built: env.built, deployed: env.deployed });
 const server = app.listen(env.port, () => console.log(`backend listening on :${env.port}`));
 
 const shutdown = () => {

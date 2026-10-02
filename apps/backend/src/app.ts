@@ -21,6 +21,10 @@ export interface AppDeps {
   availableModels?: () => Promise<string[]>;
   /** Release version (APP_VERSION, baked into the image); `dev` for dev and prodtest builds. */
   version?: string;
+  /** When the release's images were built (BUILT_AT, ISO 8601, set by the release workflow); unset for local builds. */
+  built?: string;
+  /** When the running release was deployed (DEPLOYED_AT, ISO 8601, written by Ansible); unset outside a deployment. */
+  deployed?: string;
 }
 
 // Branch names reach git as arguments: only plain ref names (git check-ref-format rules),
@@ -95,7 +99,7 @@ export function createApp(d: AppDeps) {
 
   api.get('/health', async (_req, res) => {
     const opencode = d.opencodeHealthy ? await d.opencodeHealthy().catch(() => false) : false;
-    res.json({ backend: 'ok', opencode: opencode ? 'ok' : 'down', version: d.version ?? 'dev' });
+    res.json({ backend: 'ok', opencode: opencode ? 'ok' : 'down', version: d.version ?? 'dev', built: d.built ?? null, deployed: d.deployed ?? null });
   });
 
   const settingsView = (): SettingsView => {

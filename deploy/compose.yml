@@ -54,6 +54,8 @@ services:
       OPENCODE_VAULTS_DIR: /vaults
       # Commit and log timestamps in the target's timezone (role app writes TZ to .env).
       TZ: ${TZ:-Etc/UTC}
+      # When the running release was deployed, reported by /api/health (role app writes it to .env).
+      DEPLOYED_AT: ${DEPLOYED_AT:-}
     secrets: [bearer_token, github_token]
     volumes:
       - vaults:/vaults

@@ -30,7 +30,8 @@ collaboration, a sync protocol of its own, offline AI, creating GitHub repos fro
   home-screen app on iOS, which doesn't share Safari's storage. The operator gets the QR code from
   `just token <target> --qr`.
 - **Version:** the settings dialog shows the server's and the loaded PWA's version (`dev` for local builds), so
-  after a deploy you see whether the new release and its service worker are live.
+  after a deploy you see whether the new release and its service worker are live; for a release also when it was
+  **Built** and **Deployed** (local date and time).
 - **PWA:** installable (standalone, app icons); updates itself when a new version is deployed, re-checking whenever
   the app comes back to the foreground.
 
@@ -56,7 +57,7 @@ The modal has four views, switched inside it (no router). Every view but the lis
   - **GitHub:** the server-wide token ([GitHub token](#github-token)).
   - **App:** commit reminder threshold (1–1000 changed files) and the model (`provider/model`, server-wide; the
     server rejects models opencode doesn't offer).
-  - **Version:** server and PWA version.
+  - **Version:** server and PWA version, Built and Deployed.
 
 #### Checked attach
 

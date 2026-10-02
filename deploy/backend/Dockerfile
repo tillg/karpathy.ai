@@ -29,6 +29,8 @@ USER ${APP_UID}:${APP_GID}
 WORKDIR /app/apps/backend
 # Release version (git tag without the v), reported by GET /api/health; set by the release workflow.
 ARG APP_VERSION=dev
-ENV NODE_ENV=production PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config APP_VERSION=${APP_VERSION}
+# Build time (ISO 8601), reported by GET /api/health as `built`; set by the release workflow, empty for local builds.
+ARG BUILT_AT=
+ENV NODE_ENV=production PORT=8787 VAULTS_DIR=/vaults CONFIG_DIR=/config APP_VERSION=${APP_VERSION} BUILT_AT=${BUILT_AT}
 EXPOSE 8787
 CMD ["npx", "tsx", "src/main.ts"]

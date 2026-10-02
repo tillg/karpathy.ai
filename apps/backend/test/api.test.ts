@@ -45,12 +45,17 @@ describe('auth', () => {
 
   it('health reports backend + opencode', async () => {
     const { api } = await makeApp('file:///nowhere/', { opencodeHealthy: async () => true });
-    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: 'dev' });
+    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: 'dev', built: null, deployed: null });
   });
 
   it('health reports the release version (APP_VERSION)', async () => {
     const { api } = await makeApp('file:///nowhere/', { opencodeHealthy: async () => true, version: '0.3.0' });
-    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: '0.3.0' });
+    expect((await api.get('/health')).body).toEqual({ backend: 'ok', opencode: 'ok', version: '0.3.0', built: null, deployed: null });
+  });
+
+  it('health reports when the release was built and deployed (BUILT_AT, DEPLOYED_AT)', async () => {
+    const { api } = await makeApp('file:///nowhere/', { opencodeHealthy: async () => true, version: '0.3.0', built: '2026-10-02T16:20:00Z', deployed: '2026-10-02T16:28:00Z' });
+    expect((await api.get('/health')).body).toMatchObject({ version: '0.3.0', built: '2026-10-02T16:20:00Z', deployed: '2026-10-02T16:28:00Z' });
   });
 });
 

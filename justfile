@@ -142,3 +142,7 @@ hetzner-watch action:
       now) "$script" ;;
       *) echo "usage: just hetzner-watch install|uninstall|now" >&2; exit 1 ;;
     esac
+
+# Fill a target's vault interactively (hidden input; generates token, Beszel secrets, ntfy topic)
+secrets target:
+    PYTHONDONTWRITEBYTECODE=1 "$(head -1 "$(which ansible)" | sed 's/^#!//')" deploy/ansible/secrets.py {{target}}

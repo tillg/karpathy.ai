@@ -2,7 +2,8 @@
 target: hetzner
 tailscale_enabled: true
 timezone: Europe/Berlin
-deploy_authorized_keys: []
+# Ansible logs in as deploy with these keys (deploy.pub, one per line) after the bootstrap.
+deploy_authorized_keys: "{{ lookup('file', inventory_dir ~ '/deploy.pub').splitlines() }}"
 vaults_fs_size: 20G
 
 # The tailnet IP, from the tailscale role (finalized in plan Phase 7).
@@ -13,8 +14,9 @@ app_url: https://app.karpathy.app
 domain: app.karpathy.app
 tls_mode: dns
 gatus_enabled: true
-git_author_name: karpathy.app user  # set with the real server (Phase 7)
-git_author_email: user@karpathy.app
+# Commit author for vault commits; in the vault, so no personal data in this public repo.
+git_author_name: "{{ vault_git_author_name }}"
+git_author_email: "{{ vault_git_author_email }}"
 default_model: openrouter/z-ai/glm-5.3
 
 bearer_token: "{{ vault_bearer_token }}"
@@ -28,3 +30,5 @@ beszel_password: "{{ vault_beszel_password }}"
 beszel_hub_key: "{{ vault_beszel_hub_key }}"
 beszel_hub_pubkey: "{{ vault_beszel_hub_pubkey }}"
 beszel_token: "{{ vault_beszel_token }}"
+# Single-use, tagged tag:server, pre-approved; only used when the host joins the tailnet.
+tailscale_authkey: "{{ vault_tailscale_authkey }}"

@@ -1,4 +1,46 @@
-# Finalized with the real server (architecture §5.4, plan Phase 7).
-- name: Tailscale role not implemented yet
-  ansible.builtin.fail:
-    msg: "The tailscale role is built in plan Phase 7, once the Hetzner server exists."
+# Joins the host to the tailnet (architecture §5.4): after the bootstrap, SSH and the app are reachable
+# only over Tailscale. The auth key (tagged tag:server, pre-approved, single-use) is used once.
+- name: Tailscale apt repo
+  ansible.builtin.deb822_repository:
+    name: tailscale
+    types: deb
+    uris: https://pkgs.tailscale.com/stable/ubuntu
+    suites: "{{ ansible_facts.distribution_release }}"
+    components: main
+    signed_by: https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_facts.distribution_release }}.noarmor.gpg
+
+- name: Tailscale package
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+
+- name: Tailscaled running and enabled
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Tailscale state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Join the tailnet as {{ tailscale_hostname }}
+  ansible.builtin.command: >-
+    tailscale up --authkey={{ tailscale_authkey }} --hostname={{ tailscale_hostname }} --ssh=false
+  when: tailscale_status.rc != 0 or (tailscale_status.stdout | from_json).BackendState != 'Running'
+  changed_when: true
+  no_log: true
+
+# bind_ip (the tailnet IP) comes from the tailscale0 facts, which only exist after `tailscale up`.
+- name: Refresh network facts
+  ansible.builtin.setup:
+    gather_subset: [network]
+
+- name: Tailnet IP known
+  ansible.builtin.assert:
+    that: ansible_facts.tailscale0.ipv4.address is defined
+    fail_msg: "tailscale0 has no IPv4 address: is the node approved in the Tailscale admin console?"

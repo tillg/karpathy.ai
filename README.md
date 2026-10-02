@@ -123,42 +123,15 @@ Layout: `apps/backend` (Express 5, Node/TS), `apps/web` (Vite + React PWA),
 
 ## Deploying
 
-A release is a tag `vX.Y.Z` (or `vX.Y.Z-rc.N`). The release workflow builds the three images for
-amd64 and arm64, pushes them to GHCR and attaches `deploy/compose.yml` to the GitHub release.
-A deployment installs a release on a target with Ansible (`deploy/ansible`), from the Mac; nothing is
-built on a target. Design: [`specs/07_deployments`](specs/07_deployments/architecture.md).
+A release is a git tag; CI builds its images and Ansible puts it on a server from the Mac, with
+monitoring and a smoke check. **How it works, every `just` recipe, secrets and the first-server
+procedure: [`deploy/README.md`](deploy/README.md).** The short version:
 
 ```sh
-just release 0.3.0              # tag + push v0.3.0 (final: HEAD must be on main; -rc.N from anywhere)
-just deploy local [0.3.0]       # deploy to a target (default: the newest release); log in tmp/deploy-*.log
-just deploy local --only app    # only the app (or: monitoring); the host roles ran before
-just deploy-check local         # dry run with diff
-just deploy-e2e local           # Playwright suite (minus @llm) against the local target
-just vm up|down|reset|ssh       # the local target: a Lima VM, https://localhost:9444
-just token hetzner [--qr]       # the target's access token to the clipboard; --qr: login QR code
+just release 0.3.0            # tag v0.3.0 → images on GHCR + GitHub release
+just deploy hetzner 0.3.0     # put it on the server (`local`: the test VM on https://localhost:9444)
+just token hetzner --qr       # log a phone or iPad in by scanning a QR code
 ```
-
-**Logging in on a device:** the access token is a fixed secret in the target's vault, not generated
-at startup. `just token <target>` copies it to the clipboard (Universal Clipboard pastes it on the
-iPad). `just token <target> --qr` also prints a QR code of `<app url>/#token=…`: scanning it opens
-the app, which stores the token and removes it from the URL and history. The QR code is a
-credential: don't screenshot or share it.
-
-Targets: `local` (a Lima VM sized like the server, for testing the whole playbook) and `hetzner`
-(finished once the server exists). **Rollback** = deploy the older version: `just deploy <target>
-<previous> --only app`.
-
-Secrets are per target in an encrypted Ansible Vault (`inventories/<target>/group_vars/all/vault.yml`).
-Its password lives in the macOS Keychain under `karpathy-ansible-<target>`; keep a copy in your
-password manager. To set one up or edit a vault:
-
-```sh
-security add-generic-password -a "$USER" -s karpathy-ansible-local -w      # prompts for the password
-cd deploy/ansible && ansible-vault edit --vault-id local@vault-pass-client.sh inventories/local/group_vars/all/vault.yml
-```
-
-Monitoring comes with every deploy: Beszel (hub on port 8090; `local`: http://localhost:9090),
-Gatus (8091; `hetzner` only) and a heartbeat to healthchecks.io. Alerts go to an ntfy topic.
 
 ## Development
 

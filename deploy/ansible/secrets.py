@@ -1,0 +1,91 @@
+"""`just secrets <target>`: fill a target's Ansible Vault without the values passing through chat or
+shell history. Asks for what only the operator has (hidden input; Enter keeps the current value),
+generates what can be generated (once), and writes the vault encrypted again.
+
+Run with Ansible's Python (it has PyYAML); the vault password comes from the Keychain as usual.
+"""
+import getpass
+import os
+import secrets
+import string
+import subprocess
+import sys
+import tempfile
+import uuid
+
+import yaml
+
+PLACEHOLDER = "CHANGE_ME"
+target = sys.argv[1]
+here = os.path.dirname(os.path.abspath(__file__))
+vault_file = os.path.join(here, "inventories", target, "group_vars", "all", "vault.yml")
+vault_id = f"{target}@{os.path.join(here, 'vault-pass-client.sh')}"
+
+
+def vault(*args, **kw):
+    return subprocess.run(["ansible-vault", *args, "--vault-id", vault_id], check=True,
+                          stdin=subprocess.DEVNULL, capture_output=True, text=True, **kw).stdout
+
+
+data = yaml.safe_load(vault("view", vault_file)) or {}
+
+
+def unset(key):
+    return data.get(key) in (None, "", PLACEHOLDER)
+
+
+def ask(key, prompt, hidden=True, optional=False):
+    state = "unset" if unset(key) else "set — Enter keeps it"
+    while True:
+        read = getpass.getpass if hidden else input
+        value = read(f"{prompt} [{state}]: ").strip()
+        if value:
+            data[key] = value
+            return
+        if not unset(key) or optional:
+            data.setdefault(key, "")
+            return
+        print("  required")
+
+
+print(f"Secrets for target '{target}' (input is hidden where it's a secret).\n")
+ask("vault_dns_api_token", "GoDaddy production API key and secret, as <key>:<secret>")
+ask("vault_github_token", "GitHub fine-grained token (vault repos: Contents read/write)")
+key = getpass.getpass("OpenRouter API key [Enter keeps the current one]: ").strip()
+if key:
+    data["vault_opencode_env"] = {"OPENROUTER_API_KEY": key}
+data.setdefault("vault_opencode_env", {})
+if not isinstance(data["vault_opencode_env"], dict):
+    data["vault_opencode_env"] = {}
+ask("vault_tailscale_authkey", "Tailscale auth key (tag:server, pre-approved, single-use)")
+ask("vault_heartbeat_url", "healthchecks.io ping URL of this target's check", hidden=False, optional=True)
+ask("vault_git_author_name", "Git author name for vault commits", hidden=False)
+ask("vault_git_author_email", "Git author e-mail for vault commits", hidden=False)
+
+# Generated once; kept on later runs.
+alnum = string.ascii_letters + string.digits
+if unset("vault_bearer_token"):
+    data["vault_bearer_token"] = secrets.token_hex(24)
+if unset("vault_ntfy_topic"):
+    data["vault_ntfy_topic"] = f"karpathy-{target}-" + "".join(secrets.choice(alnum) for _ in range(32))
+if unset("vault_beszel_password"):
+    data["vault_beszel_password"] = secrets.token_urlsafe(24)
+if unset("vault_beszel_token"):
+    data["vault_beszel_token"] = str(uuid.uuid4())
+if unset("vault_beszel_hub_key") or unset("vault_beszel_hub_pubkey"):
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "beszel-hub", "-f", f"{d}/k"], check=True)
+        data["vault_beszel_hub_key"] = open(f"{d}/k").read()
+        data["vault_beszel_hub_pubkey"] = open(f"{d}/k.pub").read().strip()
+
+# Plaintext only in a private temp file, encrypted straight back over the vault.
+fd, plain = tempfile.mkstemp(suffix=".yml")
+try:
+    with os.fdopen(fd, "w") as f:
+        f.write(f"# {target} target secrets. Edit with: just secrets {target}\n")
+        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+    vault("encrypt", plain, "--encrypt-vault-id", target, "--output", vault_file)
+finally:
+    os.remove(plain)
+print(f"\nWritten (encrypted): {os.path.relpath(vault_file, os.getcwd())}")
+print(f"ntfy topic for {target} alerts (subscribe to it in the ntfy app): {data['vault_ntfy_topic']}")

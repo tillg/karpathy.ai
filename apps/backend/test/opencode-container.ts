@@ -46,13 +46,19 @@ function ensureImage() {
 export function ensureOllama() {
   ensureNetwork();
   try {
-    if (docker('inspect', '-f', '{{.State.Running}}', OLLAMA) === 'true') return;
+    // "created": another parallel worker is starting it right now — don't remove it under that worker.
+    if (['running', 'created'].includes(docker('inspect', '-f', '{{.State.Status}}', OLLAMA))) return;
     docker('rm', '-f', OLLAMA);
   } catch {
     // not there
   }
-  // A context large enough for opencode's system prompt + the vault's AGENTS.md (#57).
-  docker('run', '-d', '--name', OLLAMA, '--network', NET, '-e', 'OLLAMA_CONTEXT_LENGTH=16384', '-v', `${OLLAMA_VOLUME}:/root/.ollama`, 'ollama/ollama');
+  try {
+    // A context large enough for opencode's system prompt + the vault's AGENTS.md (#57).
+    docker('run', '-d', '--name', OLLAMA, '--network', NET, '-e', 'OLLAMA_CONTEXT_LENGTH=16384', '-v', `${OLLAMA_VOLUME}:/root/.ollama`, 'ollama/ollama');
+  } catch (e) {
+    // Another parallel worker won the race to start it.
+    if (!String((e as { stderr?: string }).stderr).includes('is already in use')) throw e;
+  }
 }
 
 /**

@@ -1,13 +1,12 @@
-// Menu bar and header-block styles for the interactive feature report (specs/02_features), which is not
+// Menu bar and header-block styles for the interactive feature report (specs/research/features), which is not
 // built by md2html; the other reports get their menu bar from reports.json. It loads this file with
-// <script src="../reports-nav.js" defer></script>. To add a report, add a line to REPORTS
+// <script src="../../reports-nav.js" defer></script>. To add a report, add a line to REPORTS
 // and that script tag to the report's <head>.
 const REPORTS = [
-  ['02_features/feature-report.html', 'Features'],
-  ['03_browser_only/browser-only-report.html', 'Browser-only'],
-  ['04_v1/v1-plan.html', 'V1 plan'],
-  ['05_prod_env/prod-env-report.html', 'Prod environment'],
-  ['06_md_to_html/md-to-html-report.html', 'md → HTML'],
+  ['research/features/feature-report.html', 'Features'],
+  ['research/browser-only/browser-only-report.html', 'Browser-only'],
+  ['changes/v1/v1-plan.html', 'V1 plan'],
+  ['research/prod-env/prod-env-report.html', 'Prod environment'],
 ];
 
 const base = document.currentScript.src;

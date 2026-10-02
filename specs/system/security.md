@@ -7,7 +7,7 @@ edited: 2026-10-02
 # Security: karpathy.app
 
 The protections that exist on 2026-10-02, in the code and on the production server. The threat analysis behind the
-server setup is in the [prod-env report](../05_prod_env/prod-env-report.md#security); how the server is set up is in
+server setup is in the [prod-env report](../research/prod-env/prod-env-report.md#security); how the server is set up is in
 [deployment.md](deployment.md).
 
 ## Trust boundaries
@@ -36,13 +36,32 @@ flowchart LR
 | Secret | Goes only to | How |
 |---|---|---|
 | Bearer token | backend | compose secret (`BEARER_TOKEN_FILE`) |
-| GitHub token | backend | compose secret; sent per git command as an `http.https://github.com/.extraheader`, never written to `.git/config`, redacted from errors and logs |
+| GitHub token | backend | set in the app (stored in `config.json`, wins) or the compose secret (fallback); sent per git command as an `http.https://github.com/.extraheader`, never written to `.git/config`, redacted from errors and logs ([below](#github-token)) |
 | DNS API token | proxy | compose secret (root-owned on a server) |
 | LLM provider keys | opencode | `opencode.env` (env file) |
 
 In dev the secret files are gitignored. On a target they come from that target's encrypted Ansible Vault (password
 in the operator's Keychain) and are written 0600 by tasks that don't log. opencode never receives the GitHub or
 bearer token.
+
+## GitHub token
+
+- **At rest:** a token set in the app is stored in plaintext in `config.json` on the backend-only `config` volume (the
+  volume holds vault config too and is not mounted into opencode or the proxy). That is the same exposure as the secret
+  file (0400/0600): whoever has root on the host can read it. The secret remains the fallback while none is set.
+- **Never returned:** `GET /settings` and `PATCH /settings` return only `{ source, last4 }`. The token is a separate
+  top-level key of the config, not part of `Settings`, which is returned verbatim, so it can't leak through that
+  object. The plaintext is accepted only by `PUT /settings/github-token` and `POST /settings/github-token/test`, over
+  HTTPS and bearer-guarded like every route. The web app clears the field after saving.
+- **Redaction:** the backend remembers every token value seen since startup (secret, stored, replaced, and tokens that
+  were only tested, never saved) and replaces each with `***` in clone, preflight and access-check errors, logs and
+  stored clone errors, so an old or merely tested token doesn't leak either.
+- **No probing:** the token test calls the GitHub API base and remote base from server env (`GITHUB_API_BASE`,
+  `GIT_REMOTE_BASE`), never a host from the request, so it can't be used to reach arbitrary hosts.
+- **Validation:** 20–255 characters, no whitespace; a bad value is a 400.
+- Unchanged: the token is injected per git command, never written to `.git/config` or a repo, and never reaches opencode.
+- **Attach preflight** runs git with the token against the requested repo only (`owner/name` pattern, `--end-of-options`),
+  in a temp clone that is removed afterwards and killed after 60 s; concurrent adds of the same repo are refused.
 
 ## Confining the AI
 
@@ -107,6 +126,8 @@ prod proxy adds a strict **CSP** (`default-src 'self'`, `script-src 'self'`, `ob
 - No egress restriction: opencode can reach any host (it needs the LLM APIs, and fetches the models.dev catalog at
   startup, which a future egress filter must allow).
 - Single shared token: no per-device tokens or revocation other than changing the secret.
+- The GitHub token set in the app is stored unencrypted in `config.json`; request bodies of the token routes are not
+  logged, but no rate limit applies to the test route.
 - The LLM provider sees every note the AI reads.
 - The Beszel agent mounts the Docker socket (root-equivalent on the host; accepted).
 - Gatus has no authentication on the tailnet; secrets appear briefly in process lists during a deployment.

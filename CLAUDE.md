@@ -25,8 +25,8 @@ don't translate or normalize it.
 - Content rules the tool can't enforce: TL;DR first (answer, then the few reasons, then the
   recommendation), sources / appendix last, bump `edited` on every content edit, diagrams as pre-rendered
   SVGs next to their `.mmd` (Mermaid is not rendered by the build).
-- Exception: `specs/02_features/feature-report.html` is interactive and still built by
-  `node specs/02_features/build-report-html.mjs` from `feature-report.md`; its menu bar comes from
+- Exception: `specs/research/features/feature-report.html` is interactive and still built by
+  `node specs/research/features/build-report-html.mjs` from `feature-report.md`; its menu bar comes from
   `specs/reports-nav.js`, so keep that list in sync with `reports.json`.
 
 ## Status
@@ -34,6 +34,9 @@ don't translate or normalize it.
 MVP (milestone M4) implemented and deployed. The source of truth for how the system works is
 [`specs/system/`](specs/system/) plus the ADRs in `docs/adr/`; read the relevant pages before changing
 anything. Commands: `just` (see `README.md`).
+
+`specs/` layout: `system/` (how the system is), `changes/<name>/` (open spec changes, spec plugin;
+archived = folded into `system/` and deleted), `research/<name>/` (research results, kept as reference).
 
 ## What this is
 

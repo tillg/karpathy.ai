@@ -24,8 +24,18 @@ same GitHub remote. The motivation is in the [README](../../README.md#problem).
 |---|---|---|
 | **Vault** | A GitHub repo (optionally a subfolder of it) whose Markdown notes the app works on. *Avoid:* workspace, project, notebook. | `VaultConfig` / `Vault` (`packages/shared`) |
 | **Vault root** | The folder inside the repo that the vault starts at; the repo root unless a subfolder was configured. Nothing outside it is visible. | `VaultConfig.root` (`''` = repo root) |
+| **Vault structure** | The folders a vault is expected to have under its vault root: `Sources/` and `Wiki/` (required) and `Schema/` (optional, only mentioned in the help). Only the required ones are checked, and only when a vault is attached; existing vaults are never checked or repaired. Names match case-insensitively (`wiki/` counts as `Wiki/`). | `REQUIRED_FOLDERS` (`preflight.ts`) |
+| **Sources** | `Sources/`: immutable source documents (articles, mails, PDFs, clips) that humans or ingest skills add and that aren't rewritten afterwards. | |
+| **Wiki** | `Wiki/`: the knowledge base the AI maintains from the sources (entities, concepts, topics, syntheses, index, log). | |
+| **Schema** | `Schema/`: optional instructions for the AI (e.g. `Schema/CLAUDE.md`, methodology). | |
+| **Attach preflight** | The check that runs when a vault is added, before anything is stored or cloned into the vault directory: repo and branch reachable with the GitHub token, vault root exists, required folders present. A vault that fails it was never attached. | `preflight()` |
+| **Missing folders** | The required folders absent from the vault root of a repo being attached. The user decides whether to create them. | `409 missing-folders` |
+| **Folder placeholder** | An empty `.gitkeep` that makes a created folder exist in git. It is an uncommitted change like any other; nothing is committed for the user. | `Vaults.createFolders` |
+| **GitHub token** | The single, server-wide credential for every git operation against GitHub (clone, pull, push, preflight). Set in the app's settings or, as fallback, the deployment's `GITHUB_TOKEN` secret. Never sent to the client in full (last 4 characters only), never given to the AI, never written into a repo. | `GitHubToken`, `config.githubToken` |
+| **Token source** | Where the active token comes from: `settings` (set in the app, wins), `secret` (the deployment secret, used while none is set in the app) or `none`. | `SettingsView.githubToken.source` |
+| **Token test** | A check of a token, the stored one or one typed but not saved: does GitHub accept it, whose is it, its scopes and expiry, and can it reach each configured vault's repo and branch. Stores nothing. | `TokenTest` |
 | **Active vault** | The one vault the UI is currently scoped to. | web `store.tsx` |
-| **Vault state** | `cloning` → `ready` or `clone-failed`; `ready` ↔ `conflict`. | `VaultState` |
+| **Vault state** | `cloning` → `ready` or `clone-failed`; `ready` ↔ `conflict`. The attach preflight comes before the vault exists, so it is not a state. | `VaultState` |
 | **Note** | A file in the vault, usually `.md`. Binary files are shown but can't be edited. | `FileContent.binary` |
 | **Version (of a file)** | The first 16 hex characters of the SHA-256 of a file's content. Saves, deletes and discards carry the version they started from. | `files.ts` `versionOf` |
 | **Chat** | A resumable conversation with the AI, bound to exactly one vault; its reach is that vault's root. *Avoid:* session, thread, conversation. | one opencode session |
@@ -80,12 +90,25 @@ erDiagram
   VAULT ||--o| CONFLICT : "may be in"
   CONFLICT ||--|{ NOTE : "lists clashing"
   CLONE }o--|| GITHUB_REPO : "tracks branch of"
+  GITHUB_TOKEN ||--o{ VAULT : "authenticates git for"
+  SECRET ||--o| GITHUB_TOKEN : "fallback"
+  VAULT ||--|| VAULT_ROOT : has
+  VAULT_ROOT ||--|| SOURCES : "requires"
+  VAULT_ROOT ||--|| WIKI : "requires"
+  VAULT_ROOT ||--o| SCHEMA : "may have"
 ```
 
 - **Settings** are server-wide: the commit reminder threshold and the **model** (`provider/model`, default
-  `anthropic/claude-sonnet-5`). There is no per-chat model.
+  `anthropic/claude-sonnet-5`). There is no per-chat model. The **GitHub token** is managed next to them but is
+  stored separately from them (never part of `Settings`).
+- The **GitHub token** is optional in the app: with none set, the deployment's `GITHUB_TOKEN` secret is used.
+  Removing the stored token falls back to the secret again. A token changed in the app applies to the next git
+  operation without a restart. There is one token for all vaults; one per owner would be the follow-up if vaults ever
+  span several owners (a fine-grained token covers one owner's repos).
 - A **vault** is identified by a slug `id`, and configured by `name`, `repo` (`owner/name`), `branch` and `root`.
-  The same repo + branch + root can't be added twice.
+  The same repo + branch + root can't be added twice, also not while the first add's preflight is still running.
+  A vault exists in the config only after its attach preflight passed and, if folders were missing, the user agreed
+  to create them.
 - A **note** is identified by its path relative to the vault root; dot-files and `.git` are never listed.
 
 ## Actors
@@ -96,10 +119,42 @@ erDiagram
 | **User** (single person, holds the bearer token) | Manage vaults and settings, read and edit notes, search, chat with the AI, review diffs, discard, commit and push, resolve conflicts. Uses the app as a PWA on phone, iPad and desktop. |
 | **AI** (opencode agent, on the user's behalf) | Inside one vault root only: read notes; write notes unless the vault is in conflict (then read-only). It can't run shell commands, fetch the web, read `.env` files, edit `.git` or harness config, commit or push. |
 | **Obsidian / other git clients** | Change the same GitHub repo from other devices; their changes arrive on the next pull and can cause a conflict. |
-| **GitHub** | Hosts the vault repos; the backend clones, fetches and pushes with the user's token. |
+| **GitHub** | Hosts the vault repos; the backend clones, fetches and pushes with the GitHub token, and asks `GET /user` to test it. |
 | **LLM provider** (e.g. Anthropic; Ollama in dev) | Runs the model behind opencode. Sees the prompts and the note content the AI reads. |
 
 ## Processes
+
+### Attach a vault
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant W as Web app
+  participant B as Backend
+  participant G as GitHub
+  U->>W: Add vault (repo, branch, root)
+  W->>B: POST /vaults
+  B->>G: shallow, blobless fetch of the branch (token)
+  alt repo or branch unreachable / root missing
+    B-->>W: 422 repo-unreachable / root-missing
+    W-->>U: inline error, nothing attached
+  else Sources/ or Wiki/ missing
+    B-->>W: 409 missing-folders [Sources, Wiki]
+    W->>U: "Create folders?"
+    alt Don't attach
+      W-->>U: form stays filled, nothing attached
+    else Create folders
+      W->>B: POST /vaults createFolders=true
+      B-->>W: 202 (vault stored, cloning)
+      B->>B: clone, then write .gitkeep in each missing folder
+    end
+  else all present
+    B-->>W: 202 (vault stored, cloning)
+  end
+```
+
+The created folders are uncommitted changes until the user commits (ADR 0001). A failure after the preflight (network
+drop, disk full) is a normal `clone-failed` vault with Retry and Edit.
 
 ### Edit a note
 
@@ -173,6 +228,9 @@ flowchart TD
   commit carries the paths the user reviewed.
 - **No data loss on pull:** unpushed commits are folded back into uncommitted changes; during a conflict the stash is
   kept until every file is resolved.
+- **A vault is attached only after a passing preflight.** Unreachable repo or branch and a missing vault root are
+  refused and nothing is stored. Missing `Sources/` / `Wiki/` are created only with the user's consent, as uncommitted
+  placeholders. Changing repo, branch or root of an existing vault (PATCH) has no preflight.
 - **Removing a vault deletes only the local clone** (never the GitHub repo) and requires no uncommitted changes and no
   unpushed commits. Changing repo, branch or root has the same precondition.
 - **New file names** may not contain `<>:"|?*\` or control characters, may not be Windows-reserved names, end in a dot

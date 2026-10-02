@@ -36,14 +36,57 @@ collaboration, a sync protocol of its own, offline AI, creating GitHub repos fro
 
 ### Vaults and settings (admin modal "Vaults & settings")
 
-- **Add vault:** name, GitHub repo `owner/name`, branch (default `main`), optional vault root. The vault clones in the
-  background (list refreshes every 2 s); a failed clone shows the git error with **Retry** and **Edit**.
-- **Edit vault:** name any time; repo, branch or root only when the vault has no uncommitted changes and no unpushed
-  commits.
-- **Remove vault:** deletes the local clone only, never the GitHub repo; same precondition.
+The modal has four views, switched inside it (no router). Every view but the list has an "All vaults" back button.
+
+- **Vault list** (opens first): one row per vault with name, `repo · branch · /root` and the state badge; a row opens
+  its details. Below: **Add vault** and **Settings**. A `(?)` button next to "Vaults" opens **What is a vault?**: a
+  short explanation of `Sources/` (immutable source documents), `Wiki/` (the AI-maintained knowledge base) and optional
+  `Schema/` (instructions for the AI), with a folder sketch and the note that the app offers to create missing folders.
+  "Edit vault" in the note pane and the changes panel (vault not cloned) opens that vault's details directly.
+- **Vault details:** the edit fields, **Retry** and **Remove** for one vault.
+  - **Edit vault:** name any time; repo, branch or root only when the vault has no uncommitted changes and no unpushed
+    commits.
+  - **Remove vault:** deletes the local clone only, never the GitHub repo; same precondition. Returns to the list.
+- **Add vault:** name, GitHub repo `owner/name`, branch (default `main`), optional vault root. The button reads
+  "Checking the repo…" while the backend checks the repo first (see [Checked attach](#checked-attach)); the vault is
+  stored and clones in the background only if the check passes (list refreshes every 2 s). A failure after the check
+  shows the git error with **Retry** and **Edit**.
 - **Switch vault** from the vault menu (shows `name · branch`); the open note is saved first.
-- **Settings:** commit reminder threshold (1–1000 changed files) and the model (`provider/model`, server-wide; the
-  server rejects models opencode doesn't offer).
+- **Settings** view, in three groups:
+  - **GitHub:** the server-wide token ([GitHub token](#github-token)).
+  - **App:** commit reminder threshold (1–1000 changed files) and the model (`provider/model`, server-wide; the
+    server rejects models opencode doesn't offer).
+  - **Version:** server and PWA version.
+
+#### Checked attach
+
+Adding a vault never leaves a half-attached vault behind. The backend first looks at the repo with the GitHub token:
+
+- **Repo or branch unreachable** (typo, no access, no such branch) or **vault root missing:** an inline error under
+  the form with the reason; nothing is stored or cloned.
+- **`Sources/` or `Wiki/` missing** (names match case-insensitively; a file with that name counts as missing): a dialog
+  "Create folders?" naming the missing ones. **Create folders** attaches the vault and, once cloned, creates each as an
+  empty `.gitkeep` placeholder; they show up in the changes list as uncommitted until the next Commit & Push, and the
+  empty folders appear in the file tree. **Don't attach** closes the dialog, keeps the form filled and stores nothing.
+- **All present:** the vault attaches straight away.
+- The same repo + branch + root can't be added twice, also not at the same time ("is being added already").
+
+Not checked: changing repo, branch or root of an existing vault, and the structure of vaults that are already attached.
+`Schema/` is never created or required.
+
+#### GitHub token
+
+One token is used for every vault. It is set in Settings, so rotating an expired token needs no SSH and no restart; it
+applies to the next git operation. The deployment's `GITHUB_TOKEN` secret stays the fallback.
+
+- **Field:** a password field. Its placeholder shows the state: "No token set", "Using the server’s token •••• abcd"
+  (the secret) or "•••• abcd" (set in the app); the token itself is never shown again.
+- **Save token** (enabled when the field is non-empty) stores it; **Remove** (only when one is set in the app) deletes it
+  and falls back to the server's secret. A token must be 20–255 characters without spaces.
+- **Test token** checks the typed token if the field is non-empty, else the stored one, without saving: a line "Works —
+  signed in as `login`, expires YYYY-MM-DD" (expiry only if GitHub reports it) or the error ("GitHub rejected the token
+  (401).", "GitHub is not reachable from the server right now."), plus one line per vault: the repo with a check mark,
+  or why that vault's repo or branch isn't reachable with this token. Typing in the field clears the result.
 
 ### Notes
 
@@ -159,7 +202,8 @@ sequenceDiagram
 | In | Out |
 |---|---|
 | Bearer token (once per device) | — |
-| Vault config: repo, branch, root, name | A cloned vault, or a clone error |
+| Vault config: repo, branch, root, name (+ "create folders" yes/no) | A cloned vault, an inline error, or the missing-folders question; a clone error after the check |
+| GitHub token (typed, to save or to test) | Masked state (last 4), token test result per account and vault |
 | Note text (Markdown, any UTF-8 text file) | Saved file + new version; rendered HTML in Read mode |
 | Search query | Grouped hits with line snippets |
 | Chat prompt | Streamed reply, tool chips, changed notes |
@@ -173,7 +217,9 @@ No uploads, exports, e-mail or push notifications.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> cloning: add vault
+  [*] --> preflight: add vault
+  preflight --> [*]: error, or user declines folders (not attached)
+  preflight --> cloning: passes (folders present or created)
   cloning --> ready
   cloning --> clone_failed
   clone_failed --> cloning: retry / edit
@@ -204,6 +250,10 @@ permissions. The AI's permissions are fixed in the managed opencode config ([arc
 
 - **Offline:** read-only. Cached vault list, trees and previously opened notes are shown; edits are kept as local
   drafts and saved when back online; search and chat are unavailable.
+- Created `Sources/` / `Wiki/` are never committed for the user, and `Schema/` is never created. A repo where a
+  required folder exists only under another name (not just another case) gets a new, empty one.
+- The token test shows an expiry only for tokens GitHub reports one for, and scopes only for classic tokens (the app
+  doesn't display scopes today). A tested token is not saved.
 - **No rename or move** of notes or folders, no explicit folder creation, no manual pull button, no per-chat model,
   no chat rename, no global keyboard shortcuts.
 - Native `prompt()` / `confirm()` dialogs for new note, delete, discard, remove vault and delete chat.

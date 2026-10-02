@@ -57,15 +57,15 @@ functional, architecture, security, deployment); key decisions: [`docs/adr/`](do
 original MVP spec, plan, opencode spike and implementation log are in git history
 ([`specs/01_mvp/` at 9c25f72](https://github.com/tillg/karpathy.app/tree/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp)).
 Feature ideas from similar projects (30, ranked, filed as issues #64–#93):
-[`specs/02_features/feature-report.md`](specs/02_features/feature-report.md) (interactive version:
-`feature-report.html`, rebuilt with `node specs/02_features/build-report-html.mjs`).
+[`specs/research/features/feature-report.md`](specs/research/features/feature-report.md) (interactive version:
+`feature-report.html`, rebuilt with `node specs/research/features/build-report-html.mjs`).
 Browser-only (serverless) architecture research with spikes:
-[`specs/03_browser_only/browser-only-report.html`](specs/03_browser_only/browser-only-report.html).
-V1 plan draft: [`specs/04_v1/v1-plan.html`](specs/04_v1/v1-plan.html).
+[`specs/research/browser-only/browser-only-report.html`](specs/research/browser-only/browser-only-report.html).
+V1 plan draft (an open change): [`specs/changes/v1/v1-plan.html`](specs/changes/v1/v1-plan.html).
 Production environment research (hosters and free tiers, Hetzner vs IONOS, security, disk space):
-[`specs/05_prod_env/prod-env-report.html`](specs/05_prod_env/prod-env-report.html).
-Generating the reports from Markdown:
-[`specs/06_md_to_html/md-to-html-report.html`](specs/06_md_to_html/md-to-html-report.html).
+[`specs/research/prod-env/prod-env-report.html`](specs/research/prod-env/prod-env-report.html).
+Generating the reports from Markdown (done, now the md2html plugin):
+[`specs/06_md_to_html/` at 5347702](https://github.com/tillg/karpathy.app/tree/53477023d48752e5bc4c37b68a552dddfdac5ea8/specs/06_md_to_html).
 These HTML reports are generated from the `.md` next to each (see [Reports](#reports)).
 UI layout prototypes from the MVP design (layout 07 was built) —
 **[view rendered](https://raw.githack.com/tillg/karpathy.app/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp/layouts/index.html)**.

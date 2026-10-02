@@ -64,6 +64,12 @@ flowchart LR
   `[[wikilinks]]` round-trip losslessly; CRLF kept; external reloads applied as one minimal change.
 - **Renderer** (`lib/markdown.ts`): `marked` + wikilink extension + DOMPurify for Read mode and chat text.
 - **API client** (`lib/api.ts`, `lib/ndjson.ts`): fetch wrapper with Bearer token, typed `ApiError`, NDJSON reader.
+- **Admin modal** (`Admin.tsx`): one `Modal` with local view state `list | details | add | settings` (no router;
+  `adminOpen` stays a boolean plus an optional vault id). Every view but the list has a "All vaults" back button; closing
+  resets to the list. The list opens details on a row click; "Edit vault" in `NotePane` / `ChangesPanel` opens that
+  vault's details directly (`setAdminOpen(true, vaultId)`), the sidebar gear and vault switcher open the list. The
+  settings view holds the GitHub token form, `SettingsForm` and the versions. A nested help `Modal` ("What is a
+  vault?", static, no backend) and a nested confirm `Modal` for missing folders.
 - **Service worker**: precaches the app shell; `vault-api` NetworkFirst cache (5 s timeout) for the vault list, file
   tree and opened notes; auto-update with a re-check whenever the app becomes visible.
 
@@ -74,7 +80,9 @@ flowchart LR
 | `main.ts` | Reads env and `*_FILE` secrets, wires the services, graceful shutdown. |
 | `app.ts` | Express routes under `/api`, error mapping, NDJSON writer (15 s keepalive). `/healthz` outside auth; `/api/health` also reports the release version (`APP_VERSION`, `dev` for local builds), which the settings dialog shows next to the PWA's own. |
 | `auth.ts` | Bearer token check (hashed, constant-time compare). |
-| `vaults.ts` | Vault lifecycle (add, clone, patch, remove), file API, search, status, events, commit/push/discard, conflict resolution; per-vault runtime state. |
+| `vaults.ts` | Vault lifecycle (add with preflight, clone, patch, remove), file API, search, status, events, commit/push/discard, conflict resolution; per-vault runtime state; per-vault token access check (`checkAccess`). Reads the GitHub token through a getter per git operation. |
+| `preflight.ts` | `preflight()`: the attach check ([Attach preflight](#attach-preflight)); `REQUIRED_FOLDERS`. |
+| `github-token.ts` | `GitHubToken`: the server-wide token (stored over secret), its source, `GET /user` identity check, redaction of every value seen. |
 | `repo.ts`, `git.ts` | All git commands for one clone: changes, diff, pull procedure, commit, push, conflict sides and resolution; hardened `runGit`. |
 | `files.ts`, `paths.ts` | Tree listing, versions (content hash), ripgrep search; path normalization and symlink-safe resolution. |
 | `lock.ts` | Per-vault reader/writer lock with writer preference (shared: `save`, `turn`; exclusive: every git operation). |
@@ -82,7 +90,7 @@ flowchart LR
 | `chat.ts` | Chats and turns: per-vault queue (one running turn), pull before each turn, stream fan-out, abort, adoption of busy sessions after a restart. |
 | `harness/opencode.ts`, `harness/map.ts` | The only code that knows opencode: an ACP-shaped `Harness` interface and the mapping of opencode events to app events. |
 | `commit-message.ts` | Proposes commit messages with a throwaway, tool-less session. |
-| `config-store.ts` | Atomic, serialized writes to `/config/config.json`. |
+| `config-store.ts` | Atomic, serialized writes to `/config/config.json`; also holds the GitHub token set in the app. |
 
 ### opencode (`deploy/opencode`)
 
@@ -122,12 +130,91 @@ sequenceDiagram
   the vault event stream (`status`, `files-changed`; never ends) and the chat stream (ends when the turn is idle).
 - Turns outlive connections: a client reattaches to a running turn from any device.
 
+## Attach preflight
+
+`POST /vaults` (`Vaults.add`) checks a repo before anything is stored:
+
+```mermaid
+sequenceDiagram
+  participant A as app.ts POST /vaults
+  participant V as Vaults.add
+  participant P as preflight()
+  participant G as remote (GitHub or file://)
+  A->>V: input (+ createFolders?)
+  V->>V: repo format, refuseDuplicate, adding-set guard
+  V->>P: repo, branch, root
+  P->>G: clone --depth 1 --filter=blob:none --no-checkout -b branch (tmp dir, 60 s limit)
+  alt clone fails
+    P-->>V: GitError, mapped to 422 repo-unreachable
+  end
+  P->>P: ls-tree HEAD[:root] for the folder names
+  P-->>V: rootExists, missing[] (subset of Sources, Wiki)
+  P->>P: rm tmp dir (finally)
+  alt root missing
+    V-->>A: 422 root-missing
+  else missing non-empty and not createFolders
+    V-->>A: 409 missing-folders { missing }
+  else
+    V->>V: store vault (+ pendingFolders), startClone
+    V-->>A: 202 Vault
+  end
+```
+
+- The preflight clone is blobless, depth 1 and without checkout (commits and trees only, small even for media-heavy
+  vaults), made in a random `pre-*` dir under `<vaultsDir>/.preflight/` on the vaults volume, and always removed.
+  `Vaults.init()` removes `.preflight/` at startup (leftovers of a crash). The clone is killed after 60 s. It also
+  works against `file://` remotes (`GIT_REMOTE_BASE`) in tests and dev.
+- **Folder check:** `git ls-tree HEAD[:<root>]`; only entries of type tree count, so a *file* named `Wiki` is missing.
+  Names match case-insensitively; missing ones are created as `Sources/` / `Wiki/`. A root that isn't in the tree
+  gives `rootExists: false`.
+- **Concurrency guard:** an in-memory set of `repo|branch|root` keys whose add is in flight; a second add of the same key
+  gets `409 duplicate`. It bounds parallel preflights per repo and closes the window between duplicate check and store.
+- **Persisting:** only after the preflight passed. With `createFolders` and missing folders, the stored vault carries
+  `pendingFolders`; when the clone has finished, `createFolders()` writes `<root>/<folder>/.gitkeep` (skipping a folder
+  that exists after the clone, failing with "a file with that name exists" if a file blocks it) and then `cloned: true`
+  is stored and `pendingFolders` removed. A restart mid-clone re-clones and still creates them. The writes are
+  uncommitted changes (ADR 0001), outside the AI-touched set. Folders deleted between preflight and clone aren't
+  re-checked.
+- **Errors** (`HttpError` JSON `{error, code}`): `422 repo-unreachable` (message from `cloneErrorText`, redacted),
+  `422 root-missing`, `409 missing-folders` (body adds `missing: string[]`), `409 duplicate`. `clone-failed` remains
+  for failures after the preflight. `PATCH /vaults/:id` has no preflight.
+- Messages from preflight and clone failures go through `redact()` before they are returned, logged or stored.
+
+## GitHub token
+
+- **Storage:** `ConfigData.githubToken`, a top-level key of `config.json` and deliberately not part of `Settings`,
+  because `GET /settings` returns settings verbatim. `GitHubToken.current()` returns the stored token, else the
+  `GITHUB_TOKEN` secret read at startup; `source()` is `settings | secret | none`; `clear()` falls back to the secret.
+  Existing deployments therefore keep working unchanged.
+- **Live getter:** `Vaults` gets `githubToken: () => string | undefined` instead of a startup string and calls it
+  per git operation (clone, pull, push, preflight, access check), so a changed token applies to the next one, no restart.
+- **Routes:**
+
+  | Route | Body | Reply |
+  |---|---|---|
+  | `GET /settings`, `PATCH /settings` | | `SettingsView`: settings + `githubToken: { source, last4 \| null }` (last4 of the current token, stored or secret), never the plaintext |
+  | `PUT /settings/github-token` | `{ token }` (trimmed, 20–255 chars, no whitespace; else 400) | `204` |
+  | `DELETE /settings/github-token` | | `204`; falls back to the secret |
+  | `POST /settings/github-token/test` | `{ token? }`, else the current token | `200 TokenTest` |
+
+  The token routes answer 404 when no `GitHubToken` is wired (tests that omit it).
+- **Token test:** `TokenTest { ok, login?, scopes?, expiresAt?, error?, vaults: {id, repo, ok, error?}[] }`. Identity is
+  `GET {GITHUB_API_BASE}/user` (default `https://api.github.com`, 10 s timeout; `X-OAuth-Scopes`,
+  `github-authentication-token-expiration`); it reports 401 as "GitHub rejected the token (401)." and network failure as
+  "GitHub is not reachable from the server right now.". In parallel, `Vaults.checkAccess` runs
+  `git ls-remote --exit-code --heads <remote><repo>.git <branch>` per configured vault with the tested token, which
+  proves repo access (a fine-grained token passes `/user` without it). Nothing is stored. API base and remote base
+  come from server env, never from the request.
+- **Redaction:** `GitHubToken` remembers every value seen since startup (secret, stored, every set and every tested
+  token) and `redact()` masks each as `***`; `Vaults` redacts clone, preflight and access-check messages with it.
+
 ## Data
 
 | Store | Content | Owner |
 |---|---|---|
 | Volume `vaults` → `/vaults/<id>` | Full git clone of each vault repo (no shallow or sparse clone). The notes themselves. | backend (git), opencode (file tools) |
-| Volume `config` → `/config/config.json` | `vaults` (config + `cloned` / `cloneError`), `settings`, `aiTouched`, `conflicts`, `queued` turns. | backend only |
+| Volume `config` → `/config/config.json` | `vaults` (config + `cloned` / `cloneError` / `pendingFolders`), `settings`, `githubToken` (plaintext, if set in the app), `aiTouched`, `conflicts`, `queued` turns. | backend only |
+| `/vaults/.preflight/` | Short-lived blobless clones of the attach preflight; emptied at startup. | backend |
 | Volume `opencode-data` | opencode sessions = chat history. | opencode |
 | Volume `caddy-data` | TLS certificates and keys. | proxy |
 | Browser localStorage | Token, local drafts, tree expansion state. | web |
@@ -146,7 +233,7 @@ No database. Git is the source of truth for notes; GitHub is the sync hub.
 
 | System | Used for | Status |
 |---|---|---|
-| GitHub | Vault repos; fine-grained token as an HTTP extra header, never in `.git/config` | in use |
+| GitHub | Vault repos; fine-grained token as an HTTP extra header, never in `.git/config`; `api.github.com/user` for the token test | in use |
 | LLM providers (OpenRouter in production, any via opencode) | Model behind opencode; keys only in `opencode.env` | OpenRouter `z-ai/glm-5.3` on zero-data-retention hosts in production |
 | Ollama | Dev, local prod test and CI LLM tests | in use |
 | Let's Encrypt + GoDaddy DNS | Certificate for `app.karpathy.app` via DNS-01; the A record points at the server's tailnet IP | in use |
@@ -185,7 +272,13 @@ The ones that shape the whole system:
 - **Editor = CodeMirror 6 on raw Markdown** ([ADR 0003](../../docs/adr/0003-codemirror-raw-markdown-editor.md)):
   lossless round trip, clean git diffs, no fight with the AI's raw edits.
 - **Vault = GitHub repo, sync = git:** the app holds no content of its own; Obsidian on other devices uses the same
-  remote. One GitHub token for all vaults; per-vault tokens are a later option.
+  remote. One GitHub token for all vaults, editable in the app (the deployment secret is the fallback); if vaults
+  ever span several owners, the follow-up is one token per owner, not per vault.
+- **Checked attach:** a vault is stored only after a preflight (reachable, branch, root, `Sources/` + `Wiki/`), so a typo
+  or a missing token scope never leaves a `clone-failed` vault behind. One endpoint answers `409` and is retried with
+  `createFolders`, instead of a separate check endpoint that could go stale; git does the check, not the GitHub API,
+  so it works against `file://` test remotes. Created folders are `.gitkeep` placeholders, uncommitted (ADR 0001); a
+  visible `README.md` would look like a source to ingest skills.
 - **The user commits, the AI never does** ([ADR 0001](../../docs/adr/0001-user-triggered-commits.md)).
 - **Explicit pull steps instead of `git pull --rebase --autostash`** (diagram in
   [domain.md](domain.md#pull-and-conflict)): unpushed commits are folded back with `reset --mixed`, never rebased, so no
@@ -215,6 +308,10 @@ The ones that shape the whole system:
   tests use a model name Ollama doesn't have, so turns fail fast and the lifecycle is tested without an LLM),
   *`@github`* (nightly + locally: against the private throwaway repo `tillg/karpathy-app-test-vault`, pushing only
   to temporary `test-<ts>` branches) and *`@llm`* (nightly + locally: real model turns).
+- **Attach and token tests:** test remotes carry `Sources/` and `Wiki/` (backend `makeRemote`, e2e `make-vault.py`, the
+  GitHub test vault), so ordinary tests attach without a `409`; preflight tests opt out (`structure: false`). Token
+  storage, precedence, masking and redaction run in the default tier; the `/user` identity check and a token changed
+  at runtime need real GitHub (`@github`), because `file://` remotes never send the auth header.
 - **`@llm` rules:** prompts name the tool explicitly; assertions check tool events and the file system, never answer
   text; a turn without any tool call fails as *inconclusive*, not as passed; at most one retry.
 - **Model in dev and CI:** Ollama `qwen2.5:3b` with `OLLAMA_CONTEXT_LENGTH=16384` and a matching context limit in the

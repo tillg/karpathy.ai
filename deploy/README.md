@@ -156,7 +156,7 @@ test values only.
 ## A new server, start to finish
 
 1. Book it (Ubuntu 24.04, your SSH key, firewalls `no-inbound` + `setup-ssh`, backups on) and note
-   its public IP. Background: [prod-env report §8](../specs/05_prod_env/prod-env-report.md#guide)
+   its public IP. Background: [prod-env report §8](../specs/research/prod-env/prod-env-report.md#guide)
    (its steps 8.3–8.10 are what the playbook does).
 2. In the Tailscale admin console, add `tag:server` to `tagOwners` and create an auth key: tagged
    `tag:server`, pre-approved, single-use.

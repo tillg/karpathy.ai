@@ -143,7 +143,7 @@ inbound traffic; SSH, the app (443), Beszel (8090) and Gatus (8091) are reached 
 | Secret | Used by | On the host |
 |---|---|---|
 | Bearer token | backend | `shared/secrets/bearer_token` (uid 1000, 0600) |
-| GitHub token | backend | `shared/secrets/github_token` (uid 1000, 0600) |
+| GitHub token | backend | `shared/secrets/github_token` (uid 1000, 0600); the fallback: a token set in the app's settings wins and needs no redeploy |
 | GoDaddy `<key>:<secret>` | proxy (DNS-01) | `shared/secrets/dns_api_token` (root, 0600: Caddy runs as root without CAP_DAC_OVERRIDE) |
 | Provider keys | opencode | `shared/opencode.env` (0600) |
 | Tailscale auth key | `tailscale up` | not stored; single-use |

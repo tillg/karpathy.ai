@@ -111,3 +111,34 @@ deploy-e2e target *args:
 # Copy a target's access token to the clipboard; `--qr` also prints a login QR code for a phone/iPad
 token target *flag:
     deploy/ansible/token.sh {{target}} {{flag}}
+
+# Watch Hetzner for a cheaper server (CX23/CAX11), twice a day with an ntfy push: `just hetzner-watch install|uninstall|now`
+hetzner-watch action:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    label=app.karpathy.hetzner-watch
+    plist=~/Library/LaunchAgents/$label.plist
+    script="$PWD/deploy/hetzner-watch/check.sh"
+    case "{{action}}" in
+      install)
+        mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+        printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+          '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+          '<plist version="1.0"><dict>' \
+          "<key>Label</key><string>$label</string>" \
+          "<key>ProgramArguments</key><array><string>$script</string></array>" \
+          '<key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/bin:/bin</string></dict>' \
+          '<key>StartCalendarInterval</key><array>' \
+          '<dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>' \
+          '<dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>0</integer></dict>' \
+          '</array>' \
+          "<key>StandardOutPath</key><string>$HOME/Library/Logs/hetzner-watch.log</string>" \
+          "<key>StandardErrorPath</key><string>$HOME/Library/Logs/hetzner-watch.log</string>" \
+          '</dict></plist>' > "$plist"
+        launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+        launchctl bootstrap "gui/$(id -u)" "$plist"
+        echo "installed: 08:00 and 14:00, log ~/Library/Logs/hetzner-watch.log" ;;
+      uninstall) launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true; rm -f "$plist"; echo uninstalled ;;
+      now) "$script" ;;
+      *) echo "usage: just hetzner-watch install|uninstall|now" >&2; exit 1 ;;
+    esac

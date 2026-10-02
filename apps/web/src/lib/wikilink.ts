@@ -42,3 +42,22 @@ export function resolveWikilink(target: string, paths: readonly string[]): strin
     return b === name || b === `${name}.md`;
   }) ?? null;
 }
+
+/**
+ * Resolves a relative Markdown link (`../Wiki/index.md#h`, `My%20Note`) from the note at `from` to
+ * a vault path: relative to the note's folder (leading `/` = vault root), `.md` optional. Null for
+ * URLs with a scheme, in-page anchors, missing files and paths above the vault root.
+ */
+export function resolveRelativeLink(href: string, from: string, paths: readonly string[]): string | null {
+  if (!href || href.startsWith('#') || href.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return null;
+  let rel = href.replace(/[?#].*$/, '');
+  try { rel = decodeURIComponent(rel); } catch { return null; }
+  const parts = rel.startsWith('/') ? [] : from.split('/').slice(0, -1);
+  for (const seg of rel.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') { if (!parts.length) return null; parts.pop(); } else parts.push(seg);
+  }
+  const p = parts.join('/');
+  if (!p) return null;
+  return paths.includes(p) ? p : paths.includes(`${p}.md`) ? `${p}.md` : null;
+}

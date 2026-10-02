@@ -1,48 +1,88 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { frontmatterFields, renderMarkdown, splitFrontmatter, type FieldValue } from '../lib/markdown';
-import { parseWikilink, wikilinkLabel, WIKILINK_RE } from '../lib/wikilink';
+import { frontmatterFields, renderMarkdown, splitFrontmatter, type FieldValue, type LinkCtx } from '../lib/markdown';
+import { formatRoute } from '../lib/route';
+import { parseWikilink, resolveRelativeLink, resolveWikilink, wikilinkLabel, WIKILINK_RE } from '../lib/wikilink';
 import { useApp } from '../store';
 import { Editor, type EditorHandle } from './Editor';
 import { GitPill } from './GitPill';
 import { Icon } from './Icon';
 
-/** Rendered Read mode; `[[wikilinks]]` are clickable. */
+/** A plain left click is handled in-app; modified clicks (new tab, window, download) go to the browser (#109). */
+const plainClick = (e: React.MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+
+/** Where links in the open note point: wikilinks and relative Markdown links resolve to app routes (#109, #116). */
+function useLinkCtx(): LinkCtx {
+  const { activeId, paths, note } = useApp();
+  const from = note?.path;
+  return useMemo(() => {
+    const route = (p: string) => formatRoute(activeId, p);
+    return {
+      href: (target) => { const p = resolveWikilink(target, paths); return p ? route(p) : null; },
+      relative: (href) => { const p = from && resolveRelativeLink(href, from, paths); return p ? { path: p, href: route(p) } : null; },
+    };
+  }, [activeId, paths, from]);
+}
+
+/** Rendered Read mode; `[[wikilinks]]` and relative links to vault notes are clickable. */
 export function Markdown({ text, className }: { text: string; className?: string }) {
-  const { exists, followLink } = useApp();
-  const html = useMemo(() => renderMarkdown(text, exists), [text, exists]);
+  const { exists, followLink, openNote } = useApp();
+  const ctx = useLinkCtx();
+  const html = useMemo(() => renderMarkdown(text, exists, ctx), [text, exists, ctx]);
   return (
     <div className={className} dangerouslySetInnerHTML={{ __html: html }}
       onClick={(e) => {
-        const a = (e.target as HTMLElement).closest<HTMLElement>('a.wl');
-        if (!a) return;
+        // Footnote links jump inside this block, not through the hash router (#115).
+        const fn = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#fn"]');
+        if (fn) {
+          e.preventDefault();
+          e.currentTarget.querySelector(`[id="${fn.getAttribute('href')!.slice(1)}"]`)?.scrollIntoView({ block: 'center' });
+          return;
+        }
+        const a = (e.target as HTMLElement).closest<HTMLElement>('a.wl, a[data-note]');
+        if (!a || !plainClick(e)) return;
         e.preventDefault();
-        followLink(a.dataset.target ?? '');
+        if (a.dataset.note) void openNote(a.dataset.note, undefined, undefined, true);
+        else followLink(a.dataset.target ?? '');
       }} />
   );
 }
 
-/** Text with its `[[wikilinks]]` as links, resolved like the body's (#58). */
-function Linked({ text }: { text: string }) {
+/**
+ * Text with its `[[wikilinks]]` as links, resolved like the body's (#58). `bare`: a value without
+ * `[[ ]]` that names an existing note (slug or file name) links too (#108).
+ */
+function Linked({ text, bare }: { text: string; bare?: boolean }) {
   const { exists, followLink } = useApp();
+  const ctx = useLinkCtx();
   const out: React.ReactNode[] = [];
   let last = 0;
-  for (const m of text.matchAll(WIKILINK_RE)) {
-    const inner = m[1]!;
+  const link = (key: number, inner: string) => {
     const l = parseWikilink(inner);
-    out.push(text.slice(last, m.index));
     out.push(
-      <a key={m.index} href="#" className={!l.target || exists(l.target) ? 'wl' : 'wl miss'} data-target={inner}
-        onClick={(e) => { e.preventDefault(); followLink(inner); }}>{wikilinkLabel(l)}</a>,
+      <a key={key} href={(l.target && ctx.href(l.target)) || '#'} className={!l.target || exists(l.target) ? 'wl' : 'wl miss'} data-target={inner}
+        onClick={(e) => { if (plainClick(e)) { e.preventDefault(); followLink(inner); } }}>{wikilinkLabel(l)}</a>,
     );
+  };
+  if (bare && !text.includes('[[') && text.trim() && exists(text.trim())) {
+    link(0, text.trim());
+    return <>{out}</>;
+  }
+  for (const m of text.matchAll(WIKILINK_RE)) {
+    out.push(text.slice(last, m.index));
+    link(m.index, m[1]!);
     last = m.index + m[0].length;
   }
   out.push(text.slice(last));
   return <>{out}</>;
 }
 
-function PropValue({ v }: { v: FieldValue }) {
+/** Frontmatter keys whose list items are note references. */
+const NOTE_REF_KEYS = new Set(['related', 'sources']);
+
+function PropValue({ k, v }: { k: string; v: FieldValue }) {
   if (typeof v === 'string') return <span className="pv"><Linked text={v} /></span>;
-  return <span className="pv chips">{v.map((item, i) => <span className="chip" key={i}><Linked text={item} /></span>)}</span>;
+  const bare = NOTE_REF_KEYS.has(k.toLowerCase());
+  return <span className="pv chips">{v.map((item, i) => <span className="chip" key={i}><Linked text={item} bare={bare} /></span>)}</span>;
 }
 
 function ReadView({ text }: { text: string }) {
@@ -51,7 +91,7 @@ function ReadView({ text }: { text: string }) {
     <div className="read" data-testid="read-view">
       {frontmatter !== null && (
         <div className="props">
-          {frontmatterFields(frontmatter).map(([k, v], i) => <div className="prop" key={`${k}${i}`}><span>{k}</span><PropValue v={v} /></div>)}
+          {frontmatterFields(frontmatter).map(([k, v], i) => <div className="prop" key={`${k}${i}`}><span>{k}</span><PropValue k={k} v={v} /></div>)}
         </div>
       )}
       <Markdown text={body} className="rd" />
@@ -63,10 +103,12 @@ export function NotePane({ inert }: { inert?: boolean }) {
   const s = useApp();
   const { note, mode, setMode, readOnly, online, conflict, phone, wide } = s;
   const editor = useRef<EditorHandle>(null);
-  const draft = useRef('');
 
   useEffect(() => { if (note?.goto && mode === 'write') editor.current?.gotoLine(note.goto.line); }, [note?.goto, mode, note?.loadNonce]);
-  useEffect(() => { draft.current = note?.loaded ?? ''; }, [note?.loadNonce, note?.loaded]);
+  // The editor opens with the current text (not `loaded`, which predates our own saves); it only
+  // changes on (re)load or mode switch, so typing and saving never replace the editor's text (#101).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const editorDoc = useMemo(() => s.currentText(), [note?.path, note?.loadNonce, mode]);
 
   const title = note ? note.path.split('/').pop()!.replace(/\.md$/i, '') : '';
   const del = () => { if (note && confirm(`Delete ${note.path}? It stays recoverable until you commit.`)) void s.deleteNote(); };
@@ -115,9 +157,9 @@ export function NotePane({ inert }: { inert?: boolean }) {
           <div className="doc">
             <h2 className="note-title">{title}</h2>
             {mode === 'write'
-              ? <Editor key={note.path} ref={editor} doc={note.loaded} docNonce={note.loadNonce} readOnly={readOnly || !!note.deleted}
-                  onChange={(t) => { draft.current = t; s.editDraft(t); }} exists={s.exists} onWikilink={s.followLink} />
-              : <ReadView text={note.dirty ? draft.current : note.loaded} />}
+              ? <Editor key={note.path} ref={editor} doc={editorDoc} docNonce={note.loadNonce} readOnly={readOnly || !!note.deleted}
+                  onChange={s.editDraft} exists={s.exists} onWikilink={s.followLink} />
+              : <ReadView text={s.currentText()} />}
             <div className="dfoot" data-testid="save-state">
               {note.saving ? 'Saving…' : note.dirty ? '● Unsaved changes' : 'Saved'}{readOnly ? ' · read-only' : ''}
             </div>

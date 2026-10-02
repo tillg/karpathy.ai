@@ -225,7 +225,16 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .rd code, .atext code { font-family: var(--mono); font-size: .86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; }
 .rd pre, .atext pre { background: var(--fill2); padding: 10px 12px; border-radius: 10px; overflow: auto; }
 .rd pre code, .atext pre code { background: none; padding: 0; }
-.rd table { border-collapse: collapse; } .rd td, .rd th { border: .5px solid var(--sep); padding: 4px 8px; }
+.rd table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
+.rd td, .rd th { border: .5px solid var(--sep); padding: 4px 8px; word-break: normal; overflow-wrap: normal; }
+.rd .task { margin-right: 2px; color: var(--label2); } .rd .task[data-done="true"] { color: var(--tint); }
+.rd li:has(> .task) { list-style: none; margin-left: -1.1em; }
+.rd mark { background: rgba(245,158,11,.35); }
+.rd .callout { margin: .7em 0; padding: 10px 14px; border-left: 3px solid var(--tint); background: var(--tint-soft); border-radius: 8px; }
+.rd .callout-title { font-weight: 600; } .rd .callout-body > :first-child { margin-top: .2em; } .rd .callout-body > :last-child { margin-bottom: 0; }
+.rd sup.fn a { text-decoration: none; padding: 0 1px; }
+.rd .footnotes { margin-top: 1.6em; padding-top: .6em; border-top: .5px solid var(--sep); font-size: 14px; color: var(--label2); }
+.rd .footnotes ol { margin: 0; } .rd .footnotes .fn-back { text-decoration: none; }
 .rd img { max-width: 100%; }
 .wl { color: var(--tint); text-decoration: none; cursor: pointer; border-radius: 4px; }
 .wl:hover { background: var(--tint-soft); }

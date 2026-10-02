@@ -256,6 +256,9 @@ function useAppState() {
     return failed.current !== 'stale' && failed.current !== 'deleted';
   }, [save, toast]);
 
+  /** The open note's current text, including unsaved edits and saves since it was loaded (#101). */
+  const currentText = useCallback(() => noteRef.current?.draft ?? '', []);
+
   const editDraft = useCallback((text: string) => {
     const n = noteRef.current;
     if (!n || n.binary) return;
@@ -334,11 +337,11 @@ function useAppState() {
   const [noteTab, setNoteTab] = useState<PhoneTab | null>(null);
   const phoneNote = noteTab !== null && noteTab === phoneTab;
   const setPhoneNote = useCallback((on: boolean) => setNoteTab(on ? phoneTab : null), [phoneTab]);
+  // Narrowing into the phone layout with a note open keeps the note pushed (#104).
+  useEffect(() => { if (phone && noteRef.current) setNoteTab((t) => t ?? 'files'); }, [phone]);
   const [chatOpen, setChatOpen] = useState(() => innerWidth >= 1280);
   // Wide layout: which of note and chat is in the main column (the other is in the 380 px side column).
   // Per-browser preference; storage can throw (private mode, blocked site data): default to note in main.
-  // Narrowing into the phone layout with a note open keeps the note pushed (#104).
-  useEffect(() => { if (phone && noteRef.current) setNoteTab((t) => t ?? 'files'); }, [phone]);
   const [chatMain, setChatMain] = useState(() => { try { return localStorage.getItem(CHAT_MAIN_KEY) === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem(CHAT_MAIN_KEY, chatMain ? '1' : '0'); } catch { /* not remembered */ } }, [chatMain]);
   const [sidebarOpen, setSidebarOpen] = useState(wide);
@@ -580,7 +583,7 @@ function useAppState() {
     online, phone, wide, toast, toastMsg,
     vaults, reloadVaults, settings, setSettings, active, activeId, setActiveId, usable,
     status, setStatus, files, paths, refreshFiles, changesNonce,
-    note, openNote, isEditing, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
+    note, currentText, openNote, isEditing, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
     keepDeletedNote, closeDeletedNote,
     followLink, exists, readOnly, conflict,
     section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen, chatMain, setChatMain,

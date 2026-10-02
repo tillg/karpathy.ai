@@ -79,22 +79,25 @@ function useChat(vaultId: string, chatId: string) {
 function ToolChip({ call, open, onToggle }: { call: ToolCall; open: boolean; onToggle(): void }) {
   const { openNote } = useApp();
   const target = call.path ?? call.title ?? '';
+  const label = call.status === 'denied' || call.status === 'error'
+    ? `${call.status === 'denied' ? 'denied · ' : ''}${call.tool} ${target}`
+    : `${call.writes ? 'changing' : call.tool} ${target}`;
   // Failed and denied steps open their error on tap: touch devices can't show a tooltip (#63).
   if (call.status === 'denied' || call.status === 'error') {
     const icon = call.status === 'denied' ? <Icon n="nosign" size={14} /> : <span className="err"><Icon n="xmark" size={14} /></span>;
     return (
       <button className={`tc ${call.status}`} data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path}
-        aria-expanded={open} onClick={onToggle}>
-        {icon}{call.status === 'denied' ? 'denied · ' : ''}{call.tool} {target}
+        aria-expanded={open} onClick={onToggle} title={label}>
+        {icon}<span className="tc-t">{label}</span>
       </button>
     );
   }
   if (call.opens && call.status === 'completed' && call.path)
-    return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="false" data-opens="true" data-path={call.path} onClick={() => void openNote(call.path!)}><Icon n="arrow_up_right_square" size={14} />opened {call.path}</button>;
+    return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="false" data-opens="true" data-path={call.path} title={`opened ${call.path}`} onClick={() => void openNote(call.path!)}><Icon n="arrow_up_right_square" size={14} /><span className="tc-t">opened {call.path}</span></button>;
   if (call.writes && call.status === 'completed' && call.path)
-    return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="true" data-path={call.path} onClick={() => void openNote(call.path!)}><Icon n="pencil" size={14} />changed {call.path}</button>;
+    return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="true" data-path={call.path} title={`changed ${call.path}`} onClick={() => void openNote(call.path!)}><Icon n="pencil" size={14} /><span className="tc-t">changed {call.path}</span></button>;
   const icon = call.status === 'completed' ? <span className="ok"><Icon n="checkmark" size={14} /></span> : <span className="spin" />;
-  return <span className="tc" data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path}>{icon}{call.writes ? 'changing' : call.tool} {target}</span>;
+  return <span className="tc" data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path} title={label}>{icon}<span className="tc-t">{label}</span></span>;
 }
 
 /** One row of chips; a tapped failed chip shows its error under the row. */
@@ -172,6 +175,28 @@ function Conversation({ vaultId, chatId }: { vaultId: string; chatId: string }) 
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [chat, pending]);
+  // A list that was at the end stays there when its width changes and the text reflows (#105);
+  // one scrolled up keeps its position.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // Was it at the end before this resize? scrollTop is unchanged by a reflow, so compare with the previous sizes.
+    // A scroll event may be delivered after a resize already changed the layout: then its sizes are not "before".
+    let last = { h: el.scrollHeight, ch: el.clientHeight, w: el.offsetWidth };
+    const measure = () => { last = { h: el.scrollHeight, ch: el.clientHeight, w: el.offsetWidth }; };
+    const syncHeight = () => { if (el.offsetWidth === last.w) last = { ...last, h: el.scrollHeight, ch: el.clientHeight }; };
+    el.addEventListener('scroll', syncHeight, { passive: true });
+    const ro = new ResizeObserver(() => {
+      if (last.h - last.ch - el.scrollTop <= 4) el.scrollTop = el.scrollHeight;
+      measure();
+    });
+    // The list's own box and whatever it holds (a banner, the messages) all change its scroll height.
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c);
+    const mo = new MutationObserver((ms) => { ms.forEach((m) => m.addedNodes.forEach((n) => n instanceof Element && ro.observe(n))); syncHeight(); });
+    mo.observe(el, { childList: true });
+    return () => { ro.disconnect(); mo.disconnect(); el.removeEventListener('scroll', syncHeight); };
+  }, []);
   useEffect(() => {
     // Keep the optimistic bubble until the server has the message; a prompt stopped while
     // still queued goes back into the composer.
@@ -266,7 +291,7 @@ function ChatList({ vaultId }: { vaultId: string }) {
           {chats.map((c) => (
             <div className="row" key={c.id}>
               <button className="row-main" data-testid="chat-item" onClick={() => setChatId(c.id)}>
-                <span className="ic"><Icon n="bubble_left" size={20} /></span><span className="nm">{c.title || 'Untitled chat'}</span>
+                <span className="ic"><Icon n="bubble_left" size={20} /></span><span className="nm" title={c.title || undefined}>{c.title || 'Untitled chat'}</span>
                 {c.turn !== 'idle' && <span className={`turn-mark ${c.turn}`} data-testid="chat-turn" data-turn={c.turn}>{c.turn === 'running' ? 'Running' : 'Queued'}</span>}
                 <span className="cnt">{when(c.updatedAt)}</span>
               </button>

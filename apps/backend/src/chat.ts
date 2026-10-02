@@ -232,13 +232,13 @@ export class ChatService {
     void this.kick(vaultId);
   }
 
-  /** opencode names new sessions "New session - <date>"; name the chat after its first prompt. */
+  /** opencode names new sessions "New session - <date>"; name the chat after its first prompt (the UI cuts it with CSS; the cap only guards pasted walls of text). */
   private async titleFromFirstPrompt(vaultId: string, chatId: string, text: string) {
     const dir = this.dir(vaultId);
     const s = (await this.harness.listSessions(dir).catch(() => [])).find((x) => x.id === chatId);
     if (!s || !/^New session/.test(s.title)) return;
     const title = text.replace(/\s+/g, ' ').trim();
-    await this.harness.setTitle(dir, chatId, title.length > 60 ? `${title.slice(0, 57)}…` : title).catch(() => undefined);
+    await this.harness.setTitle(dir, chatId, title.length > 500 ? `${title.slice(0, 499)}…` : title).catch(() => undefined);
   }
 
   /** What a queued turn waits for: another chat's turn, or a sync (pull/commit/…). */

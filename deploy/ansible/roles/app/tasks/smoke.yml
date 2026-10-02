@@ -1,20 +1,27 @@
 # All services healthy (compose wait), /api/health through the proxy, the version is the requested one.
+# curl --resolve: the name (and so TLS/SNI) is the real domain, but the address is the one the proxy
+# binds, so this works before the DNS record exists. The first DNS-01 certificate can take a minute.
 - name: GET /api/health through the proxy
-  ansible.builtin.uri:
-    url: https://{{ domain }}:{{ https_port }}/api/health
-    headers: { Authorization: "Bearer {{ bearer_token }}" }
-    validate_certs: "{{ tls_mode != 'internal' }}"
-    return_content: true
-  register: app_health
-  until: app_health.status == 200
-  retries: 12
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -sf {{ '-k' if tls_mode == 'internal' else '' }} \
+      --resolve {{ domain }}:{{ https_port }}:{{ '127.0.0.1' if bind_ip == '0.0.0.0' else bind_ip }} \
+      -H @- https://{{ domain }}:{{ https_port }}/api/health <<< "Authorization: Bearer {{ bearer_token }}"
+  args:
+    executable: /bin/bash
+  register: app_health_raw
+  until: app_health_raw.rc == 0
+  retries: 24
   delay: 5
+  changed_when: false
   no_log: true
   check_mode: false
 
 - name: Running release is v{{ app_release }}
+  vars:
+    app_health: "{{ app_health_raw.stdout | from_json }}"
   ansible.builtin.assert:
     that:
-      - app_health.json.version == app_release
-      - app_health.json.opencode == 'ok'
-    fail_msg: "health reports {{ app_health.json }}, expected version {{ app_release }} and opencode ok"
+      - app_health.version == app_release
+      - app_health.opencode == 'ok'
+    fail_msg: "health reports {{ app_health }}, expected version {{ app_release }} and opencode ok"

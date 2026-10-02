@@ -338,7 +338,13 @@ function useAppState() {
   const phoneNote = noteTab !== null && noteTab === phoneTab;
   const setPhoneNote = useCallback((on: boolean) => setNoteTab(on ? phoneTab : null), [phoneTab]);
   // Narrowing into the phone layout with a note open keeps the note pushed (#104).
-  useEffect(() => { if (phone && noteRef.current) setNoteTab((t) => t ?? 'files'); }, [phone]);
+  // Only a real wide/tablet → phone transition counts, not the mount or a re-run of the effect.
+  const wasPhone = useRef(phone);
+  useEffect(() => {
+    const narrowed = phone && !wasPhone.current;
+    wasPhone.current = phone;
+    if (narrowed && noteRef.current) setNoteTab((t) => t ?? (phoneTab === 'chat' ? 'files' : phoneTab));
+  }, [phone, phoneTab]);
   const [chatOpen, setChatOpen] = useState(() => innerWidth >= 1280);
   // Wide layout: which of note and chat is in the main column (the other is in the 380 px side column).
   // Per-browser preference; storage can throw (private mode, blocked site data): default to note in main.

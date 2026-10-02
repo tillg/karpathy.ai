@@ -231,7 +231,13 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .rd li:has(> .task) { list-style: none; margin-left: -1.1em; }
 .rd mark { background: rgba(245,158,11,.35); }
 .rd .callout { margin: .7em 0; padding: 10px 14px; border-left: 3px solid var(--tint); background: var(--tint-soft); border-radius: 8px; }
+.rd .callout[data-callout="tip"], .rd .callout[data-callout="hint"], .rd .callout[data-callout="success"], .rd .callout[data-callout="check"], .rd .callout[data-callout="done"] { border-left-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.rd .callout[data-callout="question"], .rd .callout[data-callout="help"], .rd .callout[data-callout="faq"], .rd .callout[data-callout="warning"], .rd .callout[data-callout="caution"], .rd .callout[data-callout="attention"] { border-left-color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+.rd .callout[data-callout="danger"], .rd .callout[data-callout="error"], .rd .callout[data-callout="failure"], .rd .callout[data-callout="fail"], .rd .callout[data-callout="missing"], .rd .callout[data-callout="bug"] { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.rd .callout[data-callout="example"] { border-left-color: var(--purple); background: color-mix(in srgb, var(--purple) 14%, transparent); }
+.rd .callout[data-callout="quote"], .rd .callout[data-callout="cite"] { border-left-color: var(--label2); background: var(--fill); }
 .rd .callout-title { font-weight: 600; } .rd .callout-body > :first-child { margin-top: .2em; } .rd .callout-body > :last-child { margin-bottom: 0; }
+.rd a.wl.embed::before { content: "↪ "; }
 .rd sup.fn a { text-decoration: none; padding: 0 1px; }
 .rd .footnotes { margin-top: 1.6em; padding-top: .6em; border-top: .5px solid var(--sep); font-size: 14px; color: var(--label2); }
 .rd .footnotes ol { margin: 0; } .rd .footnotes .fn-back { text-decoration: none; }

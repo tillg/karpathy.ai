@@ -47,3 +47,17 @@ describe('116 relative note links', () => {
     expect(html).toContain('href="missing.md"');
   });
 });
+
+describe('116 forged data-note', () => {
+  const ctx = { href: () => null, relative: () => null };
+  it('is removed from raw HTML links that do not resolve', () => {
+    const html = renderMarkdown('<a data-note="../../x" href="https://x.com">e</a> <a data-note="y.md" href="other.md">r</a>', () => true, ctx);
+    expect(html).not.toContain('data-note');
+  });
+});
+
+describe('116 relative links from the vault root (chat)', () => {
+  it('resolve against the root when from is empty', () => {
+    expect(resolveRelativeLink('Wiki/index.md', '', ['Wiki/index.md'])).toBe('Wiki/index.md');
+  });
+});

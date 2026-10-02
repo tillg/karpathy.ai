@@ -1,7 +1,7 @@
 ---
 title: "Security: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-02
+edited: 2026-10-03
 ---
 
 # Security: karpathy.app
@@ -104,7 +104,9 @@ bearer token.
 ## Rendering untrusted content
 
 Notes and AI replies are untrusted HTML sources. Markdown is rendered with `marked` and sanitized with DOMPurify
-(forms, inputs, buttons, styles, links, meta, base and dialogs removed, `style` and form attributes stripped). The
+(forms, inputs, buttons, styles, links, meta, base and dialogs removed, `style` and form attributes stripped). After
+sanitizing, a hook sets only the app's own link attributes: route hrefs for vault links (any `data-note` from the note
+itself is removed first) and `target="_blank" rel="noopener noreferrer"` on external links. The
 prod proxy adds a strict **CSP** (`default-src 'self'`, `script-src 'self'`, `object-src 'none'`,
 `frame-ancestors 'none'`, …; `style-src 'unsafe-inline'` because CodeMirror injects styles) and `nosniff`,
 `no-referrer` and `X-Frame-Options DENY`.

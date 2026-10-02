@@ -1,7 +1,7 @@
 ---
 title: "Architecture: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-02
+edited: 2026-10-03
 ---
 
 # Architecture: karpathy.app
@@ -63,7 +63,10 @@ flowchart LR
   pipeline (autosave 1.5 s, drafts, retries), the vault event stream and routing (`#/<vault>/<path>`).
 - **Editor** (`Editor.tsx`, `lib/cm.ts`): CodeMirror 6 with decorations only, so the Markdown text, frontmatter and
   `[[wikilinks]]` round-trip losslessly; CRLF kept; external reloads applied as one minimal change.
-- **Renderer** (`lib/markdown.ts`): `marked` + wikilink extension + DOMPurify for Read mode and chat text.
+- **Renderer** (`lib/markdown.ts`): `marked` with extensions (wikilinks and embeds, highlights, footnotes; callouts and
+  task markers via renderer overrides; `%%comments%%` stripped outside code) + DOMPurify for Read mode and chat text. A
+  per-call `afterSanitizeAttributes` hook sets link targets: wikilinks and resolved relative links get app routes,
+  external links `target="_blank" rel="noopener noreferrer"`.
 - **API client** (`lib/api.ts`, `lib/ndjson.ts`): fetch wrapper with Bearer token, typed `ApiError`, NDJSON reader.
 - **Admin modal** (`Admin.tsx`): one `Modal` with local view state `list | details | add | settings` (no router;
   `adminOpen` stays a boolean plus an optional vault id). Every view but the list has a "All vaults" back button; closing

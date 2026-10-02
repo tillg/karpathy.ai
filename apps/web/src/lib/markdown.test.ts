@@ -135,4 +135,10 @@ describe('renderMarkdown (Obsidian syntax)', () => {
     expect(html).toContain('id="fn-2"');
     expect(html).not.toContain('[^');
   });
+
+  it('#115 nested footnote reference gets its own list item', () => {
+    const html = r('A[^1].\n\n[^1]: see [^2]\n[^2]: deep\n');
+    expect(html).toContain('href="#fn-2"');
+    expect(html).toMatch(/<li id="fn-2">[\s\S]*deep/);
+  });
 });

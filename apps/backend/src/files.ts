@@ -70,13 +70,17 @@ export async function search(root: string, q: string): Promise<{ hits: SearchHit
     if (!line.startsWith('{"type":"match"')) continue;
     const m = JSON.parse(line) as { data: { path: { text?: string }; line_number: number; lines: { text?: string } } };
     const path = (m.data.path.text ?? '').replace(/^\.\//, '');
+    // A path that isn't UTF-8 comes as `path.bytes`: it can't be opened in the app anyway.
+    if (!path) continue;
     content.push({ path, line: m.data.line_number, text: (m.data.lines.text ?? '').trimEnd() });
   }
   if (terms.length > 1) {
     const ok = new Map<string, boolean>();
     for (const path of new Set(content.map((h) => h.path))) {
-      const hay = path.toLowerCase() + '\n' + (await readFile(join(root, path), 'utf8')).toLowerCase();
-      ok.set(path, terms.every((t) => hay.includes(t)));
+      // The AI or a pull may delete or rename it between rg and this read: then it doesn't match.
+      const text = await readFile(join(root, path), 'utf8').catch(() => null);
+      const hay = path.toLowerCase() + '\n' + (text ?? '').toLowerCase();
+      ok.set(path, text !== null && terms.every((t) => hay.includes(t)));
     }
     content = content.filter((h) => ok.get(h.path));
   }

@@ -159,7 +159,11 @@ export function toHtml(md: string, exists: (target: string) => boolean): string 
   });
   const html = marked.parse(md, { async: false });
   if (!order.length) return html;
-  const items = order.map((id, i) => `<li id="fn-${i + 1}">${marked.parseInline(defs.get(id)!, { async: false })} <a href="#fnref-${i + 1}" class="fn-back">↩</a></li>`);
+  // A definition may reference further footnotes: they join `order` while it is rendered.
+  const items: string[] = [];
+  for (let i = 0; i < order.length; i++) {
+    items.push(`<li id="fn-${i + 1}">${marked.parseInline(defs.get(order[i]!)!, { async: false })} <a href="#fnref-${i + 1}" class="fn-back">↩</a></li>`);
+  }
   return `${html}<section class="footnotes"><ol>${items.join('')}</ol></section>\n`;
 }
 
@@ -189,6 +193,7 @@ const EXTERNAL = /^(https?:|mailto:)/i;
 function linkHook(ctx?: LinkCtx) {
   return (node: Element) => {
     if (node.tagName !== 'A') return;
+    node.removeAttribute('data-note'); // only ours: a note's raw HTML must not forge it
     const href = node.getAttribute('href') ?? '';
     if (node.classList.contains('wl')) {
       const l = parseWikilink(node.getAttribute('data-target') ?? '');

@@ -11,31 +11,32 @@ import { Icon } from './Icon';
 const plainClick = (e: React.MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
 /** Where links in the open note point: wikilinks and relative Markdown links resolve to app routes (#109, #116). */
-function useLinkCtx(): LinkCtx {
+function useLinkCtx(base?: string): LinkCtx {
   const { activeId, paths, note } = useApp();
-  const from = note?.path;
+  const from = base ?? note?.path;
   return useMemo(() => {
     const route = (p: string) => formatRoute(activeId, p);
     return {
       href: (target) => { const p = resolveWikilink(target, paths); return p ? route(p) : null; },
-      relative: (href) => { const p = from && resolveRelativeLink(href, from, paths); return p ? { path: p, href: route(p) } : null; },
+      relative: (href) => { const p = from !== undefined && resolveRelativeLink(href, from, paths); return p ? { path: p, href: route(p) } : null; },
     };
   }, [activeId, paths, from]);
 }
 
-/** Rendered Read mode; `[[wikilinks]]` and relative links to vault notes are clickable. */
-export function Markdown({ text, className }: { text: string; className?: string }) {
+/** Rendered Read mode; `[[wikilinks]]` and relative links to vault notes are clickable. `base`: file path relative links resolve from (default the open note; '' = vault root, for chat). */
+export function Markdown({ text, className, base }: { text: string; className?: string; base?: string }) {
   const { exists, followLink, openNote } = useApp();
-  const ctx = useLinkCtx();
+  const ctx = useLinkCtx(base);
   const html = useMemo(() => renderMarkdown(text, exists, ctx), [text, exists, ctx]);
   return (
     <div className={className} dangerouslySetInnerHTML={{ __html: html }}
       onClick={(e) => {
         // Footnote links jump inside this block, not through the hash router (#115).
         const fn = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#fn"]');
-        if (fn) {
+        const id = fn?.getAttribute('href')?.slice(1);
+        if (fn && id && /^fn(ref)?-\d+$/.test(id)) {
           e.preventDefault();
-          e.currentTarget.querySelector(`[id="${fn.getAttribute('href')!.slice(1)}"]`)?.scrollIntoView({ block: 'center' });
+          e.currentTarget.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ block: 'center' });
           return;
         }
         const a = (e.target as HTMLElement).closest<HTMLElement>('a.wl, a[data-note]');

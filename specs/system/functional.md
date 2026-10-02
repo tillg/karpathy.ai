@@ -1,7 +1,7 @@
 ---
 title: "Functional: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-02
+edited: 2026-10-03
 ---
 
 # Functional: karpathy.app
@@ -102,7 +102,11 @@ applies to the next git operation. The deployment's `GITHUB_TOKEN` secret stays 
   that differ only by case, and invalid names.
 - **Delete a note** (recoverable until the next commit).
 - **Write mode** (default): Markdown with live preview, frontmatter shown as a block, find-in-note.
-- **Read mode:** rendered, sanitized Markdown; frontmatter as a properties table.
+- **Read mode:** rendered, sanitized Markdown of the note's current text; frontmatter as a properties table, where
+  `related` / `sources` values that name a note are links. Obsidian syntax: callouts `> [!type] Title`, `==highlight==`,
+  `%%comments%%` hidden, footnotes, task markers ☑ / ☐, `![[note]]` as an embed link (no transclusion; images: #97).
+  Wide tables scroll sideways. Links: wikilinks carry the note's route (new tab and copy link work), relative Markdown
+  links to vault notes open in the app, external links open in a new tab.
 - **Wikilinks** `[[target#heading|alias]]`: click to open (resolved by path, then by file name anywhere); links to
   missing pages are marked and say "No page “X” yet".
 - **Autosave** 1.5 s after the last edit; local drafts survive reloads and crashes; status footer
@@ -115,6 +119,9 @@ applies to the next git operation. The deployment's `GITHUB_TOKEN` secret stays 
 
 Full-text, case-insensitive, fixed-string search over the vault root (ripgrep), plus file-name matches; results
 grouped per note with up to 4 line snippets; capped at 200 hits ("refine your search"); opens the note at the hit.
+Several words find notes that contain all of them (in the text or the path) and show the lines of any of them; a
+`"quoted phrase"` matches as written (#107). Notes whose file name contains every word come first, the rest in path
+order (#99).
 
 ### Changes and commits
 

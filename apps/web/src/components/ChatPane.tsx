@@ -123,7 +123,7 @@ function Parts({ parts }: { parts: ChatPart[] }) {
     if (p.type === 'tool') { tools.push(p.call); return; }
     flushTools(`t${i}`);
     if (p.type === 'reasoning') out.push(<details key={p.id} className="reason"><summary>Thinking</summary><div>{p.text}</div></details>);
-    else out.push(<Markdown key={p.id} text={p.text} className="atext" />);
+    else out.push(<Markdown key={p.id} text={p.text} className="atext" base="" />);
   });
   flushTools('end');
   return <>{out}</>;

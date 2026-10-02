@@ -71,7 +71,8 @@ just dev down
 ```
 
 `just` lists all commands (`brew install just`); they wrap `deploy/dev.sh` and npm. Deploying
-also needs `brew install lima ansible ansible-lint` (the local target VM and the playbook).
+also needs `brew install lima ansible ansible-lint qrencode` (the local target VM, the playbook and
+the login QR code).
 
 Notes open at `https://localhost:8443/#/<vault>/<path>` (Back/Forward work). Binary files
 (images, PDFs, …) are listed but not editable. A vault whose clone failed can be retried
@@ -134,7 +135,14 @@ just deploy local --only app    # only the app (or: monitoring); the host roles 
 just deploy-check local         # dry run with diff
 just deploy-e2e local           # Playwright suite (minus @llm) against the local target
 just vm up|down|reset|ssh       # the local target: a Lima VM, https://localhost:9444
+just token hetzner [--qr]       # the target's access token to the clipboard; --qr: login QR code
 ```
+
+**Logging in on a device:** the access token is a fixed secret in the target's vault, not generated
+at startup. `just token <target>` copies it to the clipboard (Universal Clipboard pastes it on the
+iPad). `just token <target> --qr` also prints a QR code of `<app url>/#token=…`: scanning it opens
+the app, which stores the token and removes it from the URL and history. The QR code is a
+credential: don't screenshot or share it.
 
 Targets: `local` (a Lima VM sized like the server, for testing the whole playbook) and `hetzner`
 (finished once the server exists). **Rollback** = deploy the older version: `just deploy <target>

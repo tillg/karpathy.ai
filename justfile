@@ -107,3 +107,7 @@ deploy-e2e target *args:
     E2E_BASE_URL=$url E2E_TOKEN_FILE=tmp/local/bearer_token E2E_EXPECT_VERSION="$version" \
       E2E_DOCKER="limactl shell karpathy-vm sudo docker" E2E_BACKEND_CONTAINER=karpathy-app-backend-1 \
       npx playwright test --grep-invert @llm {{args}}
+
+# Copy a target's access token to the clipboard; `--qr` also prints a login QR code for a phone/iPad
+token target *flag:
+    deploy/ansible/token.sh {{target}} {{flag}}

@@ -21,6 +21,24 @@ test.describe('token screen', () => {
     await expect(page.getByTestId('token-input')).toHaveCount(0);
   });
 
+  // `just token <target> --qr`: scanning the QR code opens this link on a new device.
+  test('a login link #token=… stores the token, opens the shell and leaves no token in the URL', async ({ page }) => {
+    await page.goto(`/#token=${encodeURIComponent(TOKEN)}`);
+    await expect(page.getByTestId('vault-switcher')).toBeVisible();
+    await expect(page.getByTestId('token-input')).toHaveCount(0);
+    expect(page.url()).not.toContain(TOKEN);
+    expect(await page.evaluate(() => localStorage.getItem('karpathy.token'))).toBe(TOKEN);
+    // Not in the history either: the link's entry was replaced, so Back doesn't bring the token back.
+    await page.goBack();
+    expect(page.url()).not.toContain(TOKEN);
+  });
+
+  test('a login link with a wrong token shows the token screen', async ({ page }) => {
+    await page.goto('/#token=not-the-token');
+    await expect(page.getByTestId('token-input')).toBeVisible();
+    expect(page.url()).not.toContain('not-the-token');
+  });
+
   test('a stored token that the server rejects drops back to the token screen', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('karpathy.token', 'stale-token'));
     await page.goto('/');

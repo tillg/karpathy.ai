@@ -8,6 +8,17 @@ const TOKEN_KEY = 'karpathy.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
 
+/**
+ * Login link `#token=…` (`just token <target> --qr`): stores the token and removes it from the URL
+ * and the history before anything routes on the hash. The fragment never reaches the server.
+ */
+export function takeTokenFromUrl() {
+  const token = /^#token=([^&]+)/.exec(location.hash)?.[1];
+  if (!token) return;
+  setToken(decodeURIComponent(token));
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
 let onUnauthorized = () => {};
 /** Called on any 401: the stored token is dropped and the app shows the token screen. */
 export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };

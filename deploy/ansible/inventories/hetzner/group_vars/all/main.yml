@@ -8,6 +8,8 @@ vaults_fs_size: 20G
 # The tailnet IP, from the tailscale role (finalized in plan Phase 7).
 bind_ip: "{{ ansible_facts.tailscale0.ipv4.address | default('') }}"
 https_port: 443
+# The app as the operator's devices reach it (`just token hetzner --qr`).
+app_url: https://app.karpathy.app
 domain: app.karpathy.app
 tls_mode: dns
 gatus_enabled: true

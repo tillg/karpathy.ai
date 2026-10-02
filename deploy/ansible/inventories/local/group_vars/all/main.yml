@@ -7,6 +7,8 @@ vaults_fs_size: 5G
 
 bind_ip: 0.0.0.0
 https_port: 443
+# The app as the operator's devices reach it (`just token local --qr`).
+app_url: https://localhost:9444
 domain: localhost
 tls_mode: internal
 gatus_enabled: false

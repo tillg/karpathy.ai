@@ -6,7 +6,8 @@
 set -euo pipefail
 WANT="cx23 cax11"
 LOCATIONS="nbg1 fsn1 hel1"
-NTFY_TOPIC=${NTFY_TOPIC:-karpathy-local-lmMSQqUtCxOJRS8dlvEGa9ftnrSKysOd}
+# The hetzner target's alert topic, from its encrypted vault (the topic name is its only protection).
+NTFY_TOPIC=$("$(dirname "$0")/../ansible/vault-get.sh" hetzner vault_ntfy_topic)
 token=$(security find-generic-password -s karpathy-hetzner-api -w)
 api() { curl -sf -H "Authorization: Bearer $token" "https://api.hetzner.cloud/v1/$1"; }
 types=$(api 'server_types?per_page=50')
@@ -23,5 +24,5 @@ echo "$(date '+%Y-%m-%d %H:%M') ${found:-nothing available}"
 [ -n "$found" ] || exit 0
 curl -sf -o /dev/null -H "Title: Hetzner: cheaper server bookable" -H "Tags: moneybag" \
   -d "$found
-Book it, then: just deploy hetzner, move the DNS record, delete the CPX22. Stop these: just hetzner-watch uninstall" \
+Book it, then: just deploy hetzner --bootstrap <ip> (deploy/README.md, "Rebuilding the server"), delete the old server. Stop these: just hetzner-watch uninstall" \
   "https://ntfy.sh/$NTFY_TOPIC"

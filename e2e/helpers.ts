@@ -44,6 +44,26 @@ export function makeRemote(name: string, notes = 6): string {
   return bare;
 }
 
+/** A bare repo under REMOTES with one note and none of the required folders. */
+export function makePlainRemote(name: string) {
+  const bare = join(REMOTES, `${name}.git`);
+  const work = mkdtempSync(join(tmpdir(), 'e2e-plain-'));
+  try {
+    git(work, 'init', '-q', '-b', 'main');
+    writeFileSync(join(work, 'Home.md'), '# Home\n');
+    git(work, 'add', '-A');
+    git(work, 'commit', '-qm', 'seed');
+    mkdirSync(REMOTES, { recursive: true });
+    git(REMOTES, 'clone', '-q', '--bare', work, bare);
+    // The backend container writes as uid 1000, the host as the current user: keep it world-writable.
+    git(bare, 'config', 'core.sharedRepository', '0666');
+    chmodAll(bare);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  return bare;
+}
+
 export function remoteLog(bare: string, format = '%s'): string[] {
   return git(bare, 'log', 'main', `--format=${format}`).split('\n');
 }

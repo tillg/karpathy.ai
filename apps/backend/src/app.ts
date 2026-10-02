@@ -1,10 +1,11 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { Settings, VaultEvent } from '@karpathy/shared';
+import type { Settings, SettingsView, TokenTest, VaultEvent } from '@karpathy/shared';
 import { bearerAuth } from './auth.js';
 import { aiUnavailable, type ChatService } from './chat.js';
 import { fallbackMessage, type CommitMessages } from './commit-message.js';
 import type { ConfigStore } from './config-store.js';
+import type { GitHubToken } from './github-token.js';
 import { PathError } from './paths.js';
 import { HttpError, type Vaults } from './vaults.js';
 
@@ -12,6 +13,7 @@ export interface AppDeps {
   token: string;
   vaults: Vaults;
   store: ConfigStore;
+  githubToken?: GitHubToken;
   chat?: ChatService;
   commitMessages?: CommitMessages;
   opencodeHealthy?: () => Promise<boolean>;
@@ -36,6 +38,7 @@ const addVault = z.object({
   repo: z.string().trim(),
   branch: branchName.optional(),
   root: z.string().trim().max(500).optional(),
+  createFolders: z.boolean().optional(),
 });
 const patchVault = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -52,6 +55,10 @@ const putFile = z.object({ content: z.string(), version: z.string().nullable(), 
 const commitBody = z.object({ message: z.string().min(1).max(10_000), paths: z.array(z.string()).optional() });
 const resolveBody = z.object({ path: z.string().min(1), choice: z.enum(['mine', 'theirs', 'both']) });
 const promptBody = z.object({ text: z.string().trim().min(1).max(100_000) });
+
+const githubTokenBody = z.object({
+  token: z.string().trim().min(20, { error: 'GitHub token: that is too short to be a token' }).max(255).regex(/^\S+$/, { error: 'GitHub token: must not contain spaces' }),
+});
 
 const qs = (req: Request, name: string): string => {
   const v = req.query[name];
@@ -91,8 +98,31 @@ export function createApp(d: AppDeps) {
     res.json({ backend: 'ok', opencode: opencode ? 'ok' : 'down', version: d.version ?? 'dev' });
   });
 
+  const settingsView = (): SettingsView => {
+    const t = d.githubToken?.current();
+    return { ...d.store.get().settings, githubToken: { source: d.githubToken?.source() ?? 'none', last4: t ? t.slice(-4) : null } };
+  };
   api.get('/settings', (_req, res) => {
-    res.json(d.store.get().settings);
+    res.json(settingsView());
+  });
+  api.put('/settings/github-token', async (req, res) => {
+    if (!d.githubToken) throw new HttpError(404, 'not available');
+    await d.githubToken.set(githubTokenBody.parse(req.body).token);
+    res.status(204).end();
+  });
+  api.post('/settings/github-token/test', async (req, res) => {
+    if (!d.githubToken) throw new HttpError(404, 'not available');
+    const body = z.object({ token: githubTokenBody.shape.token.optional() }).parse(req.body ?? {});
+    if (body.token) d.githubToken.remember(body.token);
+    const token = body.token ?? d.githubToken.current();
+    const [identity, vaults] = await Promise.all([d.githubToken.identity(token), d.vaults.checkAccess(token)]);
+    const result: TokenTest = { ...identity, vaults };
+    res.json(result);
+  });
+  api.delete('/settings/github-token', async (_req, res) => {
+    if (!d.githubToken) throw new HttpError(404, 'not available');
+    await d.githubToken.clear();
+    res.status(204).end();
   });
   api.patch('/settings', async (req, res) => {
     const body = patchSettings.parse(req.body);
@@ -104,7 +134,7 @@ export function createApp(d: AppDeps) {
     await d.store.update((c) => {
       c.settings = { ...c.settings, ...body } as Settings;
     });
-    res.json(d.store.get().settings);
+    res.json(settingsView());
   });
 
   // ---- vault admin ----

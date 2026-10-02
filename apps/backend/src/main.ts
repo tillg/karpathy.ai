@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { ChatService } from './chat.js';
 import { OpencodeCommitMessages } from './commit-message.js';
 import { ConfigStore } from './config-store.js';
+import { GitHubToken } from './github-token.js';
 import { OpencodeHarness } from './harness/opencode.js';
 import { Vaults } from './vaults.js';
 
@@ -29,7 +30,8 @@ const env = {
 };
 
 const store = await ConfigStore.open(env.configDir, env.defaultModel ? { model: env.defaultModel } : {});
-const vaults = new Vaults(store, { vaultsDir: env.vaultsDir, remoteBase: env.remoteBase, githubToken: env.githubToken, identity: env.identity });
+const githubToken = new GitHubToken(store, env.githubToken, process.env.GITHUB_API_BASE);
+const vaults = new Vaults(store, { vaultsDir: env.vaultsDir, remoteBase: env.remoteBase, githubToken: () => githubToken.current(), redact: (m) => githubToken.redact(m), identity: env.identity });
 await vaults.init();
 
 const harness = new OpencodeHarness(env.opencodeUrl);
@@ -40,7 +42,7 @@ vaults.beforeRemove = (id) => chat.deleteAllChats(id);
 void chat.init().catch((e) => console.warn('chat init:', (e as Error).message));
 const commitMessages = new OpencodeCommitMessages(vaults, store, harness, (id) => chat.dir(id));
 
-const app = createApp({ token: env.token, vaults, store, chat, commitMessages, opencodeHealthy: () => harness.health(), availableModels: () => harness.models(), version: env.version });
+const app = createApp({ token: env.token, vaults, store, githubToken, chat, commitMessages, opencodeHealthy: () => harness.health(), availableModels: () => harness.models(), version: env.version });
 const server = app.listen(env.port, () => console.log(`backend listening on :${env.port}`));
 
 const shutdown = () => {

@@ -46,6 +46,32 @@ test.describe('phone layout', () => {
   });
 
   // Bug #2: opening a search hit (note opens at a line) scrolls #app sideways; stays shifted after Back.
+  test('@iphone admin views fit 375px without horizontal scroll', async ({ page, vault }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await openApp(page, vault.id);
+    await page.getByTestId('open-admin').click();
+    const admin = page.getByTestId('admin');
+    const body = admin.locator('.modal-body');
+    const fits = async (label: string) => {
+      await expect.poll(() => body.evaluate((e) => e.scrollWidth <= e.clientWidth), { message: `${label}: no horizontal scroll` }).toBe(true);
+      const b = await admin.boundingBox();
+      expect(b!.x >= 0 && b!.x + b!.width <= 375 + 1, `${label}: dialog inside the viewport`).toBe(true);
+      await page.screenshot({ path: `tmp/08/phone-${label}.png`, scale: 'css' });
+    };
+    await expect(admin.getByTestId('admin-vault').first()).toBeVisible();
+    await fits('list');
+    await admin.locator(`[data-testid="admin-vault"][data-vault="${vault.id}"]`).click();
+    await admin.getByTestId('vault-edit').click();
+    await fits('details');
+    await admin.getByTestId('admin-back').click();
+    await admin.getByTestId('admin-open-settings').click();
+    await admin.getByTestId('token-test').click();
+    await expect(admin.getByTestId('token-result')).toBeVisible({ timeout: 20_000 });
+    await fits('settings');
+    await admin.getByTestId('version-server').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'tmp/08/phone-settings-bottom.png', scale: 'css' });
+  });
+
   test('@iphone search tab: open a hit, Back returns to the unshifted search list', async ({ page, vault }) => {
     await openApp(page, vault.id);
     const app = page.locator('#app');

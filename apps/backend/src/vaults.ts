@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type {
   Change,
@@ -16,11 +17,15 @@ import type {
 } from '@karpathy/shared';
 import type { ConfigStore, StoredVault } from './config-store.js';
 import { listTree, search, versionOf, versionOfFile } from './files.js';
-import { GitError, type GitIdentity } from './git.js';
+import { Git, GitError, type GitIdentity } from './git.js';
 import { VaultLock } from './lock.js';
 import { normalizeRel, resolveInVault } from './paths.js';
+import { preflight } from './preflight.js';
 import { Repo } from './repo.js';
 import { VaultWatcher } from './watcher.js';
+
+/** A repo check that takes longer than this has hung (a stalled remote); the add is refused. */
+const PREFLIGHT_TIMEOUT_MS = 60_000;
 
 export class HttpError extends Error {
   constructor(
@@ -37,7 +42,10 @@ export interface VaultsEnv {
   vaultsDir: string;
   /** Clone URL = `${remoteBase}${owner/name}.git`; `https://github.com/` in prod, `file://…` in tests. */
   remoteBase: string;
-  githubToken?: string;
+  /** Read per git operation, so a token changed in the app applies without a restart. */
+  githubToken?: () => string | undefined;
+  /** Redacts every token value seen since startup; defaults to the current token. */
+  redact?: (msg: string) => string;
   identity: GitIdentity;
 }
 
@@ -57,6 +65,8 @@ const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 /** The vaults the app manages: admin, files, git, status events (mvp §2.3, §2.4, §3.2). */
 export class Vaults {
   private rt = new Map<string, Runtime>();
+  /** repo|branch|root of adds whose preflight is still running. */
+  private adding = new Set<string>();
   /** Called when a vault's clone becomes ready (the chat service opens its subscription). */
   onReady?: (id: string) => void;
   /** Called under the lock once removal is allowed (the chat service deletes the vault's chats). */
@@ -69,6 +79,8 @@ export class Vaults {
 
   /** Loads configured vaults; re-clones any whose clone never finished. */
   async init(): Promise<void> {
+    // Preflight temp clones left behind by a crash.
+    await rm(this.preflightDir(), { recursive: true, force: true });
     for (const v of this.store.get().vaults) {
       const r = this.runtime(v.id);
       if (v.cloned) {
@@ -86,6 +98,21 @@ export class Vaults {
 
   // ---- admin ----
 
+  /** Can `token` reach each vault's repo and branch? (`git ls-remote`, nothing is fetched) */
+  async checkAccess(token: string | undefined): Promise<{ id: string; repo: string; ok: boolean; error?: string }[]> {
+    const git = new Git(tmpdir(), { identity: this.env.identity, token });
+    return Promise.all(
+      this.store.get().vaults.map(async (v) => {
+        const r = await git.run(['ls-remote', '--exit-code', '--heads', `${this.env.remoteBase}${v.repo}.git`, v.branch], { allowFail: true });
+        if (r.code === 0) return { id: v.id, repo: v.repo, ok: true };
+        const error = r.code === 2
+          ? `Can't reach ${v.repo}: branch "${v.branch}" doesn't exist there.`
+          : cloneErrorText(new GitError(['ls-remote'], r.code, r.stderr, r.stdout), v).replace("Couldn't clone", "Can't reach");
+        return { id: v.id, repo: v.repo, ok: false, error: this.redact(error) };
+      }),
+    );
+  }
+
   list(): Vault[] {
     return this.store.get().vaults.map((v) => this.toVault(v));
   }
@@ -94,13 +121,30 @@ export class Vaults {
     return this.toVault(this.config(id));
   }
 
-  async add(input: { name: string; repo: string; branch?: string; root?: string }): Promise<Vault> {
+  async add(input: { name: string; repo: string; branch?: string; root?: string; createFolders?: boolean }): Promise<Vault> {
     if (!REPO_RE.test(input.repo)) throw new HttpError(400, 'repo must be owner/name');
     const root = input.root ? normalizeRel(input.root) : '';
     const branch = input.branch || 'main';
     this.refuseDuplicate(input.repo, branch, root);
+    // The same repo being added concurrently counts as a duplicate too: preflight awaits a clone.
+    const key = `${input.repo.toLowerCase()}|${branch}|${root}`;
+    if (this.adding.has(key)) throw new HttpError(409, `${input.repo} (${branch}${root ? `, ${root}` : ''}) is being added already`, 'duplicate');
+    this.adding.add(key);
+    try {
+      // Checked before anything is stored: a vault that fails here was never attached.
+      const pre = await this.preflight(input.repo, branch, root);
+      if (!pre.rootExists) throw new HttpError(422, `folder ${root} does not exist in the repo`, 'root-missing');
+      if (pre.missing.length && !input.createFolders)
+        throw new HttpError(409, `${input.repo} has no ${pre.missing.map((f) => `${f}/`).join(' and ')} folder`, 'missing-folders', { missing: pre.missing });
+      return await this.attach(input, branch, root, pre.missing);
+    } finally {
+      this.adding.delete(key);
+    }
+  }
+
+  private async attach(input: { name: string; repo: string }, branch: string, root: string, missing: string[]): Promise<Vault> {
     const id = this.freeId(input.name || input.repo.split('/')[1]!);
-    const v: StoredVault = { id, name: input.name || input.repo, repo: input.repo, branch, root, cloned: false };
+    const v: StoredVault = { id, name: input.name || input.repo, repo: input.repo, branch, root, cloned: false, ...(missing.length ? { pendingFolders: missing } : {}) };
     await this.store.update((c) => c.vaults.push(v));
     this.startClone(v);
     return this.toVault(v);
@@ -382,7 +426,7 @@ export class Vaults {
     const r = this.runtime(id);
     if (r.state !== 'ready' || r.conflict) return null;
     const result = await this.repo(this.config(id)).pull();
-    r.pullError = result.kind === 'offline' ? redact(result.error, this.env.githubToken) : undefined;
+    r.pullError = result.kind === 'offline' ? this.redact(result.error) : undefined;
     if (result.kind === 'conflict') {
       await this.store.update((c) => {
         c.conflicts[id] = result.paths;
@@ -558,13 +602,46 @@ export class Vaults {
   }
 
   private repo(v: StoredVault): Repo {
-    return new Repo(this.cloneDir(v.id), v.branch, v.root, { identity: this.env.identity, token: this.env.githubToken });
+    return new Repo(this.cloneDir(v.id), v.branch, v.root, { identity: this.env.identity, token: this.env.githubToken?.() });
   }
 
   private refuseDuplicate(repo: string, branch: string, root: string, exceptId?: string) {
     // GitHub owner/repo names are case-insensitive.
     const dup = this.store.get().vaults.find((x) => x.id !== exceptId && x.repo.toLowerCase() === repo.toLowerCase() && x.branch === branch && x.root === root);
     if (dup) throw new HttpError(409, `"${dup.name}" already uses ${repo} (${branch}${root ? `, ${root}` : ''})`, 'duplicate');
+  }
+
+  /** Placeholders for folders the user agreed to create; uncommitted until the user commits (ADR 0001). */
+  private async createFolders(id: string, folders: string[]) {
+    const root = this.vaultRootDir(id);
+    const present = new Set((await readdir(root, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name.toLowerCase()));
+    for (const f of folders) {
+      if (present.has(f.toLowerCase())) continue; // pushed in the meantime
+      await mkdir(join(root, f)).catch((e: NodeJS.ErrnoException) => {
+        throw new Error(e.code === 'EEXIST' ? `can't create folder ${f}: a file with that name exists` : e.message);
+      });
+      await writeFile(join(root, f, '.gitkeep'), '');
+    }
+  }
+
+  private preflightDir() {
+    return join(resolve(this.env.vaultsDir), '.preflight');
+  }
+
+  private async preflight(repo: string, branch: string, root: string) {
+    const dir = this.preflightDir();
+    await mkdir(dir, { recursive: true });
+    try {
+      return await preflight(`${this.env.remoteBase}${repo}.git`, branch, root, { dir, identity: this.env.identity, token: this.env.githubToken?.(), timeoutMs: PREFLIGHT_TIMEOUT_MS });
+    } catch (e) {
+      if (!(e instanceof GitError)) throw e;
+      console.warn(`preflight of ${repo} failed:`, this.redact(e.message));
+      throw new HttpError(422, this.redact(cloneErrorText(e, { repo, branch })), 'repo-unreachable');
+    }
+  }
+
+  private redact(msg: string): string {
+    return this.env.redact ? this.env.redact(msg) : redactToken(msg, this.env.githubToken?.());
   }
 
   private freeId(name: string): string {
@@ -582,24 +659,26 @@ export class Vaults {
     this.emitStatusSoon(v.id);
     r.cloning = r.lock.withExclusive(async () => {
       try {
-        await Repo.clone(`${this.env.remoteBase}${v.repo}.git`, this.cloneDir(v.id), v.branch, { identity: this.env.identity, token: this.env.githubToken });
+        await Repo.clone(`${this.env.remoteBase}${v.repo}.git`, this.cloneDir(v.id), v.branch, { identity: this.env.identity, token: this.env.githubToken?.() });
         if (v.root) {
           const st = await stat(join(this.cloneDir(v.id), v.root)).catch(() => null);
           if (!st?.isDirectory()) throw new Error(`folder ${v.root} does not exist in the repo`);
         }
+        if (v.pendingFolders?.length) await this.createFolders(v.id, v.pendingFolders);
         await this.store.update((c) => {
           const x = c.vaults.find((y) => y.id === v.id);
           if (x) {
             x.cloned = true;
             delete x.cloneError;
+            delete x.pendingFolders;
           }
         });
         r.state = 'ready';
         this.startWatcher(v);
         this.onReady?.(v.id);
       } catch (e) {
-        console.warn(`clone of ${v.repo} failed:`, redact((e as Error).message, this.env.githubToken));
-        const msg = cloneErrorText(e as Error, v);
+        console.warn(`clone of ${v.repo} failed:`, this.redact((e as Error).message));
+        const msg = this.redact(cloneErrorText(e as Error, v));
         await this.store.update((c) => {
           const x = c.vaults.find((y) => y.id === v.id);
           if (x) x.cloneError = msg;
@@ -657,7 +736,7 @@ function isText(buf: Buffer): boolean {
 }
 
 /** git's clone stderr → a message for the admin UI, without container paths (#48). */
-function cloneErrorText(e: Error, v: StoredVault): string {
+function cloneErrorText(e: Error, v: Pick<StoredVault, 'repo' | 'branch'>): string {
   const m = e.message;
   if (!(e instanceof GitError)) return m; // e.g. our own "folder … does not exist in the repo"
   if (/Remote branch .* not found/i.test(m)) return `Couldn't clone ${v.repo}: branch "${v.branch}" doesn't exist there.`;
@@ -667,6 +746,6 @@ function cloneErrorText(e: Error, v: StoredVault): string {
   return `Couldn't clone ${v.repo}: ${m.split('\n').find((l) => l.startsWith('fatal:'))?.replace(/^fatal:\s*/, '').replace(/'\/[^']*'/g, '…') ?? 'git failed'}`;
 }
 
-function redact(msg: string, token?: string) {
+function redactToken(msg: string, token?: string) {
   return token ? msg.replaceAll(token, '***') : msg;
 }

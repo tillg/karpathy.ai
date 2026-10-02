@@ -24,6 +24,24 @@ export interface Settings {
   model: string;
 }
 
+/** `GET /settings`: the settings plus the GitHub token's state — never the token itself. */
+export interface SettingsView extends Settings {
+  githubToken: { source: 'settings' | 'secret' | 'none'; last4: string | null };
+}
+
+/** `POST /settings/github-token/test`. */
+export interface TokenTest {
+  /** GitHub accepted the token (`GET /user`). */
+  ok: boolean;
+  login?: string;
+  /** `X-OAuth-Scopes` (classic tokens only). */
+  scopes?: string[];
+  expiresAt?: string;
+  error?: string;
+  /** `git ls-remote` per configured vault. */
+  vaults: { id: string; repo: string; ok: boolean; error?: string }[];
+}
+
 export type Busy = 'none' | 'turn' | 'sync';
 
 export interface VaultStatus {

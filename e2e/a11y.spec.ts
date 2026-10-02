@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
-import { expect, makeConflict, openApp, openNote, test } from './helpers';
+import { expect, makeConflict, makePlainRemote, openApp, openNote, runId, test, uid } from './helpers';
 
 // Automated WCAG 2.1 A/AA + best-practice scan (axe-core) of the main screens, light and dark
 // (issues #39–#47). Only serious/critical findings fail; moderate/minor best-practice rules
@@ -80,6 +80,37 @@ test.describe('accessibility (axe)', () => {
     await page.getByTestId('new-chat').click();
     await expect(page.getByTestId('chat-messages')).toContainText('New chat');
     await scan(page, 'chat conversation');
+  });
+
+  test('admin views: list, details, settings, add with the missing-folders dialog, help dialog', async ({ page, api, vault }) => {
+    const plain = `e2e-a11y-plain-${runId()}-${uid()}`;
+    makePlainRemote(plain);
+    await openApp(page, vault.id);
+    await page.getByTestId('open-admin').click();
+    const admin = page.getByTestId('admin');
+    await expect(admin.getByTestId('admin-vault').first()).toBeVisible();
+    await scan(page, 'admin list');
+    await admin.getByTestId('admin-help').click();
+    await expect(page.getByTestId('vault-help')).toBeVisible();
+    await scan(page, 'vault help dialog');
+    await page.keyboard.press('Escape');
+    await admin.locator(`[data-testid="admin-vault"][data-vault="${vault.id}"]`).click();
+    await expect(admin.getByTestId('vault-details')).toBeVisible();
+    await scan(page, 'vault details');
+    await admin.getByTestId('admin-back').click();
+    await admin.getByTestId('admin-open-settings').click();
+    await expect(admin.getByTestId('token-input')).toBeVisible();
+    await admin.getByTestId('token-test').click();
+    await expect(admin.getByTestId('token-result')).toBeVisible({ timeout: 20_000 });
+    await scan(page, 'settings with token test result');
+    await admin.getByTestId('admin-back').click();
+    await admin.getByTestId('admin-open-add').click();
+    await page.getByTestId('admin-repo').fill(`e2e/${plain}`);
+    await page.getByTestId('admin-add').click();
+    await expect(page.getByTestId('missing-folders')).toBeVisible();
+    await scan(page, 'missing-folders dialog');
+    await page.getByTestId('folders-cancel').click();
+    expect((await api.vaults()).some((v) => v.repo === `e2e/${plain}`)).toBe(false);
   });
 
   test('conflict view and the larger compare dialog', async ({ page, api, vault }) => {

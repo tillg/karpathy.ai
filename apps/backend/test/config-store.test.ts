@@ -55,4 +55,13 @@ describe('ConfigStore', () => {
     await s.update((c) => { c.settings.commitReminderThreshold = 7; });
     expect((await ConfigStore.open(d)).get().settings.commitReminderThreshold).toBe(7);
   });
+
+  it('githubToken round-trips and is not part of settings', async () => {
+    const d = await dir();
+    const s = await ConfigStore.open(d);
+    await s.update((c) => { c.githubToken = 'ghp_abcdefghijklmnopqrstuvwxyz'; });
+    const r = await ConfigStore.open(d);
+    expect(r.get().githubToken).toBe('ghp_abcdefghijklmnopqrstuvwxyz');
+    expect(r.get().settings).not.toHaveProperty('githubToken');
+  });
 });

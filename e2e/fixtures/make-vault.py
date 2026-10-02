@@ -21,6 +21,8 @@ for i, (t, p) in enumerate(zip(titles, paths)):
     open(os.path.join(work, p), "w").write(text)
 open(os.path.join(work, "Home.md"), "w").write("# Home\n\nWelcome to the test vault. See [[Ideas]] and [[" + titles[0] + "]].\n\nÄÖÜ ß é è — unicode check.\n")
 open(os.path.join(work, "Ideas.md"), "w").write("# Ideas\n\nBack to [[Home]].\n")
+# Required vault structure: wiki/ already counts as Wiki (case-insensitive); Sources/ needs a placeholder.
+os.makedirs(os.path.join(work, "Sources")); open(os.path.join(work, "Sources", ".gitkeep"), "w").close()
 open(os.path.join(work, "AGENTS.md"), "w").write("# Test vault\n\nThis is a throwaway test vault. Keep answers short.\n")
 g = lambda *a: subprocess.run(["git", *a], cwd=work, check=True, capture_output=True)
 g("init", "-q", "-b", "main"); g("add", "-A"); g("-c", "user.name=seed", "-c", "user.email=s@s", "commit", "-qm", f"Seed {n} notes")

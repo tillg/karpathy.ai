@@ -24,7 +24,12 @@ export async function writeFiles(dir: string, files: Record<string, string>) {
  * A local bare repo as "GitHub" (real git, real fetch/push) under `<base>/remotes/<owner>/<name>.git`,
  * plus a second clone playing "Obsidian".
  */
-export async function makeRemote(files: Record<string, string>, { owner = 'o', name = 'vault', branch = 'main' } = {}) {
+/** A bare remote seeded with `files`; with `structure` (default) it also has the required `Sources/` and `Wiki/` folders. */
+export async function makeRemote(files: Record<string, string>, { owner = 'o', name = 'vault', branch = 'main', structure = true } = {}) {
+  if (structure) {
+    const top = new Set(Object.keys(files).map((p) => p.split('/')[0]!.toLowerCase()));
+    for (const f of ['Sources', 'Wiki']) if (!top.has(f.toLowerCase())) files = { [`${f}/.gitkeep`]: '', ...files };
+  }
   const base = await mkdtemp(join(tmpdir(), 'kai-'));
   const remotesBase = join(base, 'remotes');
   const bare = join(remotesBase, owner, `${name}.git`);

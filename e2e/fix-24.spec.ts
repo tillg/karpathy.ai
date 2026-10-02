@@ -11,7 +11,10 @@ test('removing the active vault closes its note cleanly', async ({ page, api, va
 
     await page.getByTestId('open-admin').click();
     const row = page.locator(`[data-testid="admin-vault"][data-vault="${vault.id}"]`);
-    await row.getByTestId('vault-remove').click();
+    await row.click();
+    await page.getByTestId('vault-details').getByTestId('vault-remove').click();
+    // Back on the list once the removal is done.
+    await expect(page.getByTestId('admin-open-add')).toBeVisible();
     await expect(row).toHaveCount(0);
     // From here on, any save would target the removed vault.
     const late: string[] = [];

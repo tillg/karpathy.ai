@@ -1,7 +1,7 @@
 ---
 feature: 08_vault_management
 title: "Domain: vault structure, GitHub token, attach preflight"
-status: proposed
+status: applied
 order: 2
 created: 2026-10-02
 edited: 2026-10-02

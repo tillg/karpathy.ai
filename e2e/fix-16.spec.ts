@@ -7,6 +7,7 @@ test('settings: saved feedback, readable validation errors, unknown model refuse
   try {
     await openApp(page);
     await page.getByTestId('open-admin').click();
+    await page.getByTestId('admin-open-settings').click();
     const threshold = page.getByTestId('settings-threshold');
     const model = page.getByTestId('settings-model');
     const save = page.getByTestId('settings-save');

@@ -159,7 +159,7 @@ export function ChangesPanel() {
       <div className="changes">
         <div className="empty" data-testid="changes-unavailable">
           {active?.state === 'clone-failed'
-            ? <>Vault could not be cloned. <button className="link" onClick={() => setAdminOpen(true)}>Edit vault</button></>
+            ? <>Vault could not be cloned. <button className="link" onClick={() => setAdminOpen(true, activeId ?? undefined)}>Edit vault</button></>
             : active ? `Vault is ${active.state}…` : 'No vault.'}
         </div>
       </div>

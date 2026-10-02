@@ -7,6 +7,7 @@ test('settings dialog shows the server and the PWA version', async ({ page }) =>
   await openApp(page);
   await page.getByTestId('open-admin').click();
   const admin = page.getByTestId('admin');
+  await admin.getByTestId('admin-open-settings').click();
   await expect(admin.getByTestId('version-server')).toHaveText(expected);
   await expect(admin.getByTestId('version-pwa')).toHaveText(expected);
   await admin.getByTestId('version-server').scrollIntoViewIfNeeded();

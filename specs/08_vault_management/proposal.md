@@ -1,7 +1,7 @@
 ---
 feature: 08_vault_management
 title: "Proposal: vault list, GitHub token in settings, checked attach"
-status: proposed
+status: applied
 order: 1
 created: 2026-10-02
 edited: 2026-10-02
@@ -78,7 +78,11 @@ flowchart LR
   follow-up if needed.
 - Checking or repairing the structure of vaults that are already attached. They stay as they are.
 - Creating `Schema/` or any content (index, log, `CLAUDE.md`) inside the new folders. Only placeholders.
-- Per-vault tokens, GitHub OAuth / GitHub App login, creating repos on GitHub.
+- More than one token. The app uses exactly one GitHub token for every vault. If vaults ever span
+  several owners (your account plus an org, or two accounts), the follow-up is **one token per owner**, not
+  per vault: a fine-grained token covers one owner's repos. Test token already shows when a vault's repo is out
+  of the token's reach.
+- GitHub OAuth / GitHub App login, creating repos on GitHub.
 - A router: the views are modal-internal state, as the modal is today.
 
 ## Assumptions

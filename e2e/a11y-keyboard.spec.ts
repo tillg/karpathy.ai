@@ -199,6 +199,7 @@ test.describe('keyboard and screen readers', () => {
 
     await page.getByTestId('open-admin').click();
     const admin = page.getByTestId('admin');
+    await admin.getByTestId('admin-vault').first().click();
     await minSide(admin.getByTestId('vault-edit'), 'admin Edit');
     await minSide(admin.getByTestId('vault-remove'), 'admin Remove');
     await minSide(admin.getByRole('button', { name: 'Close', exact: true }), 'admin Close');

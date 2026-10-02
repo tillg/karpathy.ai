@@ -192,7 +192,8 @@ describe('chat API against a real opencode container', () => {
     ['sub/opencode.jsonc', '{}'],
   ])('a vault repo carrying opencode project config (%s) never reaches opencode (#27)', async (file, content) => {
     const sentinel = `/tmp/kai-sentinel-${Math.random().toString(36).slice(2, 8)}`;
-    const remote = await makeRemote({ 'a.md': 'a', [file]: content.replace('/tmp/SENTINEL', sentinel) }, { name: `u${Math.random().toString(36).slice(2, 7)}` });
+    const sub: Record<string, string> = file.startsWith('sub/') ? { 'sub/Sources/.gitkeep': '', 'sub/Wiki/.gitkeep': '' } : {};
+    const remote = await makeRemote({ 'a.md': 'a', ...sub, [file]: content.replace('/tmp/SENTINEL', sentinel) }, { name: `u${Math.random().toString(36).slice(2, 7)}` });
     const t = await setup();
     const { symlink } = await import('node:fs/promises');
     await symlink(remote.bare, join(t.remote.bare, '..', `${remote.repo.split('/')[1]}.git`));

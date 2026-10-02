@@ -1,6 +1,6 @@
 import type {
   ChatDetail, ChatSummary, Change, CommitResult, ConflictChoice, Diff, FileContent, FileEntry,
-  SearchHit, Settings, Vault, VaultConfig, VaultStatus,
+  SearchHit, Settings, SettingsView, TokenTest, Vault, VaultConfig, VaultStatus,
 } from '@karpathy/shared';
 
 import { parseLoginCode } from './login-code';
@@ -60,11 +60,15 @@ const q = (path: string) => `path=${encodeURIComponent(path)}`;
 
 export const api = {
   health: () => json<{ backend: string; opencode: string; version: string }>('GET', '/health'),
-  settings: () => json<Settings>('GET', '/settings'),
-  patchSettings: (s: Partial<Settings>) => json<Settings>('PATCH', '/settings', s),
+  settings: () => json<SettingsView>('GET', '/settings'),
+  patchSettings: (s: Partial<Settings>) => json<SettingsView>('PATCH', '/settings', s),
+  putGithubToken: (token: string) => json<void>('PUT', '/settings/github-token', { token }),
+  removeGithubToken: () => json<void>('DELETE', '/settings/github-token'),
+  /** Tests `token`, or the stored token when omitted. */
+  testGithubToken: (token?: string) => json<TokenTest>('POST', '/settings/github-token/test', token ? { token } : {}),
 
   vaults: () => json<Vault[]>('GET', '/vaults'),
-  addVault: (c: Omit<VaultConfig, 'id'>) => json<Vault>('POST', '/vaults', c),
+  addVault: (c: Omit<VaultConfig, 'id'> & { createFolders?: boolean }) => json<Vault>('POST', '/vaults', c),
   patchVault: (id: string, c: Partial<Omit<VaultConfig, 'id'>>) => json<Vault>('PATCH', v(id), c),
   removeVault: (id: string) => json<void>('DELETE', v(id)),
 

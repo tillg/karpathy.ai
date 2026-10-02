@@ -35,6 +35,18 @@ Every vault is a **GitHub repo**. In the app's admin area you configure which re
 are your vaults; the backend clones them. Your and the AI's edits stay uncommitted until
 you hit **Commit & Push**. Obsidian mobile and desktop are attached to the same remotes. No second sync system.
 
+**Vault structure.** A vault root has a `Sources/` folder (immutable source documents) and a
+`Wiki/` folder (the knowledge base the AI maintains); `Schema/` (instructions for the AI) is optional.
+Lowercase `sources/` and `wiki/` count too. When you add a repo, the app checks it before attaching
+anything: is it reachable with the token, do the branch and root exist, and are `Sources/` and `Wiki/`
+there? If folders are missing, it offers to create them (as uncommitted `.gitkeep` files). If you
+decline, the vault is not attached. The `(?)` next to "Vaults" in the admin area explains this in the app.
+
+**GitHub token.** One token is used for every vault. Set or replace it under admin area → Settings, and
+check it with **Test token**, which shows whose token it is, its expiry, and whether each vault's repo
+is reachable. The app shows only its last 4 characters. Without a token set in the app, the
+backend uses the `github_token` secret of the deployment.
+
 ## Status
 
 MVP (spec milestone M4) implemented: vaults from GitHub, file tree, CodeMirror editor with
@@ -84,7 +96,8 @@ a new version is out (checked on load and whenever it comes back into view). If 
 still shows an old build, delete the site's website data (Safari: Settings → Privacy →
 Manage Website Data → `localhost`) and enter the token again.
 
-To clone from GitHub in dev, put a token into `deploy/secrets/github_token`. To work
+To clone from GitHub in dev, put a token into `deploy/secrets/github_token` (or set one under
+Settings in the app). To work
 offline against local bare repos instead, create them under `tmp/dev/remotes/<owner>/<name>.git`
 and set `GIT_REMOTE_BASE=file:///remotes/` in `deploy/.env`.
 

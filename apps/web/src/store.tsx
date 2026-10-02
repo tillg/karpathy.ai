@@ -1,4 +1,4 @@
-import type { FileEntry, Settings, Vault, VaultEvent, VaultStatus } from '@karpathy/shared';
+import type { FileEntry, SettingsView, Vault, VaultEvent, VaultStatus } from '@karpathy/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, api, errorText } from './lib/api';
 import { draftAction, dropDraft, dropVaultDrafts, getDraft, putDraft } from './lib/drafts';
@@ -115,7 +115,7 @@ function useAppState() {
 
   // ---- vaults + settings ----
   const [vaults, setVaults] = useState<Vault[] | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettings] = useState<SettingsView | null>(null);
   // The URL (#/<vault>/<path>) wins over the stored vault; its note is opened once the vault is usable.
   const initialRoute = useRef(parseRoute(location.hash));
   const pendingRoute = useRef<{ vault: string; path: string } | null>(
@@ -338,7 +338,9 @@ function useAppState() {
   // Wide: the sidebar is a column (shown by default); tablet: an overlay (hidden by default).
   useEffect(() => setSidebarOpen(wide), [wide]);
   const [mode, setMode] = useState<'write' | 'read'>('write');
-  const [adminOpen, setAdminOpen] = useState(false);
+  /** Open admin modal; `vault` opens that vault's details instead of the list. */
+  const [adminOpen, setAdminOpenState] = useState<false | { vault?: string }>(false);
+  const setAdminOpen = useCallback((open: boolean, vault?: string) => setAdminOpenState(open ? { vault } : false), []);
   const [commitOpen, setCommitOpen] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
 

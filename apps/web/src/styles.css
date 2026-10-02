@@ -295,6 +295,16 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .vrow-h .nm { flex: 1; min-width: 0; }
 .vrow-h small { display: block; color: var(--label2); font-size: 13px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vrow .form { margin-top: 10px; }
+.vrow-btn { display: block; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.vrow-btn:hover { background: var(--fill); }
+.vrow-btn .f7-icons { color: var(--label2); }
+.modal-body .back { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; margin-bottom: 6px; text-decoration: none; }
+.gh .help { height: 32px; min-width: 32px; }
+.token-result { display: flex; flex-direction: column; gap: 4px; font-size: 14px; background: var(--bg2); border-radius: 10px; padding: 10px 12px; overflow-wrap: anywhere; }
+.token-result > div { display: flex; align-items: baseline; gap: 6px; }
+.token-result .ok .f7-icons { color: var(--green-ink); }
+.token-result .bad { color: var(--red-ink); }
+.tree-sketch { background: var(--bg2); border-radius: 10px; padding: 10px 12px; font: 13px/1.5 var(--mono); overflow-x: auto; white-space: pre; }
 .state { padding: 2px 9px; border-radius: 10px; font-size: 12.5px; font-weight: 600; background: var(--add); color: var(--green-ink); }
 .state.s-cloning { background: var(--tint-soft); color: var(--tint); }
 .state.s-clone-failed { background: var(--del); color: var(--red-ink); }

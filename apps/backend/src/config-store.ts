@@ -6,6 +6,8 @@ export interface StoredVault extends VaultConfig {
   /** True once the clone finished; a vault without it is (re)cloned on startup. */
   cloned: boolean;
   cloneError?: string;
+  /** Required folders the user agreed to create; written as `<folder>/.gitkeep` once the clone is done. */
+  pendingFolders?: string[];
 }
 
 export interface ConfigData {
@@ -17,6 +19,8 @@ export interface ConfigData {
   conflicts: Record<string, string[]>;
   /** Per-vault queued chat prompts, so a backend restart doesn't drop them (#37). */
   queued: Record<string, { chatId: string; text: string }[]>;
+  /** GitHub token set in the app; kept out of `settings`, which GET /settings returns verbatim. */
+  githubToken?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -48,6 +52,7 @@ export class ConfigStore {
       aiTouched: raw.aiTouched ?? {},
       conflicts: raw.conflicts ?? {},
       queued: raw.queued ?? {},
+      ...(raw.githubToken ? { githubToken: raw.githubToken } : {}),
     };
     return store;
   }

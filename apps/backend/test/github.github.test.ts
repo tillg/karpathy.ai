@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ConfigStore } from '../src/config-store.js';
 import { Git } from '../src/git.js';
+import { GitHubToken } from '../src/github-token.js';
 import { Vaults } from '../src/vaults.js';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -17,7 +18,7 @@ const branch = `test-${Date.now()}`;
 async function setup() {
   const base = await mkdtemp(join(tmpdir(), 'kai-gh-'));
   const store = await ConfigStore.open(join(base, 'config'));
-  const vaults = new Vaults(store, { vaultsDir: join(base, 'vaults'), remoteBase: 'https://github.com/', githubToken: token, identity });
+  const vaults = new Vaults(store, { vaultsDir: join(base, 'vaults'), remoteBase: 'https://github.com/', githubToken: () => token, identity });
   await vaults.init();
   return { vaults, base };
 }
@@ -40,21 +41,56 @@ describe('@github test vault', () => {
     await vaults.whenCloned(b.id);
     expect(vaults.getVault(a.id).state).toBe('ready');
     expect((await vaults.listFiles(a.id)).map((f) => f.path)).toEqual(expect.arrayContaining(['README.md', 'Note A.md', 'wiki/Home.md']));
-    expect((await vaults.listFiles(b.id)).map((f) => f.path)).toEqual(['Home.md', 'Page.md']);
+    expect((await vaults.listFiles(b.id)).map((f) => f.path)).toEqual(['Home.md', 'Page.md', 'Sources', 'Wiki']);
     // The token is never written to .git/config.
     const cfg = execFileSync('git', ['config', '--list', '--local'], { cwd: vaults.vaultRootDir(a.id), encoding: 'utf8' });
     expect(cfg).not.toContain(token);
     await vaults.close();
   });
 
-  it('bad repo → clone-failed with the git error, token redacted', async () => {
+  it('token changed at runtime is used by the next clone', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'kai-gh-'));
+    const store = await ConfigStore.open(join(base, 'config'));
+    const gh = new GitHubToken(store, 'ghp_wrongwrongwrongwrongwrongwrong');
+    const vaults = new Vaults(store, { vaultsDir: join(base, 'vaults'), remoteBase: 'https://github.com/', githubToken: () => gh.current(), identity });
+    await vaults.init();
+    const bad = await vaults.add({ name: 'before', repo: REPO }).catch(() => null);
+    if (bad) {
+      await vaults.whenCloned(bad.id);
+      expect(vaults.getVault(bad.id).state).toBe('clone-failed');
+      await vaults.remove(bad.id);
+    }
+    await gh.set(token);
+    const good = await vaults.add({ name: 'after', repo: REPO });
+    await vaults.whenCloned(good.id);
+    expect(vaults.getVault(good.id).state).toBe('ready');
+    await vaults.close();
+  });
+
+  it('token test: valid token → ok with login and vault reachable; garbage token → 401', async () => {
+    const remote = 'https://github.com/';
+    const base = await mkdtemp(join(tmpdir(), 'kai-gh-'));
+    const { makeApp } = await import('./app-helpers.js');
+    const t = await makeApp(remote, {}, { config: join(base, 'config'), vaults: join(base, 'vaults') }, token);
+    const v = await t.vaults.add({ name: 'tt', repo: REPO });
+    await t.vaults.whenCloned(v.id);
+    const good = await t.api.post('/settings/github-token/test', {});
+    expect(good.body).toMatchObject({ ok: true, login: expect.any(String), vaults: [{ repo: REPO, ok: true }] });
+    const bad = await t.api.post('/settings/github-token/test', { token: 'ghp_garbagegarbagegarbagegarbage00' });
+    expect(bad.body.ok).toBe(false);
+    expect(bad.body.error).toMatch(/401/);
+    expect(bad.body.vaults[0].ok).toBe(false);
+    expect(bad.text).not.toContain(token);
+    await t.vaults.close();
+  });
+
+  it('bad repo → 422 at add with the git error, token redacted, nothing stored', async () => {
     const { vaults } = await setup();
-    const v = await vaults.add({ name: 'bad', repo: 'tillg/karpathy-app-no-such-repo' });
-    await vaults.whenCloned(v.id);
-    const got = vaults.getVault(v.id);
-    expect(got.state).toBe('clone-failed');
-    expect(got.error).toBeTruthy();
-    expect(got.error).not.toContain(token);
+    const err = await vaults.add({ name: 'bad', repo: 'tillg/karpathy-app-no-such-repo' }).catch((e: Error & { status?: number; code?: string }) => e);
+    expect(err).toMatchObject({ status: 422, code: 'repo-unreachable' });
+    expect((err as Error).message).toBeTruthy();
+    expect((err as Error).message).not.toContain(token);
+    expect(vaults.list()).toEqual([]);
   });
 
   it('commit + push round trip on a temporary branch; DELETE never touches the remote', async () => {

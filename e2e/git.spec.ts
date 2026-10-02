@@ -89,6 +89,7 @@ test.describe('changes, commit & push', () => {
     try {
       await openApp(page, vault.id);
       await page.getByTestId('open-admin').click();
+      await page.getByTestId('admin-open-settings').click();
       await page.getByTestId('settings-threshold').fill('2');
       await page.getByTestId('settings-save').click();
       await expect(page.getByTestId('toast')).toContainText('Settings saved');

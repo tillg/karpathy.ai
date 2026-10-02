@@ -20,6 +20,8 @@ export interface GitOptions {
   /** GitHub token; sent as an http header via env, never written to .git/config. */
   token?: string;
   identity: GitIdentity;
+  /** Kills git after this long; the call then fails. */
+  timeoutMs?: number;
 }
 
 /** Runs git in one working copy. Only the backend runs git (mvp §3.2). */
@@ -84,10 +86,18 @@ export function runGit(
       ['-c', 'core.quotePath=false', ...args],
       { cwd, env, maxBuffer: 64 * 1024 * 1024, encoding: 'buffer' },
       (err, stdout, stderr) => {
+        clearTimeout(timer);
         const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? ((err as { code: number }).code) : 1) : 0;
         resolve({ code, stdout: binary ? '' : stdout.toString('utf8'), stderr: stderr.toString('utf8'), buf: stdout });
       },
     );
+    // Helpers (remote-https, upload-pack) may hold the pipes open after git dies: close them too,
+    // so the call returns (the orphaned helpers die on the broken pipe).
+    const timer = opts.timeoutMs ? setTimeout(() => {
+      child.kill('SIGKILL');
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }, opts.timeoutMs) : undefined;
     if (input !== undefined) child.stdin?.end(input);
   });
 }

@@ -1,7 +1,7 @@
 ---
 feature: 08_vault_management
 title: "Architecture: modal views, token in the config store, attach preflight"
-status: proposed
+status: applied
 order: 3
 created: 2026-10-02
 edited: 2026-10-02
@@ -108,7 +108,8 @@ interface TokenTest {
 - **Repo check**: `git ls-remote --heads <remoteBase><repo>.git <branch>` per configured vault, with the tested
   token in the extraheader (existing `git()` helper). This proves the token can reach each vault's repo. That
   matters for fine-grained tokens, which `/user` accepts even without repo access.
-- The token test never stores anything. The token only travels browser → backend (HTTPS, bearer-guarded) →
+- The token test never stores anything, but a tested token is added to the redaction set
+  (`GitHubToken.remember`), so it is masked like a saved one. The token only travels browser → backend (HTTPS, bearer-guarded) →
   GitHub.
 
 ### UI
@@ -154,8 +155,12 @@ sequenceDiagram
 - **Preflight** runs in a temp dir under `vaultsDir/.preflight/<random>` (same volume, so no extra mount) and
   is always removed. A blobless, depth-1, no-checkout clone transfers only commits and trees, not file contents:
   small even for media-heavy vaults. It works with `GIT_REMOTE_BASE=file://…` in tests.
-- **Folder check**: `git ls-tree -d HEAD -- <root>/Sources <root>/Wiki` (tree entries). Exact, case-sensitive
-  names. A *file* named `Sources` counts as missing, and creating the folder then fails with a clear error.
+- **Folder check**: `git ls-tree -d HEAD <root>/` lists the root's subfolders. Names match
+  **case-insensitively**: `sources/` and `wiki/` count as present, like the user's lowercase `raw/`/`wiki/`
+  layout (decided 2026-10-02). Missing folders are created as `Sources/` and `Wiki/`. A *file* named `Sources`
+  counts as missing, and creating the folder then fails with a clear error.
+- **Test fixtures** (decided 2026-10-02): the backend `makeRemote`, the e2e `make-vault.py` and the GitHub
+  test vault carry the folders, so existing tests attach without a 409. Preflight tests opt out.
 - **Persisting**: only after the preflight passes. The stored vault carries `pendingFolders?: string[]`. When
   `startClone` succeeds, it writes `<root>/<folder>/.gitkeep` (empty) for each entry, then clears the field.
   If the backend restarts mid-clone, the re-clone on startup still sees `pendingFolders` and creates them.
@@ -168,6 +173,12 @@ sequenceDiagram
   `.gitkeep` creation skips folders that exist after the clone. Folders deleted in the meantime are not
   re-checked: the vault is attached and simply lacks them, the same as an existing vault today.
 - `clone-failed` stays for failures *after* preflight (network drop, disk full). Retry and Edit as today.
+- **Hardening (code review, 2026-10-02):**
+  - An add of a `repo|branch|root` whose preflight is still running is refused as `409 duplicate`. This closes
+    the window between the duplicate check and storing the vault. It is also the limit on parallel preflights.
+  - The preflight clone is killed after 60 s.
+  - `Vaults.init()` removes `.preflight/` left behind by a crash.
+  - Clone and preflight error texts go through `redact()` before they are returned or stored.
 
 ### Frontend
 
@@ -206,6 +217,7 @@ repo field.
 | GitHub contents API for the folder check | no | Doesn't work with `file://` test remotes, and needs a second auth path. git covers GitHub and tests alike. |
 | Token test via `ls-remote` only | no | Says nothing about identity or expiry. `/user` alone misses fine-grained repo scoping. Both are cheap. |
 | Commit the created folders | no | ADR 0001: only the user commits. |
+| Token per vault (or per owner) | no | Single-user app. Today's vaults share one owner, and one token covers them. If owners are ever mixed, the follow-up is one token per owner, because a fine-grained token is bound to one owner (see proposal, Out). |
 | Token in `Settings` | no | `GET /settings` returns settings verbatim and the client caches them. A separate key keeps the plaintext out by construction. |
 | Visible placeholder (`README.md`) instead of `.gitkeep` | no | A Markdown file in `Sources/` would look like a source to ingest skills. The tree hides dot-files, but the folder itself still shows (verified in the plan). |
 

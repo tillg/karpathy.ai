@@ -1,6 +1,23 @@
-import { expect, makeRemote, openApp, runId, test, treeItem, uid } from './helpers';
+import { expect, makePlainRemote, makeRemote, openApp, runId, test, treeItem, uid } from './helpers';
 
 test.describe('admin area', () => {
+  test('list → details → back', async ({ page, vault }) => {
+    await openApp(page, vault.id);
+    await page.getByTestId('open-admin').click();
+    const admin = page.getByTestId('admin');
+    const row = admin.locator(`[data-testid="admin-vault"][data-vault="${vault.id}"]`);
+    await expect(row).toContainText(vault.name);
+    await expect(row).toContainText(`e2e/${vault.name} · main`);
+    await row.click();
+    const details = admin.getByTestId('vault-details');
+    await expect(details).toHaveAttribute('data-vault', vault.id);
+    await details.getByTestId('vault-edit').click();
+    await expect(details.getByTestId('edit-repo')).toHaveValue(`e2e/${vault.name}`);
+    await admin.getByTestId('admin-back').click();
+    await expect(row).toBeVisible();
+    await expect(details).toHaveCount(0);
+  });
+
   test('add a vault → cloned → in the switcher; edit its name; remove it', async ({ page, api }) => {
     const name = `e2e-admin-${runId()}-${uid()}`;
     makeRemote(name);
@@ -10,6 +27,7 @@ test.describe('admin area', () => {
     await page.getByTestId('open-admin').click();
     const admin = page.getByTestId('admin');
     await expect(admin).toBeVisible();
+    await admin.getByTestId('admin-open-add').click();
     await page.getByTestId('admin-name').fill(name);
     await page.getByTestId('admin-repo').fill(`e2e/${name}`);
     await page.getByTestId('admin-add').click();
@@ -20,10 +38,12 @@ test.describe('admin area', () => {
     await expect(row).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
 
     // Edit the display name.
-    await row.getByTestId('vault-edit').click();
-    await row.getByTestId('edit-name').fill(`${name} renamed`);
-    await row.getByTestId('edit-save').click();
-    await expect(row).toContainText(`${name} renamed`);
+    await row.click();
+    const details = admin.getByTestId('vault-details');
+    await details.getByTestId('vault-edit').click();
+    await details.getByTestId('edit-name').fill(`${name} renamed`);
+    await details.getByTestId('edit-save').click();
+    await expect(details).toContainText(`${name} renamed`);
     expect((await api.vault(name)).name).toBe(`${name} renamed`);
 
     // Appears in the vault switcher and can be activated.
@@ -37,33 +57,102 @@ test.describe('admin area', () => {
 
     // Remove (confirm dialog auto-accepted).
     await page.getByTestId('open-admin').click();
-    await row.getByTestId('vault-remove').click();
+    await row.click();
+    await details.getByTestId('vault-remove').click();
+    // Back on the list once the removal is done.
+    await expect(admin.getByTestId('admin-open-add')).toBeVisible();
     await expect(row).toHaveCount(0);
     expect((await api.vaults()).some((v) => v.id === name)).toBe(false);
   });
 
-  test('a repo that cannot be cloned shows clone-failed with the git error', async ({ page, api }) => {
+  test('an unreachable repo is refused inline and not attached', async ({ page, api }) => {
     const name = `e2e-missing-${runId()}-${uid()}`;
-    page.on('dialog', (d) => void d.accept());
     await openApp(page);
     await page.getByTestId('open-admin').click();
+    await page.getByTestId('admin-open-add').click();
     await page.getByTestId('admin-name').fill(name);
     await page.getByTestId('admin-repo').fill(`e2e/${name}`);
     await page.getByTestId('admin-add').click();
-    const row = page.locator(`[data-testid="admin-vault"][data-vault="${name}"]`);
-    await expect(row).toHaveAttribute('data-state', 'clone-failed', { timeout: 60_000 });
-    await expect(row.locator('.form-error')).not.toBeEmpty();
-    await row.getByTestId('vault-remove').click();
-    await expect(row).toHaveCount(0);
+    await expect(page.getByTestId('admin-error')).toContainText(`Couldn't clone e2e/${name}`);
     expect((await api.vaults()).some((v) => v.id === name)).toBe(false);
   });
 
   test('an invalid repo name is rejected inline', async ({ page }) => {
     await openApp(page);
     await page.getByTestId('open-admin').click();
+    await page.getByTestId('admin-open-add').click();
     await page.getByTestId('admin-repo').fill('not a repo');
     await page.getByTestId('admin-add').click();
     await expect(page.getByTestId('admin-error')).toContainText('owner/name');
+  });
+
+  test('missing folders: "Don\'t attach" stores nothing; "Create folders" attaches with Sources/ and Wiki/ as changes', async ({ page, api }) => {
+    const name = `e2e-plain-${runId()}-${uid()}`;
+    makePlainRemote(name);
+    await openApp(page);
+    await page.getByTestId('open-admin').click();
+    const admin = page.getByTestId('admin');
+    await admin.getByTestId('admin-open-add').click();
+    await page.getByTestId('admin-name').fill(name);
+    await page.getByTestId('admin-repo').fill(`e2e/${name}`);
+    await page.getByTestId('admin-add').click();
+
+    const ask = page.getByTestId('missing-folders');
+    await expect(ask).toContainText('Sources/');
+    await expect(ask).toContainText('Wiki/');
+    await page.screenshot({ path: 'tmp/08/missing-folders.png' });
+    await ask.getByTestId('folders-cancel').click();
+    await expect(ask).toHaveCount(0);
+    await expect(page.getByTestId('admin-repo')).toHaveValue(`e2e/${name}`);
+    expect((await api.vaults()).some((v) => v.id === name)).toBe(false);
+
+    await page.getByTestId('admin-add').click();
+    await ask.getByTestId('folders-create').click();
+    const row = admin.locator(`[data-testid="admin-vault"][data-vault="${name}"]`);
+    await expect(row).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+    try {
+      expect((await api.changes(name)).map((c) => c.path).sort()).toEqual(['Sources/.gitkeep', 'Wiki/.gitkeep']);
+    } finally {
+      for (const p of ['Sources/.gitkeep', 'Wiki/.gitkeep']) await api.ctx.post(`/api/vaults/${name}/discard?path=${encodeURIComponent(p)}`);
+      await api.removeVault(name);
+    }
+  });
+
+  test('settings: GitHub token is masked; Test token lists each vault', async ({ page, api, vault }) => {
+    await openApp(page, vault.id);
+    await page.getByTestId('open-admin').click();
+    const admin = page.getByTestId('admin');
+    await admin.getByTestId('admin-open-settings').click();
+    const input = admin.getByTestId('token-input');
+    const tok = `ghp_e2e${uid()}abcdefghijklmnopqrstuv`;
+    await input.fill(tok);
+    await admin.getByTestId('token-save').click();
+    try {
+      await expect(input).toHaveValue('');
+      await expect(input).toHaveAttribute('placeholder', new RegExp(`${tok.slice(-4)}$`));
+      expect(JSON.stringify(await api.settings())).not.toContain(tok);
+      await admin.getByTestId('token-test').click();
+      const result = admin.getByTestId('token-result');
+      await expect(result).toBeVisible({ timeout: 20_000 });
+      await expect(result.locator(`[data-testid="token-vault"][data-vault="${vault.id}"]`)).toHaveAttribute('data-ok', 'true');
+      await page.screenshot({ path: 'tmp/08/settings-token.png' });
+    } finally {
+      await admin.getByTestId('token-remove').click();
+      await expect(input).not.toHaveAttribute('placeholder', new RegExp(`${tok.slice(-4)}$`));
+    }
+  });
+
+  test('"What is a vault?" explains Sources and Wiki', async ({ page }) => {
+    await openApp(page);
+    await page.getByTestId('open-admin').click();
+    await page.getByTestId('admin-help').click();
+    const help = page.getByTestId('vault-help');
+    await expect(help).toContainText('Sources/');
+    await expect(help).toContainText('Wiki/');
+    await expect(help).toContainText('Schema/');
+    await help.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(help).toHaveCount(0);
+    await expect(page.getByTestId('admin')).toBeVisible();
   });
 
   test('vault switcher switches file tree between vaults', async ({ page, api, vault }) => {

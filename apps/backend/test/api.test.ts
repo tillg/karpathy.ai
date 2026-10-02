@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { readFile, writeFile, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -19,6 +20,18 @@ async function vaultApp(files: Record<string, string> = { 'Home.md': '# Home\nSe
   cleanups.push(() => t.vaults.close());
   const id = await t.addVault(remote.repo);
   return { ...t, remote, id };
+}
+
+/** An app whose config already holds vault `v` in clone-failed state (as after a failed clone). */
+async function appWithFailedVault(remoteBase: string, v: { repo: string; root: string }) {
+  const base = await mkdtemp(join(tmpdir(), 'kai-app-'));
+  const dirs = { config: join(base, 'config'), vaults: join(base, 'vaults') };
+  await mkdir(dirs.config, { recursive: true });
+  const vault = { id: 'v', name: 'v', branch: 'main', ...v, cloned: false, cloneError: "Couldn't clone" };
+  await writeFile(join(dirs.config, 'config.json'), JSON.stringify({ vaults: [vault] }));
+  const t = await makeApp(remoteBase, {}, dirs);
+  cleanups.push(() => t.vaults.close());
+  return t;
 }
 
 describe('auth', () => {
@@ -42,7 +55,7 @@ describe('auth', () => {
 });
 
 describe('vault admin', () => {
-  it('add → cloning → ready; appears in list; bad repo → clone-failed with the git error', async () => {
+  it('add → cloning → ready; appears in list; bad repo → 422 with the git error, nothing stored', async () => {
     const remote = await makeRemote({ 'a.md': 'a' });
     const t = await makeApp(remote.remoteBase);
     cleanups.push(() => t.vaults.close());
@@ -53,32 +66,109 @@ describe('vault admin', () => {
     expect((await t.api.get('/vaults')).body).toEqual([expect.objectContaining({ id: 'my-vault', state: 'ready' })]);
 
     const bad = await t.api.post('/vaults', { name: 'bad', repo: 'o/does-not-exist' });
-    await t.vaults.whenCloned(bad.body.id);
-    const got = (await t.api.get(`/vaults/${bad.body.id}`)).body;
-    expect(got.state).toBe('clone-failed');
+    expect(bad.status).toBe(422);
+    expect(bad.body.code).toBe('repo-unreachable');
     // #48: a human message, no git stderr or container paths.
-    expect(got.error).toBe("Couldn't clone o/does-not-exist: the repository doesn't exist, or the server's GitHub token has no access to it.");
+    expect(bad.body.error).toBe("Couldn't clone o/does-not-exist: the repository doesn't exist, or the server's GitHub token has no access to it.");
+    expect((await t.api.get('/vaults')).body).toHaveLength(1);
     expect((await t.api.post('/vaults', { repo: 'not a repo' })).status).toBe(400);
   });
 
-  it('missing branch → a readable clone error (#48)', async () => {
+  it('repo without Sources/Wiki → 409 missing-folders; nothing stored, nothing cloned', async () => {
+    const remote = await makeRemote({ 'a.md': 'a', 'Wiki/x.md': 'x' }, { structure: false });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const r = await t.api.post('/vaults', { repo: remote.repo });
+    expect(r.status).toBe(409);
+    expect(r.body).toMatchObject({ code: 'missing-folders', missing: ['Sources'] });
+    expect((await t.api.get('/vaults')).body).toEqual([]);
+    expect(t.store.get().vaults).toEqual([]);
+    expect(await readdir(t.dirs.vaults)).toEqual(['.preflight']);
+    expect(await readdir(join(t.dirs.vaults, '.preflight'))).toEqual([]);
+  });
+
+  it('createFolders → ready with Sources/.gitkeep and Wiki/.gitkeep as uncommitted changes; folders listed', async () => {
+    const remote = await makeRemote({ 'a.md': 'a' }, { structure: false });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const id = await t.addVault(remote.repo, { createFolders: true });
+    expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('ready');
+    const changes = (await t.api.get(`/vaults/${id}/changes`)).body.map((c: { path: string; kind: string }) => [c.path, c.kind]);
+    expect(changes).toEqual([['Sources/.gitkeep', 'untracked'], ['Wiki/.gitkeep', 'untracked']]);
+    expect(t.store.get().vaults[0]).not.toHaveProperty('pendingFolders');
+    expect((await t.api.get(`/vaults/${id}/files`)).body).toEqual([
+      { path: 'a.md', type: 'file' },
+      { path: 'Sources', type: 'dir' },
+      { path: 'Wiki', type: 'dir' },
+    ]);
+  });
+
+  it('createFolders over a file named Sources → clone-failed with a clear message', async () => {
+    const remote = await makeRemote({ Sources: 'a file', 'Wiki/x.md': 'x' }, { structure: false });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const id = await t.addVault(remote.repo, { createFolders: true });
+    expect((await t.api.get(`/vaults/${id}`)).body).toMatchObject({ state: 'clone-failed', error: "can't create folder Sources: a file with that name exists" });
+  });
+
+  it('pendingFolders survive a restart before the clone finished', async () => {
+    const remote = await makeRemote({ 'a.md': 'a', 'wiki/b.md': 'b' }, { structure: false });
+    const base = await mkdtemp(join(tmpdir(), 'kai-app-'));
+    const dirs = { config: join(base, 'config'), vaults: join(base, 'vaults') };
+    await mkdir(dirs.config, { recursive: true });
+    const vault = { id: 'v', name: 'v', repo: remote.repo, branch: 'main', root: '', cloned: false, pendingFolders: ['Sources'] };
+    await writeFile(join(dirs.config, 'config.json'), JSON.stringify({ vaults: [vault] }));
+    const t = await makeApp(remote.remoteBase, {}, dirs);
+    cleanups.push(() => t.vaults.close());
+    await t.vaults.whenCloned('v');
+    expect((await t.api.get('/vaults/v/changes')).body.map((c: { path: string }) => c.path)).toEqual(['Sources/.gitkeep']);
+  });
+
+  it('two adds of the same repo at once → one attached, the other 409 duplicate', async () => {
     const remote = await makeRemote({ 'a.md': 'a' });
     const t = await makeApp(remote.remoteBase);
     cleanups.push(() => t.vaults.close());
-    const id = await t.addVault(remote.repo, { branch: 'nope' });
-    expect((await t.api.get(`/vaults/${id}`)).body.error).toBe(`Couldn't clone ${remote.repo}: branch "nope" doesn't exist there.`);
+    const rs = await Promise.all([t.api.post('/vaults', { repo: remote.repo }), t.api.post('/vaults', { repo: remote.repo })]);
+    expect(rs.map((r) => r.status).sort()).toEqual([202, 409]);
+    expect(rs.find((r) => r.status === 409)!.body.code).toBe('duplicate');
+    expect(t.store.get().vaults).toHaveLength(1);
   });
 
-  it('subfolder root: files are scoped to it; missing root folder → clone-failed', async () => {
-    const remote = await makeRemote({ 'wiki/a.md': 'inside needle', 'top.md': 'outside needle' });
+  it('leftover preflight dirs from a crash are removed at startup', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'kai-app-'));
+    const dirs = { config: join(base, 'config'), vaults: join(base, 'vaults') };
+    await mkdir(join(dirs.vaults, '.preflight', 'pre-crashed', 'c'), { recursive: true });
+    const t = await makeApp('file:///nowhere/', {}, dirs);
+    cleanups.push(() => t.vaults.close());
+    expect(await readdir(join(dirs.vaults, '.preflight')).catch(() => [])).toEqual([]);
+  });
+
+  it('missing branch → 422 with a readable clone error (#48), nothing stored', async () => {
+    const remote = await makeRemote({ 'a.md': 'a' });
+    const t = await makeApp(remote.remoteBase);
+    cleanups.push(() => t.vaults.close());
+    const r = await t.api.post('/vaults', { repo: remote.repo, branch: 'nope' });
+    expect(r.status).toBe(422);
+    expect(r.body.error).toBe(`Couldn't clone ${remote.repo}: branch "nope" doesn't exist there.`);
+    expect((await t.api.get('/vaults')).body).toEqual([]);
+  });
+
+  it('subfolder root: files are scoped to it; missing root folder → 422 root-missing', async () => {
+    const remote = await makeRemote({ 'wiki/a.md': 'inside needle', 'wiki/Sources/.gitkeep': '', 'wiki/Wiki/.gitkeep': '', 'top.md': 'outside needle' });
     const t = await makeApp(remote.remoteBase);
     cleanups.push(() => t.vaults.close());
     const id = await t.addVault(remote.repo, { root: 'wiki' });
-    expect((await t.api.get(`/vaults/${id}/files`)).body).toEqual([{ path: 'a.md', type: 'file' }]);
+    expect((await t.api.get(`/vaults/${id}/files`)).body).toEqual([
+      { path: 'a.md', type: 'file' },
+      { path: 'Sources', type: 'dir' },
+      { path: 'Wiki', type: 'dir' },
+    ]);
     expect((await t.api.get(`/vaults/${id}/search?q=needle`)).body.hits).toEqual([{ path: 'a.md', line: 1, text: 'inside needle' }]);
     expect((await t.api.get(`/vaults/${id}/file?path=../top.md`)).status).toBe(400);
-    const bad = await t.addVault(remote.repo, { name: 'x', root: 'nope' });
-    expect((await t.api.get(`/vaults/${bad}`)).body.state).toBe('clone-failed');
+    const bad = await t.api.post('/vaults', { name: 'x', repo: remote.repo, root: 'nope' });
+    expect(bad.status).toBe(422);
+    expect(bad.body.code).toBe('root-missing');
+    expect((await t.api.get('/vaults')).body).toHaveLength(1);
   });
 
   it('PATCH: name always; repo/branch/root only on a clean tree', async () => {
@@ -111,7 +201,7 @@ describe('vault admin', () => {
   });
 
   it('duplicate vault (same repo, branch, root) → 409 duplicate (#15, #25 case-insensitive)', async () => {
-    const t = await vaultApp();
+    const t = await vaultApp({ 'Home.md': '# Home\n', 'notes/n1.md': 'n\n', 'notes/Sources/.gitkeep': '', 'notes/Wiki/.gitkeep': '' });
     const r = await t.api.post('/vaults', { name: 'again', repo: t.remote.repo });
     expect(r.status).toBe(409);
     expect(r.body.code).toBe('duplicate');
@@ -121,13 +211,10 @@ describe('vault admin', () => {
 
   it('PATCH {} on a clone-failed vault retries the clone (#23)', async () => {
     const remote = await makeRemote({ 'a.md': 'a' });
-    const t = await makeApp(remote.remoteBase);
-    cleanups.push(() => t.vaults.close());
-    const { rename } = await import('node:fs/promises');
-    await rename(remote.bare, `${remote.bare}.away`);
-    const id = await t.addVault(remote.repo);
+    // Preflight keeps unreachable repos out, so a clone-failed vault comes from the stored config.
+    const t = await appWithFailedVault(remote.remoteBase, { repo: remote.repo, root: '' });
+    const id = 'v';
     expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('clone-failed');
-    await rename(`${remote.bare}.away`, remote.bare);
     expect((await t.api.patch(`/vaults/${id}`, {})).status).toBe(200);
     await t.vaults.whenCloned(id);
     expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('ready');
@@ -135,9 +222,8 @@ describe('vault admin', () => {
 
   it('fixing the root of a clone-failed vault re-clones it (#9)', async () => {
     const remote = await makeRemote({ 'a.md': 'a' });
-    const t = await makeApp(remote.remoteBase);
-    cleanups.push(() => t.vaults.close());
-    const id = await t.addVault(remote.repo, { root: 'nope' });
+    const t = await appWithFailedVault(remote.remoteBase, { repo: remote.repo, root: 'nope' });
+    const id = 'v';
     expect((await t.api.get(`/vaults/${id}`)).body.state).toBe('clone-failed');
     const p = await t.api.patch(`/vaults/${id}`, { root: '' });
     expect(p.status).toBe(200);
@@ -160,9 +246,53 @@ describe('vault admin', () => {
     }
   });
 
-  it('PATCH repo re-clones', async () => {
+  it('PUT github token → GET shows source settings + last4, never the token; DELETE → secret; bad token → 400', async () => {
+    const { api } = await makeApp('file:///nowhere/', {}, undefined, 'ghp_secretsecretsecretsecret1111');
+    expect((await api.get('/settings')).body.githubToken).toEqual({ source: 'secret', last4: '1111' });
+    const tok = 'github_pat_abcdefghijklmnopqrstuvwxyz9876';
+    expect((await api.put('/settings/github-token', { token: tok })).status).toBe(204);
+    const got = await api.get('/settings');
+    expect(got.body.githubToken).toEqual({ source: 'settings', last4: '9876' });
+    expect(got.text).not.toContain(tok);
+    expect(got.body.commitReminderThreshold).toBe(4);
+    expect((await api.delete('/settings/github-token')).status).toBe(204);
+    expect((await api.get('/settings')).body.githubToken).toEqual({ source: 'secret', last4: '1111' });
+    for (const token of ['short', 'ghp_with space_aaaaaaaaaaaaaaaaaaa']) {
+      const r = await api.put('/settings/github-token', { token });
+      expect(r.status).toBe(400);
+    }
+    const none = await makeApp('file:///nowhere/');
+    expect((await none.api.get('/settings')).body.githubToken).toEqual({ source: 'none', last4: null });
+  });
+
+  it('a token sent to the test route is masked in later messages, though never saved', async () => {
+    const t = await makeApp('file:///nowhere/');
+    const typed = 'ghp_typedtypedtypedtypedtyped1234';
+    expect((await t.api.post('/settings/github-token/test', { token: typed })).status).toBe(200);
+    expect(t.githubToken.redact(`fatal: ${typed}`)).toBe('fatal: ***');
+    expect((await t.api.get('/settings')).body.githubToken.source).toBe('none');
+  });
+
+  it('token test lists each vault: ok for a reachable remote, ok:false with a message for a deleted one', async () => {
     const t = await vaultApp();
     const other = await makeRemote({ 'x.md': 'x' }, { name: 'second' });
+    // Both remotes must sit under the app's remoteBase: move the second bare repo next to the first.
+    await rename(other.bare, join(t.remote.bare, '..', 'second.git'));
+    const id2 = await t.addVault('o/second');
+    await rm(join(t.remote.bare, '..', 'second.git'), { recursive: true, force: true });
+    const r = await t.api.post('/settings/github-token/test', {});
+    expect(r.status).toBe(200);
+    expect(r.body.ok).toBe(false);
+    expect(r.body.error).toMatch(/no github token/i);
+    expect(r.body.vaults).toEqual([
+      { id: t.id, repo: 'o/vault', ok: true },
+      { id: id2, repo: 'o/second', ok: false, error: expect.stringMatching(/o\/second/) },
+    ]);
+  });
+
+  it('PATCH repo re-clones', async () => {
+    const t = await vaultApp();
+    const other = await makeRemote({ 'x.md': 'x' }, { name: 'second', structure: false });
     // Same remote base dir layout differs per makeRemote; point the vault at the other bare repo via a symlink.
     await symlink(other.bare, join(t.remote.bare, '..', 'second.git'));
     const r = await t.api.patch(`/vaults/${t.id}`, { repo: 'o/second' });
@@ -204,6 +334,8 @@ describe('files', () => {
       { path: 'notes', type: 'dir' },
       { path: 'notes/n1.md', type: 'file' },
       { path: 'Other.md', type: 'file' },
+      { path: 'Sources', type: 'dir' },
+      { path: 'Wiki', type: 'dir' },
     ]);
     const f = (await t.api.get(`/vaults/${t.id}/file?path=Home.md`)).body;
     expect(f.content).toContain('[[Other]]');
@@ -294,7 +426,7 @@ describe('files', () => {
     expect(await paths()).toEqual(expect.arrayContaining(['a', 'a/keep.md']));
     expect(await paths()).not.toContain('a/b');
     await del('a/keep.md');
-    expect(await paths()).toEqual(['Home.md']);
+    expect(await paths()).toEqual(['Home.md', 'Sources', 'Wiki']);
   });
 
   it('search finds content and file names', async () => {

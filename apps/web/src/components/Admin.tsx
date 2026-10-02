@@ -1,12 +1,15 @@
-import type { Vault } from '@karpathy/shared';
+import type { TokenTest, Vault } from '@karpathy/shared';
 import { useEffect, useState } from 'react';
-import { api, errorText } from '../lib/api';
+import { api, ApiError, errorText } from '../lib/api';
 import { useApp } from '../store';
 import { Modal } from './Dialogs';
 import { Icon } from './Icon';
 
 interface Form { name: string; repo: string; branch: string; root: string }
 const emptyForm: Form = { name: '', repo: '', branch: 'main', root: '' };
+
+/** The modal's views; there is no router, the view is modal-internal state. */
+type View = { kind: 'list' } | { kind: 'details'; id: string } | { kind: 'add' } | { kind: 'settings' };
 
 function VaultFields({ f, set, prefix }: { f: Form; set(f: Form): void; prefix: string }) {
   const field = (k: keyof Form, label: string, placeholder: string) => (
@@ -26,7 +29,21 @@ function VaultFields({ f, set, prefix }: { f: Form; set(f: Form): void; prefix: 
   );
 }
 
-function VaultRow({ v }: { v: Vault }) {
+const where = (v: Vault) => `${v.repo} · ${v.branch}${v.root ? ` · /${v.root}` : ''}`;
+
+function VaultRow({ v, open }: { v: Vault; open(): void }) {
+  return (
+    <button className="vrow vrow-btn" data-testid="admin-vault" data-vault={v.id} data-state={v.state} onClick={open}>
+      <div className="vrow-h">
+        <div className="nm"><b>{v.name}</b><small>{where(v)}</small></div>
+        <span className={`state s-${v.state}`}>{v.state}</span>
+        <Icon n="chevron_right" size={16} />
+      </div>
+    </button>
+  );
+}
+
+function VaultDetails({ v, back }: { v: Vault; back(): void }) {
   const { reloadVaults, toast, forgetVault } = useApp();
   const [edit, setEdit] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +63,7 @@ function VaultRow({ v }: { v: Vault }) {
     if (!confirm(`Remove vault “${v.name}”? This deletes the local clone only, never the GitHub repo.`)) return;
     setError(null);
     setRemoving(true);
-    try { await api.removeVault(v.id); forgetVault(v.id); toast(`Removed ${v.name}`); await reloadVaults(); } catch (e) { setError(errorText(e)); }
+    try { await api.removeVault(v.id); forgetVault(v.id); toast(`Removed ${v.name}`); await reloadVaults(); back(); } catch (e) { setError(errorText(e)); }
     finally { setRemoving(false); }
   };
   /** A PATCH without changes re-runs a failed clone (issue #23). */
@@ -54,9 +71,9 @@ function VaultRow({ v }: { v: Vault }) {
     try { await api.patchVault(v.id, {}); setError(null); await reloadVaults(); } catch (e) { setError(errorText(e)); }
   };
   return (
-    <div className="vrow" data-testid="admin-vault" data-vault={v.id} data-state={v.state}>
+    <div className="vrow" data-testid="vault-details" data-vault={v.id} data-state={v.state}>
       <div className="vrow-h">
-        <div className="nm"><b>{v.name}</b><small>{v.repo} · {v.branch}{v.root ? ` · /${v.root}` : ''}</small></div>
+        <div className="nm"><b>{v.name}</b><small>{where(v)}</small></div>
         <span className={`state s-${v.state}`}>{v.state}</span>
       </div>
       {v.state === 'clone-failed' && v.error && <div className="form-error">{v.error}</div>}
@@ -74,6 +91,50 @@ function VaultRow({ v }: { v: Vault }) {
       )}
       {error && <div className="form-error" role="alert">{error}</div>}
     </div>
+  );
+}
+
+function AddVault({ done }: { done(): void }) {
+  const { reloadVaults, setActiveId, activeId } = useApp();
+  const [form, setForm] = useState<Form>(emptyForm);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  /** Required folders the repo lacks; set while the user decides whether to create them. */
+  const [missing, setMissing] = useState<string[] | null>(null);
+  const add = async (createFolders = false) => {
+    setBusy(true);
+    try {
+      const v = await api.addVault({ name: form.name.trim(), repo: form.repo.trim(), branch: form.branch.trim() || 'main', root: form.root.trim(), ...(createFolders ? { createFolders } : {}) });
+      setMissing(null);
+      setError(null);
+      await reloadVaults();
+      if (!activeId) void setActiveId(v.id);
+      done();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'missing-folders') setMissing(err.body.missing as string[]);
+      else setError(errorText(err));
+    } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <form className="form" onSubmit={(e) => { e.preventDefault(); void add(); }}>
+        <VaultFields f={form} set={setForm} prefix="admin" />
+        {error && <div className="form-error" role="alert" data-testid="admin-error">{error}</div>}
+        <div className="acts"><button className="btn" data-testid="admin-add" disabled={busy || !form.repo.trim()}>{busy ? 'Checking the repo…' : 'Add vault'}</button></div>
+      </form>
+      {missing && (
+        <Modal title="Create folders?" onClose={() => setMissing(null)} testid="missing-folders">
+          <p>
+            <b>{form.repo.trim()}</b> has no {missing.map((f, i) => <span key={f}>{i ? ' and ' : ''}<code>{f}/</code></span>)} folder. Create {missing.length > 1 ? 'them' : 'it'}?
+          </p>
+          <p className="muted">They’ll appear as uncommitted changes until you commit. Without them, the vault is not attached.</p>
+          <div className="acts">
+            <button className="btn g" data-testid="folders-cancel" onClick={() => setMissing(null)}>Don’t attach</button>
+            <button className="btn" data-testid="folders-create" disabled={busy} onClick={() => void add(true)}>{busy ? 'Adding…' : 'Create folders'}</button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -117,6 +178,64 @@ function SettingsForm() {
   );
 }
 
+/** The one server-wide GitHub token: set, replace or remove it, and test it before or after saving. */
+function GitHubTokenForm() {
+  const { settings, setSettings, toast } = useApp();
+  const [token, setToken] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<null | 'save' | 'remove' | 'test'>(null);
+  const [result, setResult] = useState<TokenTest | null>(null);
+  const t = settings?.githubToken;
+  const placeholder = !t || t.source === 'none' ? 'No token set' : t.source === 'secret' ? `Using the server’s token •••• ${t.last4}` : `•••• ${t.last4}`;
+  const run = async (kind: 'save' | 'remove' | 'test', fn: () => Promise<void>) => {
+    setBusy(kind);
+    setError(null);
+    try { await fn(); } catch (e) { setError(errorText(e)); } finally { setBusy(null); }
+  };
+  const save = () => run('save', async () => {
+    await api.putGithubToken(token.trim());
+    setToken('');
+    setResult(null);
+    setSettings(await api.settings());
+    toast('GitHub token saved');
+  });
+  const remove = () => run('remove', async () => {
+    await api.removeGithubToken();
+    setResult(null);
+    setSettings(await api.settings());
+    toast('GitHub token removed');
+  });
+  const test = () => run('test', async () => { setResult(await api.testGithubToken(token.trim() || undefined)); });
+  const expires = result?.expiresAt ? `, expires ${result.expiresAt.slice(0, 10)}` : '';
+  return (
+    <div className="form">
+      <label className="field"><span>GitHub token (used for every vault)</span>
+        <input data-testid="token-input" type="password" value={token} placeholder={placeholder} autoComplete="off" autoCapitalize="off" spellCheck={false}
+          onChange={(e) => { setToken(e.target.value); setResult(null); }} /></label>
+      <p className="muted">Needs read and write access to the vaults’ repos. It stays on the server; the app only shows its last 4 characters.</p>
+      {error && <div className="form-error" role="alert" data-testid="token-error">{error}</div>}
+      {result && (
+        <div className="token-result" role="status" data-testid="token-result" data-ok={result.ok}>
+          <div className={result.ok ? 'ok' : 'bad'}>
+            <Icon n={result.ok ? 'checkmark' : 'xmark'} size={15} />
+            {result.ok ? <>Works — signed in as <b>{result.login}</b>{expires}</> : result.error}
+          </div>
+          {result.vaults.map((v) => (
+            <div key={v.id} className={v.ok ? 'ok' : 'bad'} data-testid="token-vault" data-vault={v.id} data-ok={v.ok}>
+              <Icon n={v.ok ? 'checkmark' : 'xmark'} size={15} />{v.ok ? v.repo : v.error}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="acts">
+        {t?.source === 'settings' && <button className="btn g danger" data-testid="token-remove" disabled={!!busy} onClick={() => void remove()}>{busy === 'remove' ? 'Removing…' : 'Remove'}</button>}
+        <button className="btn g" data-testid="token-test" disabled={!!busy} onClick={() => void test()}>{busy === 'test' ? 'Testing…' : 'Test token'}</button>
+        <button className="btn" data-testid="token-save" disabled={!!busy || token.trim().length === 0} onClick={() => void save()}>{busy === 'save' ? 'Saving…' : 'Save token'}</button>
+      </div>
+    </div>
+  );
+}
+
 /** Server and PWA version: after a deploy, shows whether the new release and its service worker are live. */
 function Versions() {
   const [server, setServer] = useState('…');
@@ -128,39 +247,62 @@ function Versions() {
   );
 }
 
-export function Admin() {
-  const { vaults, reloadVaults, setAdminOpen, setActiveId, activeId } = useApp();
-  const [form, setForm] = useState<Form>(emptyForm);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { void reloadVaults(); }, [reloadVaults]);
-  const add = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const v = await api.addVault({ name: form.name.trim(), repo: form.repo.trim(), branch: form.branch.trim() || 'main', root: form.root.trim() });
-      setForm(emptyForm);
-      setError(null);
-      await reloadVaults();
-      if (!activeId) void setActiveId(v.id);
-    } catch (err) { setError(errorText(err)); } finally { setBusy(false); }
-  };
+/** "What is a vault?": the structure the app expects in a vault root. */
+function VaultHelp({ close }: { close(): void }) {
   return (
-    // A long form: focus starts on the title, not on the "Add vault" fields far below (issue #39).
-    <Modal title="Vaults & settings" onClose={() => setAdminOpen(false)} wide testid="admin" focusTitle>
-      <div className="gh">Vaults</div>
-      {vaults?.length === 0 && <p className="muted">No vaults yet. Each vault is an existing GitHub repo.</p>}
-      {vaults?.map((v) => <VaultRow key={v.id} v={v} />)}
-      <div className="gh">Add vault</div>
-      <form className="form" onSubmit={add}>
-        <VaultFields f={form} set={setForm} prefix="admin" />
-        {error && <div className="form-error" role="alert" data-testid="admin-error">{error}</div>}
-        <div className="acts"><button className="btn" data-testid="admin-add" disabled={busy || !form.repo.trim()}>{busy ? 'Adding…' : 'Add vault'}</button></div>
-      </form>
-      <div className="gh">Settings</div>
-      <SettingsForm />
-      <div className="gh">Version</div>
-      <Versions />
+    <Modal title="What is a vault?" onClose={close} testid="vault-help">
+      <p>A vault is a GitHub repo (or a folder in it) holding Markdown notes. The AI keeps it as a wiki built from your sources:</p>
+      <pre className="tree-sketch">{'my-vault/\n├── Sources/   immutable source documents\n├── Wiki/      the knowledge base the AI maintains\n└── Schema/    optional: instructions for the AI'}</pre>
+      <p><b><code>Sources/</code></b> holds what you collect: articles, mails, PDFs, clips. Sources are added, not rewritten.</p>
+      <p><b><code>Wiki/</code></b> holds the pages the AI writes from them: entities, concepts, topics, summaries, an index and a log.</p>
+      <p><b><code>Schema/</code></b> is optional and holds instructions for the AI, e.g. <code>Schema/CLAUDE.md</code>.</p>
+      <p className="muted">When you add a repo without <code>Sources/</code> or <code>Wiki/</code>, the app offers to create them.</p>
+    </Modal>
+  );
+}
+
+export function Admin() {
+  const { vaults, reloadVaults, setAdminOpen, adminOpen } = useApp();
+  const start = adminOpen ? adminOpen.vault : undefined;
+  const [view, setView] = useState<View>(start ? { kind: 'details', id: start } : { kind: 'list' });
+  const [help, setHelp] = useState(false);
+  useEffect(() => { void reloadVaults(); }, [reloadVaults]);
+  const list = () => setView({ kind: 'list' });
+  const current = view.kind === 'details' ? vaults?.find((v) => v.id === view.id) : undefined;
+  const title = view.kind === 'details' ? (current?.name ?? 'Vault') : view.kind === 'add' ? 'Add vault' : view.kind === 'settings' ? 'Settings' : 'Vaults & settings';
+  return (
+    // Focus starts on the title, not on a field (issue #39).
+    <Modal title={title} onClose={() => setAdminOpen(false)} wide testid="admin" focusTitle>
+      {view.kind !== 'list' && (
+        <button className="link back" data-testid="admin-back" onClick={list}><Icon n="chevron_left" size={15} />All vaults</button>
+      )}
+      {view.kind === 'list' && (
+        <>
+          <div className="gh">
+            Vaults
+            <button className="ib help" data-testid="admin-help" aria-label="What is a vault?" title="What is a vault?" onClick={() => setHelp(true)}><Icon n="question_circle" size={18} /></button>
+          </div>
+          {vaults?.length === 0 && <p className="muted">No vaults yet. Each vault is an existing GitHub repo.</p>}
+          {vaults?.map((v) => <VaultRow key={v.id} v={v} open={() => setView({ kind: 'details', id: v.id })} />)}
+          <div className="acts">
+            <button className="btn g" data-testid="admin-open-settings" onClick={() => setView({ kind: 'settings' })}><Icon n="gear_alt" size={16} />Settings</button>
+            <button className="btn" data-testid="admin-open-add" onClick={() => setView({ kind: 'add' })}>Add vault</button>
+          </div>
+        </>
+      )}
+      {view.kind === 'details' && (current ? <VaultDetails v={current} back={list} /> : vaults && <p className="muted">This vault no longer exists.</p>)}
+      {view.kind === 'add' && <AddVault done={list} />}
+      {view.kind === 'settings' && (
+        <>
+          <div className="gh">GitHub</div>
+          <GitHubTokenForm />
+          <div className="gh">App</div>
+          <SettingsForm />
+          <div className="gh">Version</div>
+          <Versions />
+        </>
+      )}
+      {help && <VaultHelp close={() => setHelp(false)} />}
     </Modal>
   );
 }

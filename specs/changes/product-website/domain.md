@@ -1,7 +1,7 @@
 ---
 feature: product-website
 title: "Domain: website, app and the karpathy.app domain"
-status: applying
+status: applied
 order: 2
 created: 2026-10-02
 edited: 2026-10-02

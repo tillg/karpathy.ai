@@ -1,7 +1,7 @@
 ---
 feature: product-website
 title: "Proposal: product website at karpathy.app"
-status: applying
+status: applied
 order: 1
 created: 2026-10-02
 edited: 2026-10-02

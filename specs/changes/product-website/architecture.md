@@ -1,7 +1,7 @@
 ---
 feature: product-website
 title: "Architecture: static site on GitHub Pages"
-status: applying
+status: applied
 order: 3
 created: 2026-10-02
 edited: 2026-10-02

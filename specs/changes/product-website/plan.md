@@ -1,7 +1,7 @@
 ---
 feature: product-website
 title: "Plan: product website at karpathy.app"
-status: applying
+status: applied
 order: 4
 created: 2026-10-02
 edited: 2026-10-02
@@ -68,26 +68,26 @@ Ordered so that each test builds on the previous step, and Pages is enabled befo
       preview with `just site`, deploys on push to `main`)
   - Test first: none — docs
   - Verify: `grep -c 'https://karpathy.app' README.md` ≥ 1 and `grep -q '^## Website' README.md`
-- [ ] Push to `main` (after the user's go-ahead) and check the first deploy
+- [x] Push to `main` (after the user's go-ahead) and check the first deploy
   - Test first: none — end-to-end
   - Verify: `gh run list --workflow pages.yml -L 1 --json conclusion --jq '.[0].conclusion'` → `success`;
     `curl -s https://tillg.github.io/karpathy.app/ | grep -q '<title>.*karpathy.app'` and
     `curl -sfo /dev/null https://tillg.github.io/karpathy.app/icons/icon-512.png`
-- [ ] **(manual)** Set the custom domain, right before the DNS cutover (from now on `tillg.github.io/karpathy.app/`
+- [x] **(manual)** Set the custom domain, right before the DNS cutover (from now on `tillg.github.io/karpathy.app/`
       redirects to `karpathy.app`): `gh api -X PUT repos/tillg/karpathy.app/pages -f cname=karpathy.app`
   - Test first: none — repository setting
   - Verify: `gh api repos/tillg/karpathy.app/pages --jq '.cname'` → `karpathy.app`
 
 ## Domain cutover
 
-- [ ] **(manual)** At GoDaddy: unpublish the Website Builder site; replace the apex A records with
+- [x] **(manual)** At GoDaddy: unpublish the Website Builder site; replace the apex A records with
       `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`; set `www` to CNAME
       `tillg.github.io`; leave `app.karpathy.app` untouched. Verify the domain in the GitHub account's
       Pages settings (TXT record)
   - Test first: none — external DNS
   - Verify: `dig +short A karpathy.app | sort` → the four GitHub IPs; `dig +short www.karpathy.app` →
     `tillg.github.io.` first; `dig +short A app.karpathy.app` → `100.116.203.50`
-- [ ] Enforce HTTPS once GitHub has issued the certificate and check the live site
+- [x] Enforce HTTPS once GitHub has issued the certificate and check the live site
   - Test first: none — end-to-end
   - Verify: `gh api -X PUT repos/tillg/karpathy.app/pages -F https_enforced=true` succeeds;
     `curl -sI https://karpathy.app | grep -i '^server: GitHub.com'` matches;

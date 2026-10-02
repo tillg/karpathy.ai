@@ -97,9 +97,7 @@ deploy-e2e target *args:
     set -euo pipefail
     [ "{{target}}" = local ] || { echo "deploy-e2e runs against local only" >&2; exit 1; }
     mkdir -p tmp/local && umask 077
-    (cd deploy/ansible && ansible-vault view --vault-id local@vault-pass-client.sh inventories/local/group_vars/all/vault.yml </dev/null 2>/dev/null) \
-      | sed -n 's/^vault_bearer_token: "\(.*\)"$/\1/p' > tmp/local/bearer_token
-    [ -s tmp/local/bearer_token ] || { echo "no bearer token from the local vault (Keychain item karpathy-ansible-local?)" >&2; exit 1; }
+    deploy/ansible/vault-get.sh local vault_bearer_token > tmp/local/bearer_token
     url=https://localhost:9444
     # The release the PWA and the server must report: E2E_EXPECT_VERSION, else what the server runs.
     version=${E2E_EXPECT_VERSION:-$(curl -sfk -H "Authorization: Bearer $(cat tmp/local/bearer_token)" $url/api/health | jq -r .version)}

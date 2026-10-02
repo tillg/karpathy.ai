@@ -6,11 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 target=$1 qr=${2:-}
 [ -d "inventories/$target" ] || { echo "unknown target: $target (have: $(ls inventories | xargs))" >&2; exit 1; }
-vars=$(ansible-inventory -i "inventories/$target" --vault-id "$target@vault-pass-client.sh" --list </dev/null 2>/dev/null \
-  | jq '._meta.hostvars | to_entries[0].value')
-token=$(jq -r '.vault_bearer_token // empty' <<<"$vars")
-url=$(jq -r '.app_url // empty' <<<"$vars")
-[ -n "$token" ] || { echo "no token in the $target vault (Keychain item karpathy-ansible-$target?)" >&2; exit 1; }
+token=$(./vault-get.sh "$target" vault_bearer_token)
+url=$(./vault-get.sh "$target" app_url)
 printf %s "$token" | pbcopy
 echo "Token for $target copied to the clipboard."
 if [ "$qr" = --qr ]; then

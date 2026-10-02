@@ -47,25 +47,27 @@ def from_env_file(name, key):
     return None
 
 
-def unset(key):
-    return data.get(key) in (None, "", PLACEHOLDER)
+def unset(key, into=None):
+    return (data if into is None else into).get(key) in (None, "", PLACEHOLDER)
 
 
-def ask(key, prompt, hidden=True, optional=False, found=None):
-    """found: (value, where) of a value entered elsewhere before; Enter takes it."""
-    if unset(key) and found and found[0]:
-        data[key] = found[0]
+def ask(key, prompt, hidden=True, optional=False, found=None, into=None):
+    """found: (value, where) of a value entered elsewhere before; Enter takes it.
+    into: the dict the key lives in (default: the vault's top level)."""
+    d = data if into is None else into
+    if unset(key, d) and found and found[0]:
+        d[key] = found[0]
         state = f"found in {found[1]} — Enter takes it"
     else:
-        state = "unset" if unset(key) else "set — Enter keeps it"
+        state = "unset" if unset(key, d) else "set — Enter keeps it"
     while True:
         read = getpass.getpass if hidden else input
         value = read(f"{prompt} [{state}]: ").strip()
         if value:
-            data[key] = value
+            d[key] = value
             return
-        if not unset(key) or optional:
-            data.setdefault(key, "")
+        if not unset(key, d) or optional:
+            d.setdefault(key, "")
             return
         print("  required")
 
@@ -75,14 +77,18 @@ ask("vault_dns_api_token", "GoDaddy production API key and secret, as <key>:<sec
     found=(from_file("secrets/dns_api_token"), "deploy/secrets/dns_api_token"))
 ask("vault_github_token", "GitHub fine-grained token (vault repos: Contents read/write)",
     found=(from_file("secrets/github_token"), "deploy/secrets/github_token"))
+# Provider keys for opencode, whichever providers: the ones already in the vault plus the ones set
+# in the dev stack's deploy/opencode.env (`*_API_KEY=…`).
 if not isinstance(data.get("vault_opencode_env"), dict):
     data["vault_opencode_env"] = {}
-current = data["vault_opencode_env"].get("OPENROUTER_API_KEY")
-found = from_env_file("opencode.env", "OPENROUTER_API_KEY")
-state = "set — Enter keeps it" if current else ("found in deploy/opencode.env — Enter takes it" if found else "unset, optional")
-key = getpass.getpass(f"OpenRouter API key [{state}]: ").strip() or current or found
-if key:
-    data["vault_opencode_env"]["OPENROUTER_API_KEY"] = key
+providers = data["vault_opencode_env"]
+dev_keys = [line.split("=", 1)[0] for line in (from_file("opencode.env") or "").splitlines()
+            if line.split("=", 1)[0].endswith("_API_KEY") and line.split("=", 1)[-1].strip()]
+for name in sorted(set(providers) | set(dev_keys)):
+    ask(name, f"Provider key {name}", optional=True, into=providers,
+        found=(from_env_file("opencode.env", name), "deploy/opencode.env"))
+for name in [k for k, v in providers.items() if not v]:
+    del providers[name]
 ask("vault_tailscale_authkey", "Tailscale auth key (tag:server, pre-approved, single-use)")
 ask("vault_heartbeat_url", "healthchecks.io ping URL of this target's check", hidden=False, optional=True)
 ask("vault_git_author_name", "Git author name for vault commits", hidden=False)

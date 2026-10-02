@@ -2,6 +2,10 @@
 (tls-dns) {
 	tls {
 		dns {$DNS_PROVIDER:godaddy} {file.{$DNS_API_TOKEN_FILE}}
+		# GoDaddy's nameservers pick up a new TXT record (and drop the last one) only after a while:
+		# validating at once let Let's Encrypt see the previous attempt's value. Wait first.
+		propagation_delay 90s
+		propagation_timeout 10m
 	}
 }
 # Local prod smoke test only (compose.prodtest.yml, TLS_MODE=internal): Caddy's internal CA.

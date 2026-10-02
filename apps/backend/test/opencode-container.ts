@@ -25,7 +25,12 @@ function ensureNetwork() {
   try {
     docker('network', 'inspect', NET);
   } catch {
-    docker('network', 'create', NET);
+    // Test files run in parallel workers: another one may create it between our inspect and create.
+    try {
+      docker('network', 'create', NET);
+    } catch (e) {
+      if (!String((e as { stderr?: string }).stderr).includes('already exists')) throw e;
+    }
   }
 }
 

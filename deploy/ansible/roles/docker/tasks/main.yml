@@ -33,6 +33,17 @@
   when: tailscale_enabled
   notify: Restart docker
 
+# Ports are published on the tailnet IP. At boot Docker may start the containers before tailscale0
+# has that IP, and the bind fails ("cannot assign requested address"); `unless-stopped` doesn't retry.
+# Allowing a bind to an address that isn't there yet makes the order irrelevant.
+- name: Allow binding the tailnet IP before it exists
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-karpathy.conf
+    reload: true
+  when: tailscale_enabled
+
 - name: Docker running and enabled
   ansible.builtin.service:
     name: docker

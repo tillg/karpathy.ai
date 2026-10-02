@@ -50,8 +50,8 @@
     state: started
     enabled: true
 
-- name: Deploy user in the docker group
+- name: Login user in the docker group
   ansible.builtin.user:
-    name: "{{ deploy_user }}"
+    name: "{{ admin_user }}"
     groups: [docker]
     append: true

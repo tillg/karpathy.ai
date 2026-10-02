@@ -65,7 +65,7 @@ managed by Ansible.
 | `just release 0.3.0` | Tags `v0.3.0` on HEAD and pushes it; prints the workflow run. Refuses a dirty tree, and a final version unless HEAD is on `main` (`0.3.0-rc.1` may come from any commit). |
 | `just deploy <target> [version]` | Deploys a release (default: the newest final release). Log in `tmp/deploy-<target>-*.log`. |
 | `just deploy <target> [version] --only app` | Only the app role (or `--only monitoring`); assumes a full deploy ran before. The fast path for upgrades and rollbacks. |
-| `just deploy hetzner --bootstrap <public-ip>` | The first run against a fresh server: as `root` on its public IP. Every later run goes as `deploy` over Tailscale. |
+| `just deploy hetzner --bootstrap <public-ip>` | The first run against a fresh server: as `root` on its public IP. Every later run goes as `ops` over Tailscale. |
 | `just deploy-check <target> [version] [--only app\|monitoring]` | Dry run with diff; changes nothing. Needs a host that was deployed before (a fresh one has no Docker or Tailscale to check against). |
 | `just deploy-e2e local [args]` | The Playwright suite (without the `@llm` tests) against the local target. |
 
@@ -116,7 +116,8 @@ test values only.
 3. `just secrets hetzner`: GoDaddy key, GitHub token, OpenRouter key, the Tailscale key, the
    healthchecks.io ping URL, the git author. Subscribe to the printed ntfy topic on your phone.
 4. `just deploy hetzner --bootstrap <public-ip>`. At the end root login is off and the server is
-   on the tailnet as `karpathy`.
+   on the tailnet as `karpathy`; you and Ansible log in as `ops` (sudo); `deploy`, the app's own
+   user (uid 1000), has no login.
 5. In GoDaddy, point `app.karpathy.app` (A record) at the server's tailnet IP (`100.x.y.z`).
 6. Detach the `setup-ssh` firewall in Hetzner: from now on no port is open to the internet.
 7. `just deploy hetzner` again (over Tailscale) to see it report `changed=0`, then
@@ -165,6 +166,6 @@ secrets), monitoring in `/opt/karpathy-monitoring`, the vaults on the loop-mount
   without `no_log` only if you have to, and never paste its output anywhere.
 - **The smoke check fails:** the new release is running but unhealthy. Deploy the previous
   version (`just deploy <target> <previous> --only app`) and look at the containers:
-  `ssh deploy@karpathy docker compose -p karpathy-app ps` and `… logs backend`.
+  `ssh ops@karpathy docker compose -p karpathy-app ps` and `… logs backend`.
 - **Monitoring:** the Beszel hub is at `http://<tailnet-ip>:8090` (`local`: http://localhost:9090),
   Gatus at `:8091`. Alerts arrive on the target's ntfy topic.

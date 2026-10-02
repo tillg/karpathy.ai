@@ -8,6 +8,9 @@
     deploy_user: deploy
     deploy_uid: 1000
     deploy_gid: 1000
+    # The login for Ansible and you (sudo, docker); deploy itself has no login (role base).
+    admin_user: ops
+    admin_uid: 1001
   roles:
     - { role: base, tags: [host] }
     - { role: tailscale, tags: [host], when: tailscale_enabled }

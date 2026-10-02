@@ -2,7 +2,7 @@
 target: local
 tailscale_enabled: false
 timezone: Europe/Berlin
-deploy_authorized_keys: []
+admin_authorized_keys: []
 vaults_fs_size: 5G
 
 bind_ip: 0.0.0.0

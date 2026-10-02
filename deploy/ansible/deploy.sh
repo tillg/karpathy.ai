@@ -9,7 +9,7 @@ version="" tags=() bootstrap=
 while [ $# -gt 0 ]; do
   case "$1" in
     --only) tags=(--tags "$2"); shift 2 ;;
-    # First run against a fresh server: as root on its public IP. Afterwards: deploy@<host> via Tailscale.
+    # First run against a fresh server: as root on its public IP. Afterwards: ops@<host> via Tailscale.
     --bootstrap) bootstrap=$2; shift 2 ;;
     -*) echo "unknown option $1" >&2; exit 1 ;;
     *) version=${1#v}; shift ;;  # 0.3.0 or v0.3.0

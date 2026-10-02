@@ -1,4 +1,4 @@
-# Deploy user (uid 1000), sshd hardening, unattended upgrades, timezone.
+# App and login users, sshd hardening, unattended upgrades, timezone.
 - name: Look up uid {{ deploy_uid }}
   ansible.builtin.getent:
     database: passwd
@@ -23,40 +23,70 @@
     that: ansible_facts.getent_group | dict2items | rejectattr('value', 'none') | map(attribute='key') | list in [[], [deploy_user]]
     fail_msg: "gid {{ deploy_gid }} belongs to another group; the images and /srv/vaults need it for {{ deploy_user }}"
 
-- name: Deploy group
+# Two users with one job each (a container breakout must not land on a sudoer):
+# - deploy (uid 1000): the app's uid inside the containers and owner of /srv/vaults. No login,
+#   no sudo, no docker group.
+# - ops (uid 1001): the login Ansible and you use, with sudo and the docker group.
+- name: App group
   ansible.builtin.group:
     name: "{{ deploy_user }}"
     gid: "{{ deploy_gid }}"
 
-- name: Deploy user
+- name: App user
   ansible.builtin.user:
     name: "{{ deploy_user }}"
     uid: "{{ deploy_uid }}"
     group: "{{ deploy_user }}"
+    password: "!"
+    update_password: on_create
+
+- name: Login user
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    uid: "{{ admin_uid }}"
     shell: /bin/bash
     password: "!"
     update_password: on_create
 
-- name: Deploy user's SSH keys
+- name: Login user's SSH keys
   ansible.posix.authorized_key:
-    user: "{{ deploy_user }}"
-    key: "{{ deploy_authorized_keys | join('\n') }}"
+    user: "{{ admin_user }}"
+    key: "{{ admin_authorized_keys | join('\n') }}"
     exclusive: true
-  when: deploy_authorized_keys | length > 0
+  when: admin_authorized_keys | length > 0
 
-# Ansible logs in as deploy on a server: passwordless sudo, as the Lima guest user has on the VM.
-- name: Deploy user may sudo without a password
+- name: Login user may sudo without a password
   ansible.builtin.copy:
-    dest: /etc/sudoers.d/90-deploy
-    content: "{{ deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: /etc/sudoers.d/90-{{ admin_user }}
+    content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
     mode: "0440"
     validate: visudo -cf %s
 
-# Hardening ends root and password logins: on a server, deploy's key must be in place first.
-- name: The deploy user can log in before root and passwords are switched off
+# Taking deploy's login, sudo and docker rights away while Ansible is logged in as deploy would cut
+# off the run itself: only when connected as someone else (ops, root, or the VM's own user).
+- name: App user loses login, sudo and docker
+  when: ansible_user | default('') != deploy_user
+  block:
+    - name: No sudo for the app user
+      ansible.builtin.file:
+        path: /etc/sudoers.d/90-{{ deploy_user }}
+        state: absent
+    - name: No SSH keys for the app user
+      ansible.builtin.file:
+        path: /home/{{ deploy_user }}/.ssh/authorized_keys
+        state: absent
+    - name: No shell and no extra groups for the app user
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        shell: /usr/sbin/nologin
+        groups: []
+        append: false
+
+# Hardening ends root and password logins: on a server, the login user's key must be in place first.
+- name: The login user can log in before root and passwords are switched off
   ansible.builtin.assert:
-    that: target == 'local' or deploy_authorized_keys | length > 0
-    fail_msg: "deploy_authorized_keys is empty: hardening sshd now would lock you out of {{ target }}"
+    that: target == 'local' or admin_authorized_keys | length > 0
+    fail_msg: "admin_authorized_keys is empty: hardening sshd now would lock you out of {{ target }}"
 
 # sshd uses the first value it reads: 10- comes before cloud-init's 50-cloud-init.conf.
 - name: Harden sshd

@@ -3,6 +3,8 @@ import type {
   SearchHit, Settings, Vault, VaultConfig, VaultStatus,
 } from '@karpathy/shared';
 
+import { parseLoginCode } from './login-code';
+
 const TOKEN_KEY = 'karpathy.token';
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -13,9 +15,10 @@ export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
  * and the history before anything routes on the hash. The fragment never reaches the server.
  */
 export function takeTokenFromUrl() {
-  const token = /^#token=([^&]+)/.exec(location.hash)?.[1];
+  if (!location.hash.startsWith('#token=')) return;
+  const token = parseLoginCode(location.hash);
   if (!token) return;
-  setToken(decodeURIComponent(token));
+  setToken(token);
   history.replaceState(null, '', location.pathname + location.search);
 }
 

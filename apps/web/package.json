@@ -20,6 +20,7 @@
     "@lezer/highlight": "^1.2.4",
     "dompurify": "^3.4.16",
     "framework7-icons": "^5.0.5",
+    "jsqr": "^1.4.0",
     "marked": "^18.0.14",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

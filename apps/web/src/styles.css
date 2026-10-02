@@ -304,6 +304,8 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .token-screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
 .token-card { width: min(380px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
 .token-card h1 { margin: 0; font-size: 28px; }
+.qr-scanner { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.qr-video { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #000; }
 .token-card p { margin: 0 0 8px; color: var(--label2); font-size: 15px; line-height: 1.4; }
 .token-logo { width: 88px; height: 88px; border-radius: 20px; box-shadow: 0 0 0 .5px var(--sep); }
 .token-card input { width: 100%; height: 46px; border: .5px solid var(--sep); background: var(--bg2); border-radius: 12px; padding: 0 14px; font-size: 17px; outline: none; }

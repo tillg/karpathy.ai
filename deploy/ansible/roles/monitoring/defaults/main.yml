@@ -6,7 +6,7 @@ monitoring_beszel_email: admin@karpathy.app
 monitoring_hub_host: "{{ '127.0.0.1' if bind_ip == '0.0.0.0' else bind_ip }}"
 monitoring_hub_url: http://{{ monitoring_hub_host }}:8090
 monitoring_ntfy_url: ntfy://ntfy.sh/{{ ntfy_topic }}
-# Alert rules (architecture §4.3): value = threshold, min = minutes it must hold.
+# Alert rules (specs/system/deployment.md): value = threshold, min = minutes it must hold.
 monitoring_alerts:
   - { name: Disk, value: 80, min: 1 }
   - { name: Memory, value: 85, min: 10 }

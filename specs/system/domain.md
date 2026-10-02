@@ -1,12 +1,12 @@
 ---
 title: "Domain: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-01
+edited: 2026-10-02
 ---
 
 # Domain: karpathy.app
 
-As of 2026-10-01 (MVP milestone M4 implemented). The canonical glossary for the team is
+As of 2026-10-02 (MVP milestone M4 implemented, deployed to production). The canonical glossary for the team is
 [`CONTEXT.md`](../../CONTEXT.md); this page restates it with the rules the code enforces and adds the terms the code
 uses beyond it.
 
@@ -44,6 +44,24 @@ same GitHub remote. The motivation is in the [README](../../README.md#problem).
 | **Write mode / Read mode** | Write mode is the default: raw Markdown with live preview, editable. Read mode is the rendered, non-editable view. *Avoid:* edit mode, source mode, preview. | web `NotePane` |
 | **Harness config** | An `.opencode/`, `opencode.json` or `opencode.jsonc` inside a vault. Its presence disables chat for that vault, because it could override the AI's restrictions. | `HARNESS_CONFIG` |
 
+### Operations
+
+Terms for running the app, not for using it ([deployment.md](deployment.md)).
+
+| Term | Meaning | In code |
+|---|---|---|
+| **Release** | A git tag `vX.Y.Z` with the three images CI built from it and the `compose.yml` attached to the GitHub release. Never changes once published; a tag whose images failed to build isn't one. *Avoid:* build, deployment. | `.github/workflows/release.yml` |
+| **Pre-release** | A release from a `vX.Y.Z-rc.N` tag, from any commit. Deployable by name, never GitHub's "Latest" or `:latest`. | `guard` job |
+| **Version (of a release)** | `X.Y.Z`, the tag without the `v`; also the image tag and what `/api/health` reports. Local builds report `dev`. | `APP_VERSION` |
+| **Target** | A named place a release is deployed to: `local` (the Lima VM) or `hetzner`. One host with its own settings and secrets. *Avoid:* environment, stage, server. | `deploy/ansible/inventories/<target>` |
+| **Deployment** | One `just deploy <target> [version]`: brings the host to the desired state, starts the release, ends with the smoke check. *Avoid:* rollout, ship. | `site.yml` |
+| **Current release** | The release a target runs now; earlier ones stay for rollback. | `/opt/karpathy.app/current` |
+| **Rollback** | A deployment of an older release, with today's playbook. | — |
+| **Smoke check** | The end of every deployment: containers healthy, `/api/health` through the proxy with the token, the requested version. | `roles/app/tasks/smoke.yml` |
+| **Alert** | A push to the operator's phone (ntfy) when something needs a person. | Beszel, Gatus, healthchecks.io |
+| **Heartbeat** | A ping to healthchecks.io every 5 minutes; when it stops or reports a failure, healthchecks.io raises the alert. *Avoid:* uptime check. | `karpathy-heartbeat` |
+| **Login link** | `<app url>/#token=…`, shown as a QR code by `just token <target> --qr`; logs a device in. | `lib/login-code.ts` |
+
 ## Concepts and entities
 
 ```mermaid
@@ -73,6 +91,7 @@ erDiagram
 
 | Actor | What it can do |
 |---|---|
+| **Operator** (the same person as the user, on the Mac) | Cuts releases, deploys them to the targets, holds the vault passwords (Keychain) and gets the alerts. |
 | **User** (single person, holds the bearer token) | Manage vaults and settings, read and edit notes, search, chat with the AI, review diffs, discard, commit and push, resolve conflicts. Uses the app as a PWA on phone, iPad and desktop. |
 | **AI** (opencode agent, on the user's behalf) | Inside one vault root only: read notes; write notes unless the vault is in conflict (then read-only). It can't run shell commands, fetch the web, read `.env` files, edit `.git` or harness config, commit or push. |
 | **Obsidian / other git clients** | Change the same GitHub repo from other devices; their changes arrive on the next pull and can cause a conflict. |

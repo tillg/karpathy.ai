@@ -16,7 +16,7 @@ services:
     security_opt: [no-new-privileges:true]
     logging: *logs
 
-  # Accepted risk: the Docker socket makes the agent root-equivalent on the host (architecture §4.3).
+  # Accepted risk: the Docker socket makes the agent root-equivalent on the host (specs/system/deployment.md).
   agent:
     image: henrygd/beszel-agent:{{ monitoring_beszel_version }}
     restart: unless-stopped

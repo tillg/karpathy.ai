@@ -1,5 +1,5 @@
 # Brings a target host to the desired state and switches it to a release
-# (specs/07_deployments/architecture.md §5). Tags: `app`, `monitoring` (`just deploy … --only`).
+# (specs/system/deployment.md §5). Tags: `app`, `monitoring` (`just deploy … --only`).
 - name: Target host
   hosts: all
   become: true

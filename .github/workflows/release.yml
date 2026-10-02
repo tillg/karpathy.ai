@@ -1,5 +1,5 @@
 # Release: a tag vX.Y.Z (or vX.Y.Z-rc.N) → checks → multi-arch images on GHCR → GitHub release
-# with deploy/compose.yml as release asset (specs/07_deployments/architecture.md §2).
+# with deploy/compose.yml as release asset (specs/system/deployment.md).
 name: Release
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
           highest=$(git tag -l 'v*.*.*' | grep -Ev -- '-' | sort -V | tail -n 1 || true)
           latest=false; [ "$prerelease" = false ] && [ "$GITHUB_REF_NAME" = "$highest" ] && latest=true
           { echo "version=$version"; echo "prerelease=$prerelease"; echo "latest=$latest"; } >> "$GITHUB_OUTPUT"
-      # Final releases only from main; release candidates may come from any commit (architecture A9).
+      # Final releases only from main; release candidates may come from any commit (specs/system/deployment.md, key decisions).
       - if: steps.v.outputs.prerelease == 'false'
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
 
@@ -104,7 +104,7 @@ jobs:
     permissions: { contents: write }
     steps:
       - uses: actions/checkout@v4
-      # compose.yml is the release asset a deployment downloads (architecture A5).
+      # compose.yml is the release asset a deployment downloads (specs/system/deployment.md, key decisions).
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRERELEASE: ${{ needs.guard.outputs.prerelease }}

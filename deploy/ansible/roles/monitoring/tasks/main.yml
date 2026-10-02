@@ -1,4 +1,4 @@
-# Beszel (hub + agent), Gatus and the heartbeat (architecture §4). A compose project of its own.
+# Beszel (hub + agent), Gatus and the heartbeat (specs/system/deployment.md). A compose project of its own.
 # The hub UI binds to bind_ip; empty would mean every interface.
 - name: The hub binds to a known address
   ansible.builtin.assert:

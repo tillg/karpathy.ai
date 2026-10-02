@@ -1,12 +1,12 @@
 ---
 title: "Architecture: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-01
+edited: 2026-10-02
 ---
 
 # Architecture: karpathy.app
 
-As built on 2026-10-01. The design rationale is in [`specs/01_mvp/mvp.md`](../01_mvp/mvp.md) §2–3 and the
+As built on 2026-10-02. The design rationale is in [`specs/01_mvp/mvp.md`](../01_mvp/mvp.md) §2–3 and the
 numbered [implementation decisions](../01_mvp/implementation-decisions.md); this page describes what exists.
 
 ## Overview
@@ -47,7 +47,7 @@ flowchart LR
 | Web | React 19, Vite 8, TypeScript, CodeMirror 6 (`lang-markdown`, own live-preview decorations), `marked` 18 + DOMPurify, vite-plugin-pwa (Workbox), framework7-icons. No router library (hash routes), no state library (one context hook). |
 | Backend | Node 22, Express, TypeScript run with `tsx` (no build step), zod validation, chokidar, `@opencode-ai/sdk` v2, `git` and `ripgrep` binaries. |
 | Agent harness | `opencode serve` 1.18.25 (pinned image `ghcr.io/anomalyco/opencode`), provider-agnostic; default model `anthropic/claude-sonnet-5`, Ollama `qwen2.5:3b` in dev and tests. |
-| Proxy | Caddy 2.10 built with a `caddy-dns/<provider>` module (default Cloudflare) for DNS-01. |
+| Proxy | Caddy 2.10 built with a `caddy-dns/<provider>` module (GoDaddy) for DNS-01. |
 | Shared | `packages/shared`: TypeScript types for the API (no runtime schemas). |
 | Tests | Vitest (backend projects `default`, `github`, `llm`; web unit tests for `lib/`), Playwright e2e (desktop, iPad, iPhone in Chromium and WebKit), axe-core. |
 | Tooling | npm workspaces (`apps/*`, `packages/*`), ESLint flat config, `just`, GitHub Actions CI. |
@@ -72,7 +72,7 @@ flowchart LR
 | Module | Responsibility |
 |---|---|
 | `main.ts` | Reads env and `*_FILE` secrets, wires the services, graceful shutdown. |
-| `app.ts` | Express routes under `/api`, error mapping, NDJSON writer (15 s keepalive). `/healthz` outside auth. |
+| `app.ts` | Express routes under `/api`, error mapping, NDJSON writer (15 s keepalive). `/healthz` outside auth; `/api/health` also reports the release version (`APP_VERSION`, `dev` for local builds), which the settings dialog shows next to the PWA's own. |
 | `auth.ts` | Bearer token check (hashed, constant-time compare). |
 | `vaults.ts` | Vault lifecycle (add, clone, patch, remove), file API, search, status, events, commit/push/discard, conflict resolution; per-vault runtime state. |
 | `repo.ts`, `git.ts` | All git commands for one clone: changes, diff, pull procedure, commit, push, conflict sides and resolution; hardened `runGit`. |
@@ -95,8 +95,9 @@ a worktree and stays confined to the session directory (the vault root).
 ### Proxy (`deploy/proxy`)
 
 Serves the built PWA from `/srv` with SPA fallback, proxies `/api/*` to the backend unbuffered (`flush_interval -1`),
-sets CSP and security headers, and gets its certificate by DNS-01 (`TLS_MODE=dns`) or from Caddy's internal CA
-(`TLS_MODE=internal`, local prod test only).
+sets CSP and security headers, and gets its certificate by DNS-01 (`TLS_MODE=dns`; GoDaddy, with a 90 s wait for
+GoDaddy's nameservers) or from Caddy's internal CA (`TLS_MODE=internal`: prodtest and the `local` target). A
+plain-HTTP site on `127.0.0.1:8081` answers the container healthcheck.
 
 ## Communication
 
@@ -146,23 +147,30 @@ No database. Git is the source of truth for notes; GitHub is the sync hub.
 | System | Used for | Status |
 |---|---|---|
 | GitHub | Vault repos; fine-grained token as an HTTP extra header, never in `.git/config` | in use |
-| LLM providers (Anthropic, OpenAI, OpenRouter, …) | Model behind opencode; keys only in `deploy/opencode.env` | configured, never run against a paid provider (all testing on Ollama) |
+| LLM providers (OpenRouter in production, any via opencode) | Model behind opencode; keys only in `opencode.env` | OpenRouter `z-ai/glm-5.3` on zero-data-retention hosts in production |
 | Ollama | Dev, local prod test and CI LLM tests | in use |
-| Let's Encrypt + Cloudflare DNS | Certificate via DNS-01 | built, never run against a real domain |
-| ghcr.io, Docker Hub | Base images | in use |
+| Let's Encrypt + GoDaddy DNS | Certificate for `app.karpathy.app` via DNS-01; the A record points at the server's tailnet IP | in use |
+| ghcr.io | The app's release images (public) and opencode's base image | in use |
+| Docker Hub | Base images; Beszel and Gatus | in use |
+| Hetzner Cloud | The production server | in use |
+| Tailscale | The only way into the server (SSH, app, monitoring UIs) | in use |
+| ntfy.sh, healthchecks.io | Alert delivery to the phone; heartbeat dead-man's switch | in use |
 
 ## Infrastructure
 
 - **Runtime = docker compose** in dev and prod (`deploy/compose.yml`). Services `proxy` (networks `edge` +
-  `internal`), `backend` and `opencode` (`internal` only); backend and opencode run as uid 1000; no egress
-  restriction (opencode must reach the LLM APIs). Secrets are files under `deploy/secrets/` mounted as compose secrets;
-  provider keys come from `deploy/opencode.env`.
+  `internal`), `backend` and `opencode` (`internal` only); backend and opencode run as uid 1000; all with
+  `cap_drop: [ALL]`, `no-new-privileges` and log rotation; no egress restriction (opencode must reach the LLM APIs).
+  Secrets are files mounted as compose secrets (`deploy/secrets/` in dev, `shared/secrets/` on a target); provider
+  keys come from `opencode.env`.
 - **Dev** (`compose.dev.yml`, `just dev`): https://localhost:8443 with Caddy's internal CA, Vite with HMR (`web`
   service), bind-mounted sources, local bare repos as remotes (`GIT_REMOTE_BASE=file:///remotes/`), Ollama.
 - **Local prod test** (`compose.prodtest.yml`, `just prodtest`): the prod images on https://localhost:9443 next to
   the dev stack.
-- **CI** (`.github/workflows/ci.yml`): lint, typecheck, tests, web build and a compose config check on every push and
-  PR; nightly GitHub and LLM test suites.
-- **Production hosting: not deployed yet.** The prod-env research ([`specs/05_prod_env`](../05_prod_env/prod-env-report.md))
-  decided on a Hetzner CX23 behind Tailscale with Cloudflare DNS-01; the deployment mechanism is the open change
-  [`specs/07_deployments`](../07_deployments/proposal.md).
+- **CI** (`.github/workflows/ci.yml`): lint, typecheck, tests, web build, a compose config check, and
+  `ansible-lint` + syntax checks of the playbook on every push and PR; nightly GitHub and LLM test suites.
+- **Releases and production:** a tag `vX.Y.Z` builds the images (amd64 + arm64) to GHCR; the Ansible playbook
+  deploys a release to a **target**: `local` (a Lima VM on the Mac, https://localhost:9444) or `hetzner` (a
+  Hetzner CPX22 reachable only over Tailscale, https://app.karpathy.app, running since 2026-10-02), with
+  monitoring (Beszel, Gatus, a healthchecks.io heartbeat, alerts via ntfy). All of it:
+  [deployment.md](deployment.md).

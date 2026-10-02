@@ -1,5 +1,5 @@
 # The `local` deploy target: a throwaway Ubuntu 24.04 VM sized like the Hetzner CX23
-# (specs/07_deployments/architecture.md §6). Created and driven by `just vm up|down|reset|ssh`.
+# (specs/system/deployment.md §6). Created and driven by `just vm up|down|reset|ssh`.
 minimumLimaVersion: 2.0.0
 
 # Ubuntu image only: no home-directory mounts (the target holds no copy of the source).

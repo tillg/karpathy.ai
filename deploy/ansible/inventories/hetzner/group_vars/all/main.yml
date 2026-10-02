@@ -1,4 +1,4 @@
-# Target settings for `hetzner` (architecture §5.1). Secrets: vault.yml (vault_*), mapped here.
+# Target settings for `hetzner` (specs/system/deployment.md). Secrets: vault.yml (vault_*), mapped here.
 target: hetzner
 tailscale_enabled: true
 timezone: Europe/Berlin
@@ -7,7 +7,7 @@ timezone: Europe/Berlin
 admin_authorized_keys: "{{ lookup('file', playbook_dir ~ '/keys/hetzner.pub').splitlines() }}"
 vaults_fs_size: 20G
 
-# The tailnet IP, from the tailscale role (finalized in plan Phase 7).
+# The tailnet IP, from the tailscale role .
 bind_ip: "{{ ansible_facts.tailscale0.ipv4.address | default('') }}"
 https_port: 443
 # The app as the operator's devices reach it (`just token hetzner --qr`).

@@ -1,5 +1,5 @@
 # Switches the target to a release: its compose.yml (release asset) + GHCR images, the target's
-# settings and secrets in shared/, then the smoke check (architecture §5.2).
+# settings and secrets in shared/, then the smoke check (specs/system/deployment.md).
 - name: Newest GitHub release
   ansible.builtin.uri:
     url: https://api.github.com/repos/{{ app_repo }}/releases/latest

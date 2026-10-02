@@ -1,4 +1,4 @@
-# Target settings for `local` (architecture §5.1). Secrets: vault.yml (vault_*), mapped here.
+# Target settings for `local` (specs/system/deployment.md). Secrets: vault.yml (vault_*), mapped here.
 target: local
 tailscale_enabled: false
 timezone: Europe/Berlin

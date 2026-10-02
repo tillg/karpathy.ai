@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pings the healthchecks.io check in /etc/karpathy-heartbeat.url; /fail (with the reason) as soon as a
-# container of karpathy-app or karpathy-monitoring isn't running, or is unhealthy (architecture §4.3).
+# container of karpathy-app or karpathy-monitoring isn't running, or is unhealthy (specs/system/deployment.md).
 set -uo pipefail
 url="$(cat /etc/karpathy-heartbeat.url)"
 problems=""

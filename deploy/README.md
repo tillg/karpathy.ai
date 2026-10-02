@@ -1,8 +1,54 @@
 # Deploying karpathy.app
 
 Everything that runs the app: the compose stack, its images, the release workflow and the Ansible
-playbook that puts a release on a server. The design is in
-[`specs/07_deployments`](../specs/07_deployments/architecture.md); this page is the how-to.
+playbook that puts a release on a server. The design and its decisions are in
+[`specs/system/deployment.md`](../specs/system/deployment.md); this page is the how-to.
+
+## What runs on the server
+
+```mermaid
+flowchart TB
+  subgraph Devices["Your devices (on the tailnet)"]
+    iPad[iPad / iPhone / Mac<br/>karpathy.app PWA]
+    Phone[Phone: ntfy app]
+  end
+  subgraph Server["Hetzner server karpathy (Ubuntu 24.04), reachable only via Tailscale"]
+    subgraph App["compose project karpathy-app"]
+      proxy[proxy: Caddy<br/>tailnet IP :443, TLS, PWA]
+      backend[backend: Node<br/>vaults, git, chat API]
+      opencode[opencode<br/>AI agent loop]
+    end
+    subgraph Mon["compose project karpathy-monitoring"]
+      hub[Beszel hub<br/>tailnet IP :8090]
+      agent[Beszel agent<br/>host metrics, containers]
+      gatus[Gatus<br/>tailnet IP :8091]
+    end
+    vaults[(/srv/vaults<br/>git clones, own filesystem)]
+    timer[heartbeat timer<br/>every 5 min]
+  end
+  GitHub[(GitHub<br/>vault repos)]
+  LLM[OpenRouter<br/>LLM]
+  HC[healthchecks.io]
+  NTFY[ntfy.sh]
+  iPad -->|HTTPS + token| proxy
+  proxy -->|/api| backend
+  backend --> opencode
+  backend --> vaults
+  opencode --> vaults
+  backend -->|clone, pull, push| GitHub
+  opencode -->|model calls| LLM
+  agent --> hub
+  gatus -->|checks HTTPS + cert| proxy
+  hub -->|alerts| NTFY
+  gatus -->|alerts| NTFY
+  timer -->|ping or /fail| HC
+  HC -->|server gone or failing| NTFY
+  NTFY --> Phone
+```
+
+The app and the monitoring are separate compose projects, so a deploy of the app never restarts the
+monitoring that watches it. healthchecks.io sits outside the server: it is the only part that notices
+when the whole box is gone.
 
 ## How it works
 

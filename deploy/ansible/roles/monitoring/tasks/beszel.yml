@@ -1,4 +1,4 @@
-# Hub setup through its API, in the order the spike settled (spikes/beszel/RESULTS.md):
+# Hub setup through its API, in the order settled by the Beszel spike (specs/system/deployment.md, Monitoring):
 # admin role, permanent universal token, webhook BEFORE the alert rules, then the rules.
 # Idempotent: every write happens only when the hub's state differs.
 - name: Hub answers

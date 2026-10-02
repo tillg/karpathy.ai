@@ -34,8 +34,7 @@
   "theme": "specs/reports-theme.css",
   "specs": {
     "sources": [
-      "specs/*/*.md",
-      "specs/07_deployments/spikes/*/*.md"
+      "specs/*/*.md"
     ]
   }
 }

@@ -1,12 +1,13 @@
 ---
 title: "Functional: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-01
+edited: 2026-10-02
 ---
 
 # Functional: karpathy.app
 
-What the user can do, as built on 2026-10-01. Terms are defined in [domain.md](domain.md).
+What the user can do, as built on 2026-10-02. What the operator can do (releases, deployments, alerts) is in
+[deployment.md](deployment.md). Terms are defined in [domain.md](domain.md).
 
 ## Features
 
@@ -14,6 +15,12 @@ What the user can do, as built on 2026-10-01. Terms are defined in [domain.md](d
 
 - **Token screen:** one password field; the token is checked against `/api/health` and stored on the device only.
   Any 401 later drops the token and the offline note cache and shows the screen again.
+- **Login link and QR code:** opening `<app url>/#token=…` stores the token and removes it from the URL and the
+  history before anything else runs. The token screen's **Scan QR code** reads that link with the camera, for the
+  home-screen app on iOS, which doesn't share Safari's storage. The operator gets the QR code from
+  `just token <target> --qr`.
+- **Version:** the settings dialog shows the server's and the loaded PWA's version (`dev` for local builds), so
+  after a deploy you see whether the new release and its service worker are live.
 - **PWA:** installable (standalone, app icons); updates itself when a new version is deployed, re-checking whenever
   the app comes back to the foreground.
 

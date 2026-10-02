@@ -1,4 +1,4 @@
-# Joins the host to the tailnet (architecture §5.4): after the bootstrap, SSH and the app are reachable
+# Joins the host to the tailnet (specs/system/deployment.md): after the bootstrap, SSH and the app are reachable
 # only over Tailscale. The auth key (tagged tag:server, pre-approved, single-use) is used once.
 - name: Tailscale apt repo
   ansible.builtin.deb822_repository:

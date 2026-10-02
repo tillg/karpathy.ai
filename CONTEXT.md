@@ -63,7 +63,7 @@ _Avoid_: Preview
 
 ### Operations
 
-Terms for running the app, not for using it (spec `specs/07_deployments`).
+Terms for running the app, not for using it ([`specs/system/deployment.md`](specs/system/deployment.md)).
 
 **Release**:
 A git tag `vX.Y.Z` together with the three images CI built from it (`ghcr.io/tillg/karpathy.app-{proxy,backend,opencode}:X.Y.Z`) and the `compose.yml` attached to the GitHub release. Never changes once published; a tag whose images failed to build isn't one.

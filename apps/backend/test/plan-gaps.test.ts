@@ -9,7 +9,7 @@ import type { VaultEvent } from '@karpathy/shared';
 import { makeApp, TOKEN } from './app-helpers.js';
 import { makeRemote } from './helpers.js';
 
-// Verifies from specs/01_mvp/plan.md that had no test yet (see specs/01_mvp/plan-status.md).
+// Verifies from the MVP plan (specs/01_mvp/plan.md, removed; see git 9c25f72) that had no test yet.
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const cleanups: (() => Promise<void> | void)[] = [];

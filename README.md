@@ -40,10 +40,10 @@ you hit **Commit & Push**. Obsidian mobile and desktop are attached to the same 
 MVP (spec milestone M4) implemented: vaults from GitHub, file tree, CodeMirror editor with
 live preview and `[[wikilinks]]`, search, uncommitted changes / diff / discard, Commit & Push
 with an AI-proposed message, conflict resolution, and a streaming AI chat that reads and
-edits the vault through opencode. Spec: [`specs/01_mvp/mvp.md`](specs/01_mvp/mvp.md), plan:
-[`specs/01_mvp/plan.md`](specs/01_mvp/plan.md), opencode findings:
-[`specs/01_mvp/spike-opencode.md`](specs/01_mvp/spike-opencode.md), decisions taken while
-implementing: [`specs/01_mvp/implementation-decisions.md`](specs/01_mvp/implementation-decisions.md).
+edits the vault through opencode. How it works today: [`specs/system/`](specs/system/) (domain,
+functional, architecture, security, deployment); key decisions: [`docs/adr/`](docs/adr/). The
+original MVP spec, plan, opencode spike and implementation log are in git history
+([`specs/01_mvp/` at 9c25f72](https://github.com/tillg/karpathy.app/tree/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp)).
 Feature ideas from similar projects (30, ranked, filed as issues #64–#93):
 [`specs/02_features/feature-report.md`](specs/02_features/feature-report.md) (interactive version:
 `feature-report.html`, rebuilt with `node specs/02_features/build-report-html.mjs`).
@@ -55,8 +55,8 @@ Production environment research (hosters and free tiers, Hetzner vs IONOS, secur
 Generating the reports from Markdown:
 [`specs/06_md_to_html/md-to-html-report.html`](specs/06_md_to_html/md-to-html-report.html).
 These HTML reports are generated from the `.md` next to each (see [Reports](#reports)).
-UI layout prototypes in [`specs/01_mvp/layouts/`](specs/01_mvp/layouts/) —
-**[view rendered](https://raw.githack.com/tillg/karpathy.app/main/specs/01_mvp/layouts/index.html)**.
+UI layout prototypes from the MVP design (layout 07 was built) —
+**[view rendered](https://raw.githack.com/tillg/karpathy.app/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp/layouts/index.html)**.
 
 ## Running it
 

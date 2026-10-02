@@ -4,7 +4,7 @@ title: "Browser-only variant — desk research notes"
 status: applied
 order: 3
 created: 2026-09-28
-edited: 2026-09-28
+edited: 2026-10-02
 ---
 
 # Browser-only variant — desk research notes
@@ -379,7 +379,7 @@ regex queries. If semantic search is wanted, add Orama with transformers.js embe
     on a cross-origin-isolated page.
     <https://pyodide.org/en/stable/usage/wasm-constraints.html>
   - Bash and CLI tools (`gh`, `rtk`, scrapers with credentials) are **not portable**.
-  - This matches the caveats already listed in `specs/01_mvp/mvp.md` §4, and they get
+  - This matches the caveats already listed in `specs/system/functional.md` (Skills), and they get
     strictly worse in the browser.
 
 ---

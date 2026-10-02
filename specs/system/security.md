@@ -49,12 +49,28 @@ bearer token.
 - **Managed opencode config** merged last (`/etc/opencode/opencode.json`), so a vault can't override it; an empty
   tmpfs `HOME` means no global config either.
 - **Denied tools:** `bash`, `webfetch`, `websearch`, `task`, `question`, `external_directory`; no permission is ever
-  "ask". Reading `*.env` is denied; editing `.git`, `opencode.json(c)` and `.opencode/` is denied.
+  "ask", so a turn never blocks on an approval (opencode's built-in defaults contain `ask` rules, each one is
+  overridden). Reading `*.env` is denied; editing `.git`, `opencode.json(c)` and `.opencode/` is denied. Why:
+  - `bash` would get around every file-tool rule: write during a read-only turn, read other vaults under
+    `/vaults/*`, read the container env with the provider keys.
+  - `webfetch` could send vault content or keys out after a prompt injection from an ingested note.
+  - `task`: a subagent inherits the parent *session's* permissions, not the parent *agent's*, so it could write during
+    a `vault-readonly` turn (verified).
+  - The edit guards stop the AI from planting an opencode plugin (code in opencode) or a git hook (code in the backend,
+    which holds the GitHub token). They sit in the `vault` agent, because an agent-level `edit: allow` overrides
+    top-level denies.
+  - Blanket-denied tools are hidden from the model entirely; a "denied" chip appears only for pattern-level denies.
 - **Agents:** `vault` (edit), `vault-readonly` (default, and forced during conflicts), `commit-message` (no tools).
 - **Directory confinement:** the opencode image has no git, so opencode treats the session directory (the vault root)
-  as the boundary; `external_directory: deny` blocks everything outside it.
+  as the boundary; `external_directory: deny` blocks everything outside it. The check is lexical, so a symlink would
+  escape it; hence `core.symlinks=false` on every clone. Instruction and skill lookup walks up past the vault root to
+  `/`, so `/vaults` and `/` must never contain `AGENTS.md`, `CLAUDE.md` or `.claude/`.
+- **No `OPENCODE_DISABLE_*` flags:** `OPENCODE_DISABLE_CLAUDE_CODE_*` would also drop the vault's own `CLAUDE.md` and
+  `.claude/skills`, and `OPENCODE_DISABLE_PROJECT_CONFIG` the vault's `AGENTS.md`/`CLAUDE.md`. The empty `HOME` keeps
+  global Claude files out instead.
 - **Harness config in a vault** (`.opencode/`, `opencode.json(c)`) disables chat for that vault and can't be created
-  through the file API.
+  through the file API. It is code (plugins, custom tools, MCP servers with a `command`), and the managed config can
+  only override its keys, not stop it from adding new ones. A vault that needs its own opencode config can't use chat.
 - **No commits by the AI:** only the user's commit records and pushes changes ([ADR 0001](../../docs/adr/0001-user-triggered-commits.md)).
 
 ## Input handling
@@ -88,7 +104,8 @@ prod proxy adds a strict **CSP** (`default-src 'self'`, `script-src 'self'`, `ob
 ## Gaps (known, not built)
 
 - No rate limiting on the token check.
-- No egress restriction: opencode can reach any host (it needs the LLM APIs).
+- No egress restriction: opencode can reach any host (it needs the LLM APIs, and fetches the models.dev catalog at
+  startup, which a future egress filter must allow).
 - Single shared token: no per-device tokens or revocation other than changing the secret.
 - The LLM provider sees every note the AI reads.
 - The Beszel agent mounts the Docker socket (root-equivalent on the host; accepted).

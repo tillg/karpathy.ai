@@ -9,6 +9,16 @@ edited: 2026-10-02
 What the user can do, as built on 2026-10-02. What the operator can do (releases, deployments, alerts) is in
 [deployment.md](deployment.md). Terms are defined in [domain.md](domain.md).
 
+## Scope
+
+Built up to the MVP milestone **M4**: a chat that reads and writes configured vaults, on mobile, synced through git
+(M0 scaffold, M1 vaults and reading, M2 editing and git, M3 AI reads, M4 AI writes). Next is **M5**: the existing
+wiki skills usable in the chat ([Skills](#skills)), at least `query` and `lint` on mobile, and at least one
+non-Claude model tried.
+
+Deliberately not built: an Obsidian clone (no graph view, plugins or canvas), multiple users or real-time
+collaboration, a sync protocol of its own, offline AI, creating GitHub repos from the app.
+
 ## Features
 
 ### Access
@@ -85,6 +95,24 @@ of GitHub's version vs. the app's (or "deleted on GitHub / in this app"), with *
   (changed ones open the note), and a footer listing the changed pages.
 - **Read-only while in conflict** ("the AI can only read, not change notes").
 - The AI can read and edit notes in the vault root only; its changes are uncommitted until the user commits.
+
+### Skills
+
+opencode loads the vault's own `AGENTS.md` (or `CLAUDE.md`, walking up from the vault root) and `.claude/skills`, so
+wiki skills (`query`, `lint`, `ingest`, …) written for Claude Code are offered in the chat. Whether one works depends
+on what it needs:
+
+- **Only file tools** (read, search, write notes): works, within the vault root.
+- **Shell or web** (Python scripts such as `film-import.py`, `rg` via bash, fetching URLs): doesn't work, because
+  `bash` and `webfetch` are denied. Making them work needs Python in the opencode image, a bash command allowlist
+  re-checked against the leaks in [security.md](security.md#confining-the-ai), and a decision on webfetch.
+- **Credentials** (`ingest-email` with Gmail, the Instagram scraper): need secrets for the opencode service and
+  network access; not set up.
+- **Steps that commit or push:** never run (the AI can't commit); such steps must be dropped from the skill.
+- **Global instructions:** `~/.claude/CLAUDE.md` and hooks such as RTK don't travel; anything a skill relies on must
+  be in the vault repo, and every file it reads must lie inside the vault root.
+- Skills written for Claude Code may name Claude Code tools or frontmatter fields, and tool calling varies a lot by
+  model; each skill needs a check under opencode with the configured model.
 
 ## User journeys
 
@@ -185,4 +213,6 @@ permissions. The AI's permissions are fixed in the managed opencode config ([arc
 - Vaults are full clones; there is no disk-space check before adding a vault and no per-file size limit.
 - Push failures aren't retried in the background, only on the next pull, commit or "retry".
 - The frontmatter properties table understands simple YAML only; other values are shown raw.
-- Not deployed to production yet, and never run against a paid LLM provider or a real domain certificate.
+- The offline cache has no automated test in WebKit (Playwright's offline WebKit fails even service-worker-served
+  requests); on iPhone/iPad it needs a check by hand.
+- A retryable provider error is retried by opencode for up to about 2 minutes before the turn fails.

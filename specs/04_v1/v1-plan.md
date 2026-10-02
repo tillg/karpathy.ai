@@ -1,9 +1,9 @@
 ---
 title: V1 plan (draft)
 created: 2026-09-27
-edited: 2026-09-28
+edited: 2026-10-02
 status: research
-subtitle: 'Status: **draft, 2026-09-27.** Nothing here is decided yet. Issue numbers refer to [tillg/karpathy.app](https://github.com/tillg/karpathy.app/issues). Inputs: [`../01_mvp/mvp.md`](../01_mvp/mvp.md), [`../01_mvp/plan-status.md`](../01_mvp/plan-status.md), [`../02_features/feature-report.md`](../02_features/feature-report.md) (ranking = "#R" below).'
+subtitle: 'Status: **draft, 2026-09-27.** Nothing here is decided yet. Issue numbers refer to [tillg/karpathy.app](https://github.com/tillg/karpathy.app/issues). Inputs: [`mvp.md`](https://github.com/tillg/karpathy.app/blob/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp/mvp.md), [`plan-status.md`](https://github.com/tillg/karpathy.app/blob/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp/plan-status.md), [`../02_features/feature-report.md`](../02_features/feature-report.md) (ranking = "#R" below).'
 description: "Draft plan for karpathy.app V1: state of the issues, goal and success criteria, scope, milestones, risks."
 ---
 
@@ -20,7 +20,7 @@ description: "Draft plan for karpathy.app V1: state of the issues, goal and succ
 
 ## Where we are {#s1}
 
-**MVP (M4) is implemented.** [`plan-status.md`](../01_mvp/plan-status.md): 56 plan rows → 44 done, 4 partly, 5 deviated, 3 not done. The three "not done" rows are exactly what V1 must close first:
+**MVP (M4) is implemented.** [`plan-status.md`](https://github.com/tillg/karpathy.app/blob/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp/plan-status.md): 56 plan rows → 44 done, 4 partly, 5 deviated, 3 not done. The three "not done" rows are exactly what V1 must close first:
 
 - `compose.dev.yml` HMR has no test (minor).
 - End-to-end run on a **real iPhone + iPad** never happened (D5).

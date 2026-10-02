@@ -6,7 +6,8 @@ edited: 2026-10-02
 
 # Domain: karpathy.app
 
-As of 2026-10-02 (MVP milestone M4 implemented, deployed to production). The canonical glossary for the team is
+As of 2026-10-02 (MVP milestone M4 implemented, deployed to production; milestones in
+[functional.md](functional.md#scope)). The canonical glossary for the team is
 [`CONTEXT.md`](../../CONTEXT.md); this page restates it with the rules the code enforces and adds the terms the code
 uses beyond it.
 

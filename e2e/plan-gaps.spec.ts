@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT, TOKEN, expect, makeConflict, openApp, openNote, test } from './helpers';
 
-// Verifies from specs/01_mvp/plan.md that had no e2e test yet (see specs/01_mvp/plan-status.md).
+// Verifies from the MVP plan (specs/01_mvp/plan.md, removed; see git 9c25f72) that had no e2e test yet.
 
 test.describe('stack (plan P1)', () => {
   test('/api/health reports backend + opencode ok inside the stack', async ({ api }) => {

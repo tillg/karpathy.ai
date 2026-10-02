@@ -4,7 +4,7 @@ title: "Prod security — desk notes"
 status: applying
 order: 5
 created: 2026-09-28
-edited: 2026-09-28
+edited: 2026-10-02
 ---
 
 # Prod security — desk notes
@@ -20,7 +20,7 @@ GitHub token + LLM provider API keys. Domain `karpathy.app`.
 
 | Aspect | Current state | File |
 |---|---|---|
-| Network | Caddy publishes `443` **and `80`**; MVP assumed a home server reachable only via home VPN | `deploy/compose.yml`, `specs/01_mvp/mvp.md` §3.3 |
+| Network | Caddy publishes `443` **and `80`**; MVP assumed a home server reachable only via home VPN | `deploy/compose.yml`, [`mvp.md` §3.3](https://github.com/tillg/karpathy.app/blob/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp/mvp.md) |
 | TLS | Let's Encrypt via **DNS-01** (Cloudflare DNS token as Caddy secret) — works without any public port | `deploy/proxy/Caddyfile` |
 | App auth | One bearer token, SHA-256 + `timingSafeEqual` compare, on every `/api` route; no rate limit | `apps/backend/src/auth.ts` |
 | Token on device | `localStorage` (`apps/web/src/lib/api.ts`), sent as `Authorization: Bearer`, never in URLs | `apps/web/src/lib/api.ts` |

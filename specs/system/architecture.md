@@ -6,8 +6,8 @@ edited: 2026-10-02
 
 # Architecture: karpathy.app
 
-As built on 2026-10-02. The design rationale is in [`specs/01_mvp/mvp.md`](../01_mvp/mvp.md) §2–3 and the
-numbered [implementation decisions](../01_mvp/implementation-decisions.md); this page describes what exists.
+As built on 2026-10-02. This page describes what exists; the reasons behind it are in
+[Design decisions](#design-decisions) and the [ADRs](../../docs/adr/).
 
 ## Overview
 
@@ -174,3 +174,52 @@ No database. Git is the source of truth for notes; GitHub is the sync hub.
   Hetzner CPX22 reachable only over Tailscale, https://app.karpathy.app, running since 2026-10-02), with
   monitoring (Beszel, Gatus, a healthchecks.io heartbeat, alerts via ntfy). All of it:
   [deployment.md](deployment.md).
+
+## Design decisions
+
+The ones that shape the whole system:
+
+- **Agent harness = opencode** ([ADR 0002](../../docs/adr/0002-opencode-as-agent-harness.md)): neither loop nor
+  tools nor skills are reimplemented; the backend only relays. The boundary is ACP-shaped so the harness stays
+  swappable.
+- **Editor = CodeMirror 6 on raw Markdown** ([ADR 0003](../../docs/adr/0003-codemirror-raw-markdown-editor.md)):
+  lossless round trip, clean git diffs, no fight with the AI's raw edits.
+- **Vault = GitHub repo, sync = git:** the app holds no content of its own; Obsidian on other devices uses the same
+  remote. One GitHub token for all vaults; per-vault tokens are a later option.
+- **The user commits, the AI never does** ([ADR 0001](../../docs/adr/0001-user-triggered-commits.md)).
+- **Explicit pull steps instead of `git pull --rebase --autostash`** (diagram in
+  [domain.md](domain.md#pull-and-conflict)): unpushed commits are folded back with `reset --mixed`, never rebased, so no
+  mid-rebase state can exist and stash pop is the only way into a conflict. If the remote history was replaced (no
+  merge base), the pull resets onto the new upstream and everything local becomes uncommitted changes. During a
+  conflict the clashing files hold the user's version, not `<<<<<<<` markers, which would leak into the editor,
+  search and the AI. The unresolved paths are persisted in the config store, because after "keep theirs" on an
+  untracked file git alone can't tell resolved from unresolved.
+- **One in-memory lock per vault** (single backend process): saves and AI turns share it, git operations take it
+  exclusively. A pull never runs during a turn, so a vault can't enter conflict mid-turn.
+- **opencode runs the stock image without git.** Without git it can't detect the worktree, which is what confines
+  its tools to a subfolder vault root and keeps session IDs stable (with git discovery, sessions vanished from the
+  list once the project ID changed). If git ever goes into the image (e.g. for skill scripts), the git dirs must
+  first move off the shared volume (`git clone --separate-git-dir`, a backend-only volume) and the confinement
+  check must be re-run. Backend and opencode run as the same uid so files the AI writes stay committable.
+- **Commit message proposals go through opencode** (agent `commit-message`, a throwaway session that is deleted
+  afterwards), not a second LLM client, because only opencode holds provider keys.
+- **Runtime = docker compose in dev and prod**, nothing native in dev. Rancher Desktop bind mounts deliver no
+  inotify events, so the dev `web` and `backend` containers poll for source changes.
+- **Read-only git commands run with `GIT_OPTIONAL_LOCKS=0`**: status polling raced with Discard on `index.lock`.
+
+## Testing
+
+- **No mocks:** integration tests use real git (local bare repos as remotes, a second clone plays "Obsidian") and
+  the real opencode container. A scripted fake LLM provider would count as a mock.
+- **Three tiers:** *default* (`npm test`, every push: unit + git integration + opencode lifecycle, no secrets; chat
+  tests use a model name Ollama doesn't have, so turns fail fast and the lifecycle is tested without an LLM),
+  *`@github`* (nightly + locally: against the private throwaway repo `tillg/karpathy-app-test-vault`, pushing only
+  to temporary `test-<ts>` branches) and *`@llm`* (nightly + locally: real model turns).
+- **`@llm` rules:** prompts name the tool explicitly; assertions check tool events and the file system, never answer
+  text; a turn without any tool call fails as *inconclusive*, not as passed; at most one retry.
+- **Model in dev and CI:** Ollama `qwen2.5:3b` with `OLLAMA_CONTEXT_LENGTH=16384` and a matching context limit in the
+  opencode provider config. Ollama otherwise truncates opencode's prompt to about 2k tokens silently, and the model
+  then ignores `AGENTS.md` and misuses tools.
+- **e2e:** Playwright against the running stack (dev, or the prod images via `E2E_BASE_URL`); every test fails on a
+  CSP violation. Offline e2e in WebKit is skipped (Playwright's offline WebKit fails even service-worker-served
+  requests).

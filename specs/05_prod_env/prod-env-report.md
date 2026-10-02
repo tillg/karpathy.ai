@@ -422,4 +422,4 @@ Tailscale uses the same encryption as a modern VPN (**WireGuard**), but it's bui
   - `05-clone-size-cap.sh`: `ulimit -f` and a watchdog.
 - Tailscale (§9), fetched 2026-09-30: [How Tailscale works](https://tailscale.com/blog/how-tailscale-works), [100.x addresses](https://tailscale.com/kb/1015/100.x-addresses), [key expiry](https://tailscale.com/kb/1028/key-expiry), [access control](https://tailscale.com/kb/1018/acls), [exit nodes](https://tailscale.com/kb/1103/exit-nodes), [pricing](https://tailscale.com/pricing).
 - Decisions and assumptions made during this autonomous run: [`decisions.md`](decisions.md).
-- Related: [`mvp.md`](../01_mvp/mvp.md) §3 (security, hosting), [V1 plan](../04_v1/v1-plan.md) R4 (public exposure) and R5 (large vaults), [browser-only report](../03_browser_only/browser-only-report.md).
+- Related: [security](../system/security.md), [V1 plan](../04_v1/v1-plan.md) R4 (public exposure) and R5 (large vaults), [browser-only report](../03_browser_only/browser-only-report.md).

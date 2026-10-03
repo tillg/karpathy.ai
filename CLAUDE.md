@@ -68,11 +68,11 @@ works from iPad/phone, not just the Mac terminal.
   uncommitted until the user commits (= commit + push); the AI never commits (ADR 0001). Obsidian mobile/desktop share the
   same remote. No second sync system.
 - **Runtime = docker compose, in dev and prod.** Services: reverse proxy (auto-TLS), backend,
-  opencode. They share the vault clones via a compose volume. Only the proxy publishes ports. In dev,
+  opencode, egress proxy (opencode's only way to the internet: public destinations only). They share the vault clones via a compose volume. Only the proxy publishes ports. In dev,
   bind-mount the sources for hot reload rather than running anything natively. The Docker CLI
   talks to Rancher Desktop.
 - **Security:** provider API keys server-side only; opencode reachable only on the internal
-  compose network, version pinned, file access restricted to the session's vault; a single-user bearer token guards all endpoints;
+  compose network (`internal: true`, password-protected), version pinned, file access restricted to the session's vault; a single-user bearer token guards all endpoints;
   HTTPS mandatory (reverse proxy with auto-TLS).
 
 ## Scope

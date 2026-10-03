@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatEvent } from '@karpathy/shared';
 import { ChatService } from '../src/chat.js';
 import { OpencodeCommitMessages } from '../src/commit-message.js';
-import { OpencodeHarness } from '../src/harness/opencode.js';
+import { basicAuth, OpencodeHarness } from '../src/harness/opencode.js';
 import { makeApp, TOKEN } from './app-helpers.js';
 import { makeRemote, sh } from './helpers.js';
 import { DEAD_MODEL, DEAD_MODEL_2, startOpencode, testDir } from './opencode-container.js';
@@ -27,7 +27,7 @@ async function setup() {
   const remote = await makeRemote({ 'Home.md': '# Home\n', 'Other.md': 'other\n' }, { name: `v${Math.random().toString(36).slice(2, 7)}` });
   const t = await makeApp(remote.remoteBase, {}, { config: join(base, `config-${Math.random()}`), vaults: vaultsDir });
   await t.store.update((c) => { c.settings.model = DEAD_MODEL; });
-  const harness = new OpencodeHarness(oc.url);
+  const harness = new OpencodeHarness(oc.url, oc.password);
   const chat = new ChatService(t.vaults, t.store, harness, '/vaults');
   const commitMessages = new OpencodeCommitMessages(t.vaults, t.store, harness, (id) => chat.dir(id), 5000);
   const { createApp } = await import('../src/app.js');
@@ -40,7 +40,7 @@ async function setup() {
     post: (p: string, body?: object) => request(app).post(`/api${p}`).set(auth).send(body),
     delete: (p: string) => request(app).delete(`/api${p}`).set(auth),
   };
-  const raw = createOpencodeClient({ baseUrl: oc.url });
+  const raw = createOpencodeClient({ baseUrl: oc.url, headers: basicAuth(oc.password) });
   return { ...t, app, api, chat, harness, remote, id, raw, dir: chat.dir(id) };
 }
 
@@ -92,6 +92,36 @@ describe('chat API against a real opencode container', () => {
     const detail = (await t.api.get(`/vaults/${t.id}/chats/${chatId}`)).body;
     expect(detail.turn).toBe('idle');
     expect(detail.messages[0]).toMatchObject({ role: 'user', parts: [{ type: 'text', text: 'hello' }] });
+  });
+
+  it('turn sets web tools from settings', async () => {
+    const t = await setup();
+    const { chatId } = (await t.api.post(`/vaults/${t.id}/chats`)).body;
+    const web = async () => {
+      const rules = ((await t.raw.session.get({ directory: t.dir, sessionID: chatId })).data as { permission?: { permission: string; action: string }[] }).permission ?? [];
+      return Object.fromEntries(['websearch', 'webfetch'].map((n) => [n, rules.filter((r) => r.permission === n).at(-1)?.action]));
+    };
+    const turn = async (text: string) => {
+      await t.api.post(`/vaults/${t.id}/chats/${chatId}/prompt`, { text });
+      await waitIdle(t.chat, t.id, chatId);
+    };
+    await t.store.update((c) => { c.settings.webAccess = false; });
+    await turn('off');
+    expect(await web()).toEqual({ websearch: 'deny', webfetch: 'deny' });
+    await t.store.update((c) => { c.settings.webAccess = true; });
+    await turn('on');
+    expect(await web()).toEqual({ websearch: 'allow', webfetch: 'allow' });
+    // Conflict: read-only agent, web still allowed.
+    await t.api.get(`/vaults/${t.id}/file?path=Other.md`);
+    await t.api.post(`/vaults/${t.id}/open`);
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'Other.md'), 'mine\n');
+    await t.remote.obsidianPush({ 'Other.md': 'theirs\n' });
+    await turn('conflict one');
+    await turn('conflict two');
+    expect(t.vaults.isConflict(t.id)).toBe(true);
+    expect((await userAgents(t.raw, t.dir, chatId)).at(-1)).toBe('vault-readonly');
+    expect(await web()).toEqual({ websearch: 'allow', webfetch: 'allow' });
   });
 
   it('in Conflict every turn uses "vault-readonly"', async () => {

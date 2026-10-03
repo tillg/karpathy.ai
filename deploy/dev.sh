@@ -9,6 +9,7 @@ case "${1:-up}" in
   up)
     mkdir -p secrets ../tmp/dev/remotes
     [ -s secrets/bearer_token ] || openssl rand -hex 24 > secrets/bearer_token
+    [ -s secrets/opencode_password ] || openssl rand -hex 24 > secrets/opencode_password
     touch secrets/github_token secrets/dns_api_token
     compose up -d --build
     # Pull the dev model once (~2 GB) into the ollama volume.

@@ -22,6 +22,8 @@ export interface Settings {
   commitReminderThreshold: number;
   /** `provider/model`, e.g. `anthropic/claude-sonnet-5`. */
   model: string;
+  /** The AI may search the web and read pages (opencode websearch/webfetch), in every vault. */
+  webAccess: boolean;
 }
 
 /** `GET /settings`: the settings plus the GitHub token's state — never the token itself. */
@@ -134,6 +136,10 @@ export interface ToolCall {
   opens?: boolean;
   title?: string;
   error?: string;
+  /** websearch: the search query. */
+  query?: string;
+  /** webfetch: the fetched URL. */
+  url?: string;
 }
 
 export type ChatPart =

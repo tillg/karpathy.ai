@@ -30,7 +30,7 @@ async function setup() {
   const remote = await makeRemote({ 'Home.md': '# Home\n', 'notes/Todo.md': 'Buy milk\n' }, { name: `g${Math.random().toString(36).slice(2, 7)}` });
   const t = await makeApp(remote.remoteBase, {}, { config: join(base, `config-${Math.random()}`), vaults: vaultsDir });
   await t.store.update((c) => { c.settings.model = LLM_MODEL; });
-  const chat = new ChatService(t.vaults, t.store, new OpencodeHarness(oc.url), '/vaults');
+  const chat = new ChatService(t.vaults, t.store, new OpencodeHarness(oc.url, oc.password), '/vaults');
   const app = createApp({ token: TOKEN, vaults: t.vaults, store: t.store, chat });
   const id = await t.addVault(remote.repo, { name: remote.repo.split('/')[1] });
   const server = http.createServer(app).listen(0);

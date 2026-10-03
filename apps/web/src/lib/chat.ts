@@ -1,4 +1,4 @@
-import type { ChatDetail, ChatEvent, ChatMessage, ChatPart } from '@karpathy/shared';
+import type { ChatDetail, ChatEvent, ChatMessage, ChatPart, ToolCall } from '@karpathy/shared';
 
 export interface ChatView extends ChatDetail {
   readonly?: boolean;
@@ -190,4 +190,26 @@ export function turnAnnouncement(prev: ChatView['turn'] | undefined, c: ChatView
   if (error) return `Reply failed: ${error}`;
   const text = (last?.parts ?? []).map((p) => (p.type === 'text' ? p.text : '')).join(' ').trim();
   return text ? `Reply finished: ${text.length > 300 ? `${text.slice(0, 300)}…` : text}` : 'Reply finished';
+}
+
+/** The label of a tool chip. */
+export function toolLabel(call: ToolCall): string {
+  if (call.status === 'denied' || call.status === 'error')
+    return `${call.status === 'denied' ? 'denied · ' : ''}${call.tool} ${call.path ?? call.url ?? call.title ?? ''}`;
+  if (call.tool === 'websearch' && call.query) return `searched the web: "${call.query}"`;
+  if (call.tool === 'webfetch' && call.url) {
+    try {
+      const u = new URL(call.url);
+      return `fetched ${u.host}${(u.pathname + u.search).slice(0, 60)}`;
+    } catch {
+      return `fetched ${call.url}`;
+    }
+  }
+  return `${call.writes ? 'changing' : call.tool} ${call.path ?? call.title ?? ''}`;
+}
+
+/** Where a fetch chip links to: the URL of a completed http(s) fetch, else null. */
+export function toolHref(call: ToolCall): string | null {
+  if (call.tool !== 'webfetch' || call.status !== 'completed' || !call.url) return null;
+  return /^https?:\/\//i.test(call.url) ? call.url : null;
 }

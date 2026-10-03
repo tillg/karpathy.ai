@@ -251,6 +251,15 @@ describe('vault admin', () => {
     }
   });
 
+  it('PATCH /settings webAccess round-trips; a non-boolean is 400', async () => {
+    const { api } = await makeApp('file:///nowhere/');
+    expect((await api.get('/settings')).body.webAccess).toBe(true);
+    expect((await api.patch('/settings', { webAccess: false })).body.webAccess).toBe(false);
+    expect((await api.get('/settings')).body.webAccess).toBe(false);
+    expect((await api.patch('/settings', { webAccess: true })).body.webAccess).toBe(true);
+    for (const v of ['yes', 1, null]) expect((await api.patch('/settings', { webAccess: v })).status).toBe(400);
+  });
+
   it('PUT github token → GET shows source settings + last4, never the token; DELETE → secret; bad token → 400', async () => {
     const { api } = await makeApp('file:///nowhere/', {}, undefined, 'ghp_secretsecretsecretsecret1111');
     expect((await api.get('/settings')).body.githubToken).toEqual({ source: 'secret', last4: '1111' });

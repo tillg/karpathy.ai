@@ -1,7 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
+import { basicAuth } from '../src/harness/opencode.js';
 
 // Real opencode container for integration tests (no mocks). The vaults dir must be under the
 // repo (Rancher Desktop shares /Users) and is mounted at /vaults, as in compose.
@@ -42,6 +44,38 @@ function ensureImage() {
   built = true;
 }
 
+export const EGRESS = 'kai-test-egress';
+/** A tiny internal HTTP server standing in for the backend: the egress proxy must refuse it. */
+export const INTERNAL_TARGET = 'kai-test-target';
+const EGRESS_IMAGE = 'kai-test-egress-img';
+let egressBuilt = false;
+
+/** Starts (or reuses) the egress proxy and the internal target on the test network. Returns the proxy's host port. */
+export function ensureEgress(): number {
+  ensureNetwork();
+  if (!egressBuilt) {
+    docker('build', '-q', '-t', EGRESS_IMAGE, '-f', join(REPO, 'deploy/egress/Dockerfile'), REPO);
+    egressBuilt = true;
+  }
+  const start = (name: string, ...args: string[]) => {
+    try {
+      // "created": another parallel worker is starting it right now.
+      if (['running', 'created'].includes(docker('inspect', '-f', '{{.State.Status}}', name))) return;
+      docker('rm', '-f', name);
+    } catch {
+      // not there
+    }
+    try {
+      docker('run', '-d', '--name', name, '--network', NET, ...args);
+    } catch (e) {
+      if (!String((e as { stderr?: string }).stderr).includes('is already in use')) throw e;
+    }
+  };
+  start(EGRESS, '--cap-drop', 'ALL', '-p', '127.0.0.1::3128', EGRESS_IMAGE);
+  start(INTERNAL_TARGET, 'alpine', 'sh', '-c', 'mkdir -p /www && echo internal > /www/index.html && httpd -f -p 80 -h /www');
+  return Number(docker('port', EGRESS, '3128/tcp').split('\n')[0]!.split(':').pop());
+}
+
 /** Starts (or reuses) the Ollama container on the test network. */
 export function ensureOllama() {
   ensureNetwork();
@@ -63,12 +97,16 @@ export function ensureOllama() {
 
 /**
  * Starts opencode serving `vaultsDir` at /vaults, with Ollama as provider. Use DEAD_MODEL for
- * turns that fail fast and deterministically (no LLM runs), LLM_MODEL for real ones.
+ * turns that fail fast and deterministically (no LLM runs), LLM_MODEL for real ones. `env` adds container env.
  */
-export async function startOpencode(vaultsDir: string) {
+export async function startOpencode(vaultsDir: string, env: Record<string, string> = {}) {
   ensureImage();
   ensureOllama();
+  ensureEgress();
   await mkdir(vaultsDir, { recursive: true });
+  const password = randomBytes(16).toString('hex');
+  const authHeader = basicAuth(password);
+  const authedFetch = (input: string, init: RequestInit = {}) => fetch(input, { ...init, headers: { ...authHeader, ...(init.headers as Record<string, string> | undefined) } });
   const name = `kai-test-oc-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
   // A fixed host port, so a stop/start (restart tests) keeps the URL.
   const hostPort = await new Promise<number>((resolve) => {
@@ -85,6 +123,11 @@ export async function startOpencode(vaultsDir: string) {
     'run', '-d', '--name', name, '--network', NET, '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
     '-p', `127.0.0.1:${hostPort}:4096`,
     '-e', 'HOME=/home/app', '-e', 'XDG_DATA_HOME=/data', '-e', `OPENCODE_MODEL=${LLM_MODEL}`,
+    '-e', `OPENCODE_SERVER_PASSWORD=${password}`,
+    // All outbound HTTP goes through the egress proxy, as in compose; loopback and Ollama (a private IP) go direct.
+    '-e', `HTTP_PROXY=http://${EGRESS}:3128`, '-e', `HTTPS_PROXY=http://${EGRESS}:3128`,
+    '-e', `NO_PROXY=localhost,127.0.0.1,0.0.0.0,${OLLAMA}`,
+    ...Object.entries(env).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
     '-e', `OPENCODE_CONFIG_CONTENT=${JSON.stringify(providerCfg)}`,
     '--tmpfs', `/home/app:uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000},mode=0700`,
     '--tmpfs', `/data:uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000}`,
@@ -95,7 +138,7 @@ export async function startOpencode(vaultsDir: string) {
   const deadline = Date.now() + 60_000;
   for (;;) {
     try {
-      const r = await fetch(`${url}/global/health`, { signal: AbortSignal.timeout(2000) });
+      const r = await authedFetch(`${url}/global/health`, { signal: AbortSignal.timeout(2000) });
       if (r.ok) break;
     } catch {
       // starting
@@ -110,6 +153,10 @@ export async function startOpencode(vaultsDir: string) {
   return {
     url,
     name,
+    /** The server password; the harness sends it as HTTP Basic auth (user `opencode`). */
+    password,
+    /** `fetch` with the Basic auth header, for tests that call opencode directly. */
+    fetch: authedFetch,
     stop: () => void docker('rm', '-f', name),
     pause: () => void docker('stop', name),
     resume: () => void docker('start', name),

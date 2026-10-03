@@ -41,6 +41,7 @@ prodtest action="up":
       up)
         mkdir -p tmp/prodtest/secrets
         [ -s tmp/prodtest/secrets/bearer_token ] || openssl rand -hex 24 > tmp/prodtest/secrets/bearer_token
+        [ -s tmp/prodtest/secrets/opencode_password ] || openssl rand -hex 24 > tmp/prodtest/secrets/opencode_password
         touch tmp/prodtest/secrets/github_token tmp/prodtest/secrets/dns_api_token
         {{prodtest_compose}} up -d --build
         echo "App: https://localhost:9443  token: $(cat tmp/prodtest/secrets/bearer_token)"

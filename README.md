@@ -49,6 +49,18 @@ check it with **Test token**, which shows whose token it is, its expiry, and whe
 is reachable. The app shows only its last 4 characters. Without a token set in the app, the
 backend uses the `github_token` secret of the deployment.
 
+**Web access.** The AI can search the web and read pages. It is on by default; switch it off under
+admin area → Settings → Web access (one switch for all vaults). Each search and page read shows as a
+chip in the chat (`searched the web: "…"`, `fetched example.com/post`); a fetched chip opens the page.
+Searches go to Exa. `EXA_API_KEY` in `deploy/opencode.env` is optional (see `deploy/opencode.env.example`);
+without it Exa's anonymous endpoint is used, which is rate-limited, so set a key in production
+(`just secrets <target>` asks for it). The AI can fetch only URLs that already appear in the chat (you
+paste them, or a note or search result contains them), at most 20 fetches and 20 searches per turn
+(`WEB_FETCH_CAP` / `WEB_SEARCH_CAP` in `opencode.env`, applied on restart). The opencode container
+has no direct internet access: it goes through an `egress` proxy that refuses private, loopback and
+link-local addresses, and opencode's API needs a generated password. Note that `localhost`/`127.0.0.1`/`0.0.0.0` are in opencode's `NO_PROXY`, so loopback requests (needed by its plugin client) bypass the proxy: only that password protects opencode's own API from the AI's web fetches (`opencode_password` secret; dev
+and prodtest create it, deploys generate it once on the target).
+
 ## Status
 
 MVP (spec milestone M4) implemented: vaults from GitHub, file tree, CodeMirror editor with

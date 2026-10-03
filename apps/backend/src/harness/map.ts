@@ -52,6 +52,8 @@ export function mapToolPart(part: Json, root: string): ToolCall {
     writes: WRITE_TOOLS.has(tool),
     opens: OPEN_TOOLS.has(tool),
     ...(path ? { path } : {}),
+    ...(tool === 'websearch' && str(input.query) ? { query: str(input.query) } : {}),
+    ...(tool === 'webfetch' && str(input.url) ? { url: str(input.url) } : {}),
     ...(str(state.title) ? { title: str(state.title) } : {}),
     ...(error && status === 'error' ? { error } : {}),
   };

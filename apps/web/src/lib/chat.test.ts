@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatEvent, ChatMessage, ToolCall } from '@karpathy/shared';
-import { adoptQueued, applyChatEvent, changedPaths, newOpens, noteToOpen, opensFromEvent, opensFromLoad, settlePending, turnAnnouncement, turns, type ChatView, type PendingPrompt } from './chat';
+import { adoptQueued, applyChatEvent, changedPaths, newOpens, noteToOpen, opensFromEvent, opensFromLoad, settlePending, toolHref, toolLabel, turnAnnouncement, turns, type ChatView, type PendingPrompt } from './chat';
 
 const empty: ChatView = { id: 'c1', title: 'T', messages: [], turn: 'idle' };
 
@@ -194,5 +194,41 @@ describe('turns (#63: one assistant block per turn)', () => {
     expect(first.role === 'assistant' && first.parts.map((p) => p.id)).toEqual(['t1', 't2', 'p3']);
     expect(first.role === 'assistant' && changedPaths(first.parts)).toEqual(['y.md']);
     expect(t[3]).toMatchObject({ role: 'assistant', id: 'a4', errors: [] });
+  });
+});
+
+describe('toolLabel / toolHref', () => {
+  const call = (o: Partial<ToolCall>): ToolCall => ({ id: 'c', tool: 'webfetch', status: 'completed', writes: false, ...o });
+
+  it('a search shows its query', () => {
+    expect(toolLabel(call({ tool: 'websearch', query: 'obsidian sync' }))).toBe('searched the web: "obsidian sync"');
+  });
+
+  it('a fetch shows host and path, shortening a long path to 60 characters', () => {
+    expect(toolLabel(call({ url: 'https://example.com/a/b?x=1' }))).toBe('fetched example.com/a/b?x=1');
+    const long = '/' + 'a'.repeat(100);
+    const label = toolLabel(call({ url: `https://example.com${long}` }));
+    expect(label.startsWith('fetched example.com/aaa')).toBe(true);
+    expect(label.length).toBe('fetched example.com'.length + 60);
+  });
+
+  it('a refused fetch keeps its error chip label', () => {
+    expect(toolLabel(call({ status: 'error', url: 'https://example.com/a', error: 'nope' }))).toBe('webfetch https://example.com/a');
+    expect(toolLabel(call({ status: 'denied', url: 'https://example.com/a' }))).toBe('denied · webfetch https://example.com/a');
+  });
+
+  it('other tools are unchanged', () => {
+    expect(toolLabel(call({ tool: 'read', path: 'a.md' }))).toBe('read a.md');
+    expect(toolLabel(call({ tool: 'edit', writes: true, path: 'a.md' }))).toBe('changing a.md');
+    expect(toolLabel(call({ tool: 'grep', status: 'error', title: 'x' }))).toBe('grep x');
+  });
+
+  it('toolHref: the URL for a completed http(s) fetch, else null', () => {
+    expect(toolHref(call({ url: 'https://example.com/a' }))).toBe('https://example.com/a');
+    expect(toolHref(call({ url: 'http://example.com/a' }))).toBe('http://example.com/a');
+    expect(toolHref(call({ url: 'javascript:alert(1)' }))).toBeNull();
+    expect(toolHref(call({ tool: 'websearch', query: 'x' }))).toBeNull();
+    expect(toolHref(call({ status: 'error', url: 'https://example.com/a' }))).toBeNull();
+    expect(toolHref(call({ status: 'running', url: 'https://example.com/a' }))).toBeNull();
   });
 });

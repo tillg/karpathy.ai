@@ -329,11 +329,14 @@ export class ChatService {
     running.readonly = this.vaults.isConflict(vaultId);
     running.startedAt = Date.now();
     this.emit(vaultId, turn.chatId, { type: 'turn', state: 'running', ...(running.readonly ? { readonly: true } : {}) });
+    const settings = this.store.get().settings;
     try {
       await this.harness.prompt(this.dir(vaultId), turn.chatId, {
         text: turn.text,
         agent: running.readonly ? 'vault-readonly' : 'vault',
-        model: this.store.get().settings.model,
+        model: settings.model,
+        // Sent with every turn, `false` included: opencode keeps the rule on the session.
+        tools: { websearch: settings.webAccess, webfetch: settings.webAccess },
       });
       running.started = true;
       this.startPoll(vaultId);

@@ -2,6 +2,7 @@
 # side by side with the dev stack. Test-only; never use for a real deployment.
 #
 #   mkdir -p tmp/prodtest/secrets && openssl rand -hex 24 > tmp/prodtest/secrets/bearer_token
+#   openssl rand -hex 24 > tmp/prodtest/secrets/opencode_password
 #   touch tmp/prodtest/secrets/{github_token,dns_api_token}
 #   docker compose -p karpathy-app-prodtest -f deploy/compose.yml -f deploy/compose.prodtest.yml up -d --build
 #   E2E_BASE_URL=https://localhost:9443 E2E_TOKEN_FILE=tmp/prodtest/secrets/bearer_token E2E_BACKEND_CONTAINER=karpathy-app-prodtest-backend-1 npx playwright test
@@ -31,6 +32,7 @@ services:
     environment:
       OPENCODE_MODEL: ollama/qwen2.5:3b
       OPENCODE_CONFIG: /etc/opencode-dev/ollama.json
+      NO_PROXY: localhost,127.0.0.1,0.0.0.0,ollama
     volumes:
       - ./opencode/dev-ollama.json:/etc/opencode-dev/ollama.json:ro
 
@@ -47,5 +49,6 @@ networks:
 
 secrets:
   bearer_token: { file: ../tmp/prodtest/secrets/bearer_token }
+  opencode_password: { file: ../tmp/prodtest/secrets/opencode_password }
   github_token: { file: ../tmp/prodtest/secrets/github_token }
   dns_api_token: { file: ../tmp/prodtest/secrets/dns_api_token }

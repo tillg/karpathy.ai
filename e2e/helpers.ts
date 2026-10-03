@@ -118,8 +118,8 @@ export class Api {
   files = (id: string) => this.json<{ path: string; type: string }[]>('GET', `/vaults/${id}/files`);
   changes = (id: string) => this.json<{ path: string; kind: string }[]>('GET', `/vaults/${id}/changes`);
   diff = (id: string, path: string) => this.json<{ diff: string }>('GET', `/vaults/${id}/changes/diff?path=${encodeURIComponent(path)}`);
-  settings = () => this.json<{ commitReminderThreshold: number; model: string }>('GET', '/settings');
-  patchSettings = (s: { commitReminderThreshold?: number }) => this.json('PATCH', '/settings', s);
+  settings = () => this.json<{ commitReminderThreshold: number; model: string; webAccess: boolean }>('GET', '/settings');
+  patchSettings = (s: { commitReminderThreshold?: number; webAccess?: boolean }) => this.json('PATCH', '/settings', s);
 
   async file(id: string, path: string): Promise<{ content: string; version: string } | null> {
     const res = await this.ctx.get(`/api/vaults/${id}/file?path=${encodeURIComponent(path)}`);

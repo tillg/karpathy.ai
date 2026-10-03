@@ -142,11 +142,12 @@ function SettingsForm() {
   const { settings, setSettings, toast } = useApp();
   const [threshold, setThreshold] = useState('');
   const [model, setModel] = useState('');
+  const [webAccess, setWebAccess] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (settings) { setThreshold(String(settings.commitReminderThreshold)); setModel(settings.model); }
+    if (settings) { setThreshold(String(settings.commitReminderThreshold)); setModel(settings.model); setWebAccess(settings.webAccess); }
   }, [settings]);
   const edit = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { set(e.target.value); setSaved(false); };
   const save = async () => {
@@ -156,7 +157,7 @@ function SettingsForm() {
     if (!model.trim()) return setError('Model: enter provider/model, e.g. anthropic/claude-sonnet-5.');
     setBusy(true);
     try {
-      setSettings(await api.patchSettings({ commitReminderThreshold: n, model: model.trim() }));
+      setSettings(await api.patchSettings({ commitReminderThreshold: n, model: model.trim(), webAccess }));
       setError(null);
       setSaved(true);
       toast('Settings saved');
@@ -168,6 +169,14 @@ function SettingsForm() {
         <input data-testid="settings-threshold" type="number" min={1} max={1000} step={1} value={threshold} onChange={edit(setThreshold)} /></label>
       <label className="field"><span>Model (server-wide, provider/model)</span>
         <input data-testid="settings-model" value={model} autoCapitalize="off" spellCheck={false} onChange={edit(setModel)} /></label>
+      <div className="switch-row">
+        <div>
+          <label htmlFor="settings-web-access">Web access</label>
+          <p className="muted">Lets the AI search the web (via Exa) and read pages you or it found. Each search and page is shown in the chat.</p>
+        </div>
+        <input id="settings-web-access" className="switch" data-testid="settings-web-access" type="checkbox" role="switch" checked={webAccess}
+          onChange={(e) => { setWebAccess(e.target.checked); setSaved(false); }} />
+      </div>
       <p className="muted">Provider keys live on the server only; the app never sees them.</p>
       {error && <div className="form-error" role="alert" data-testid="settings-error">{error}</div>}
       <div className="acts">

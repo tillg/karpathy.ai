@@ -87,6 +87,12 @@ dev_keys = [line.split("=", 1)[0] for line in (from_file("opencode.env") or "").
 for name in sorted(set(providers) | set(dev_keys)):
     ask(name, f"Provider key {name}", optional=True, into=providers,
         found=(from_env_file("opencode.env", name), "deploy/opencode.env"))
+# Web search (Exa): optional, recommended for production; anonymous and rate-limited without it.
+ask("EXA_API_KEY", "Exa API key for web search (optional, Enter skips)", optional=True, into=providers,
+    found=(from_env_file("opencode.env", "EXA_API_KEY"), "deploy/opencode.env"))
+# Per-turn caps on the AI's web calls (default 20 each when unset).
+for cap in ("WEB_FETCH_CAP", "WEB_SEARCH_CAP"):
+    ask(cap, f"{cap}: web calls per turn (optional, Enter keeps the default 20)", hidden=False, optional=True, into=providers)
 for name in [k for k, v in providers.items() if not v]:
     del providers[name]
 ask("vault_tailscale_authkey", "Tailscale auth key (tag:server, pre-approved, single-use)")

@@ -261,6 +261,7 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .tcs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .tc { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px; background: var(--fill2); border: .5px solid var(--sep); font: 12.5px var(--mono); color: var(--label2); max-width: 100%; white-space: nowrap; overflow: hidden; }
 .tc > :not(.tc-t) { flex: none; }
+a.tc { text-decoration: none; cursor: pointer; }
 .tc-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tc .ok { color: var(--green); } .tc .err { color: var(--red); }
 .tc.ed { background: var(--add); color: var(--label); cursor: pointer; }
@@ -306,6 +307,14 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--label2); font-weight: 500; }
 .field input { height: 40px; border: .5px solid var(--sep); background: var(--bg2); border-radius: 10px; padding: 0 12px; font-size: 16px; outline: none; }
 .acts .saved { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; color: var(--green-ink); font-size: 14px; font-weight: 600; }
+.switch-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.switch-row label { font-size: 13px; color: var(--label2); font-weight: 500; }
+.switch-row .muted { margin: 4px 0 0; }
+.switch { appearance: none; -webkit-appearance: none; flex: none; width: 51px; height: 31px; margin: 0; border-radius: 16px; background: var(--sep); position: relative; cursor: pointer; transition: background .15s; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s; }
+.switch:checked { background: var(--tint); }
+.switch:checked::after { transform: translateX(20px); }
+.switch:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 .field input:focus, .ta-wrap textarea:focus, .inrow textarea:focus { border-color: var(--tint); }
 .vrow { background: var(--bg2); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
 .vrow-h { display: flex; align-items: center; gap: 10px; }

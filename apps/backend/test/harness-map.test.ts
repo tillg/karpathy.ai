@@ -72,6 +72,34 @@ describe('mapping edge cases', () => {
     expect(writtenPaths(part, '/vaults/a')).toEqual(['x.md', 'y.md', 'z.md']);
   });
 
+  it('real captured websearch and webfetch parts map to query / url', () => {
+    const tools = events.flatMap((e) => (e.type === 'part' && e.part.type === 'tool' ? [e.part.call] : []));
+    expect(tools.find((t) => t.tool === 'websearch')).toMatchObject({ status: 'completed', query: expect.any(String), writes: false });
+    expect(tools.find((t) => t.tool === 'webfetch')).toMatchObject({ status: 'completed', url: 'https://example.com/', writes: false });
+    for (const t of tools.filter((x) => x.tool === 'websearch' || x.tool === 'webfetch')) expect(t).not.toHaveProperty('path');
+  });
+
+  it('websearch → query', () => {
+    const part = { id: 'w1', tool: 'websearch', state: { status: 'completed', input: { query: 'obsidian sync' }, output: 'results…' } };
+    const call = mapToolPart(part, '/vaults/a');
+    expect(call).toMatchObject({ tool: 'websearch', query: 'obsidian sync', status: 'completed', writes: false, opens: false });
+    expect(call).not.toHaveProperty('path');
+    expect(call).not.toHaveProperty('url');
+  });
+
+  it('webfetch → url', () => {
+    const part = { id: 'w2', tool: 'webfetch', state: { status: 'completed', input: { url: 'https://example.com/a/b' }, output: 'page…' } };
+    const call = mapToolPart(part, '/vaults/a');
+    expect(call).toMatchObject({ tool: 'webfetch', url: 'https://example.com/a/b', status: 'completed', writes: false, opens: false });
+    expect(call).not.toHaveProperty('path');
+    expect(call).not.toHaveProperty('query');
+  });
+
+  it('writtenPaths ignores web tools', () => {
+    expect(writtenPaths({ id: 'w1', tool: 'websearch', state: { status: 'completed', input: { query: 'x' }, output: 'y' } }, '/vaults/a')).toEqual([]);
+    expect(writtenPaths({ id: 'w2', tool: 'webfetch', state: { status: 'completed', input: { url: 'https://example.com/x.md' }, output: 'y' } }, '/vaults/a')).toEqual([]);
+  });
+
   it('abort → error event with aborted flag', () => {
     const e = mapEvent({ type: 'session.error', properties: { sessionID: 's', error: { name: 'MessageAbortedError', data: { message: 'Aborted' } } } }, '/v');
     expect(e).toEqual({ type: 'error', sessionId: 's', message: 'Aborted', aborted: true });

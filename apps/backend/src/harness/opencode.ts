@@ -9,6 +9,8 @@ export interface PromptInput {
   agent: AgentName;
   /** `provider/model`, split at the first `/`. */
   model: string;
+  /** Per-turn tool switches (`{ websearch: true }`); opencode stores them as session permission rules. */
+  tools?: Record<string, boolean>;
 }
 
 /** Everything the backend needs from the agent harness. `dir` = vault root as the harness sees it. */
@@ -31,6 +33,9 @@ export interface Harness {
   subscribe(dir: string, onEvent: (e: HarnessEvent) => void, mayConnect?: () => boolean): () => void;
 }
 
+/** HTTP Basic auth header for the opencode server (user `opencode`). */
+export const basicAuth = (password: string) => ({ Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}` });
+
 function splitModel(model: string) {
   const i = model.indexOf('/');
   return { providerID: model.slice(0, i), modelID: model.slice(i + 1) };
@@ -47,8 +52,9 @@ function unwrap<T>(r: { data?: T; error?: unknown; response?: Response }, what: 
 export class OpencodeHarness implements Harness {
   private c: OpencodeClient;
 
-  constructor(baseUrl: string) {
-    this.c = createOpencodeClient({ baseUrl });
+  /** `password` = the opencode server password (HTTP Basic, user `opencode`); none = no auth. */
+  constructor(baseUrl: string, password?: string) {
+    this.c = createOpencodeClient({ baseUrl, ...(password ? { headers: basicAuth(password) } : {}) });
   }
 
   async health() {
@@ -91,6 +97,7 @@ export class OpencodeHarness implements Harness {
       agent: input.agent,
       model: splitModel(input.model),
       parts: [{ type: 'text', text: input.text }],
+      ...(input.tools ? { tools: input.tools } : {}),
     });
     if (r.error !== undefined) throw new Error(`opencode prompt failed: ${JSON.stringify(r.error)}`);
   }
@@ -98,7 +105,7 @@ export class OpencodeHarness implements Harness {
   async promptSync(dir: string, id: string, input: PromptInput, signal?: AbortSignal) {
     const data = unwrap(
       await this.c.session.prompt(
-        { directory: dir, sessionID: id, agent: input.agent, model: splitModel(input.model), parts: [{ type: 'text', text: input.text }] },
+        { directory: dir, sessionID: id, agent: input.agent, model: splitModel(input.model), parts: [{ type: 'text', text: input.text }], ...(input.tools ? { tools: input.tools } : {}) },
         signal ? ({ signal } as never) : undefined,
       ),
       'session.prompt',

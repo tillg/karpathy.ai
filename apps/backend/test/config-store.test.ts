@@ -7,10 +7,16 @@ import { ConfigStore } from '../src/config-store.js';
 const dir = () => mkdtemp(join(tmpdir(), 'cfg-'));
 
 describe('ConfigStore', () => {
-  it('starts with default settings (threshold 4, Claude Sonnet 5)', async () => {
+  it('starts with default settings (threshold 4, Claude Sonnet 5, web access on)', async () => {
     const s = await ConfigStore.open(await dir());
-    expect(s.get().settings).toEqual({ commitReminderThreshold: 4, model: 'anthropic/claude-sonnet-5' });
+    expect(s.get().settings).toEqual({ commitReminderThreshold: 4, model: 'anthropic/claude-sonnet-5', webAccess: true });
     expect(s.get().vaults).toEqual([]);
+  });
+
+  it('webAccess defaults to true, also for an old config without the key', async () => {
+    const d = await dir();
+    await writeFile(join(d, 'config.json'), JSON.stringify({ vaults: [], settings: { commitReminderThreshold: 9, model: 'a/b' } }));
+    expect((await ConfigStore.open(d)).get().settings).toEqual({ commitReminderThreshold: 9, model: 'a/b', webAccess: true });
   });
 
   it('persists vault CRUD across reopen', async () => {

@@ -1,7 +1,7 @@
 import type { ChatEvent, ChatPart, ChatSummary, ToolCall } from '@karpathy/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText } from '../lib/api';
-import { adoptQueued, applyChatEvent, changedPaths, newOpens, opensFromEvent, opensFromLoad, settlePending, turnAnnouncement, turns, userCount, type ChatView, type PendingPrompt, type Turn } from '../lib/chat';
+import { adoptQueued, applyChatEvent, changedPaths, newOpens, opensFromEvent, opensFromLoad, settlePending, toolHref, toolLabel, turnAnnouncement, turns, userCount, type ChatView, type PendingPrompt, type Turn } from '../lib/chat';
 import { readNdjson } from '../lib/ndjson';
 import { useApp } from '../store';
 import { Icon } from './Icon';
@@ -78,10 +78,8 @@ function useChat(vaultId: string, chatId: string) {
 
 function ToolChip({ call, open, onToggle }: { call: ToolCall; open: boolean; onToggle(): void }) {
   const { openNote } = useApp();
-  const target = call.path ?? call.title ?? '';
-  const label = call.status === 'denied' || call.status === 'error'
-    ? `${call.status === 'denied' ? 'denied · ' : ''}${call.tool} ${target}`
-    : `${call.writes ? 'changing' : call.tool} ${target}`;
+  const label = toolLabel(call);
+  const href = toolHref(call);
   // Failed and denied steps open their error on tap: touch devices can't show a tooltip (#63).
   if (call.status === 'denied' || call.status === 'error') {
     const icon = call.status === 'denied' ? <Icon n="nosign" size={14} /> : <span className="err"><Icon n="xmark" size={14} /></span>;
@@ -96,8 +94,10 @@ function ToolChip({ call, open, onToggle }: { call: ToolCall; open: boolean; onT
     return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="false" data-opens="true" data-path={call.path} title={`opened ${call.path}`} onClick={() => void openNote(call.path!)}><Icon n="arrow_up_right_square" size={14} /><span className="tc-t">opened {call.path}</span></button>;
   if (call.writes && call.status === 'completed' && call.path)
     return <button className="tc ed" data-testid="tool-chip" data-status="completed" data-writes="true" data-path={call.path} title={`changed ${call.path}`} onClick={() => void openNote(call.path!)}><Icon n="pencil" size={14} /><span className="tc-t">changed {call.path}</span></button>;
+  if (href)
+    return <a className="tc" href={href} target="_blank" rel="noopener noreferrer" data-testid="tool-chip" data-status="completed" data-writes="false" title={call.url}><span className="ok"><Icon n="checkmark" size={14} /></span><span className="tc-t">{label}</span></a>;
   const icon = call.status === 'completed' ? <span className="ok"><Icon n="checkmark" size={14} /></span> : <span className="spin" />;
-  return <span className="tc" data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path} title={label}>{icon}<span className="tc-t">{label}</span></span>;
+  return <span className="tc" data-testid="tool-chip" data-status={call.status} data-writes={String(call.writes)} data-path={call.path} title={call.tool === 'webfetch' && call.url ? call.url : label}>{icon}<span className="tc-t">{label}</span></span>;
 }
 
 /** One row of chips; a tapped failed chip shows its error under the row. */

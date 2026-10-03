@@ -27,10 +27,31 @@
     that: bind_ip | length > 0
     fail_msg: "bind_ip is empty (on hetzner: the tailnet IP, known only after the tailscale role ran)"
 
+# The images a release has are named by its own compose.yml (older releases have no egress image), so
+# any release stays deployable, rollbacks included. Read from GitHub on the Mac; also fine in check mode.
+- name: compose.yml of release {{ app_release }}
+  ansible.builtin.uri:
+    url: https://github.com/{{ app_repo }}/releases/download/v{{ app_release }}/compose.yml
+    return_content: true
+  register: app_release_compose
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Images of release {{ app_release }}
+  ansible.builtin.set_fact:
+    app_release_images: "{{ app_release_compose.content | regex_findall('image: ' ~ app_registry ~ '-([a-z]+):') | unique }}"
+
+- name: The release names its images
+  ansible.builtin.assert:
+    that: app_release_images | length > 0
+    fail_msg: "no {{ app_registry }}-* images found in the compose.yml of v{{ app_release }}"
+
 # From the Mac, so it also works in check mode against a host without Docker yet.
 - name: GHCR images exist for {{ app_release }}
   ansible.builtin.command: docker manifest inspect {{ app_registry }}-{{ item }}:{{ app_release }}
-  loop: "{{ app_images }}"
+  loop: "{{ app_release_images }}"
   changed_when: false
   check_mode: false
   delegate_to: localhost
@@ -118,9 +139,23 @@
   register: app_secrets
   no_log: true
 
+# The opencode server password: generated once on the target and kept (force: false), so it needs no vault
+# entry and nothing from the operator. Only the backend and opencode read it.
+- name: Secret opencode_password
+  ansible.builtin.copy:
+    dest: "{{ app_root }}/shared/secrets/opencode_password"
+    content: "{{ lookup('ansible.builtin.password', '/dev/null chars=ascii_letters,digits length=48') }}"
+    force: false
+    owner: "{{ deploy_uid }}"
+    group: "{{ deploy_gid }}"
+    mode: "0600"
+  register: app_opencode_password
+  no_log: true
+
 - name: Provider keys (opencode.env)
   ansible.builtin.copy:
     dest: "{{ app_root }}/shared/opencode.env"
+    # Also the optional web settings: EXA_API_KEY, WEB_FETCH_CAP, WEB_SEARCH_CAP (all keys of vault_opencode_env).
     content: "# Rendered by Ansible (role app): provider API keys, opencode only.\n{% for k, v in opencode_env.items() %}{{ k }}={{ v }}\n{% endfor %}"
     mode: "0600"
   register: app_provider_keys
@@ -155,7 +190,7 @@
     pull: missing
     build: never
     # Containers read secrets and env files at start: a rotated one needs a recreate.
-    recreate: "{{ 'always' if app_secrets is changed or app_provider_keys is changed else 'auto' }}"
+    recreate: "{{ 'always' if app_secrets is changed or app_opencode_password is changed or app_provider_keys is changed else 'auto' }}"
     remove_orphans: true
     wait: true
     wait_timeout: 300

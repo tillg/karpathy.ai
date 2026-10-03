@@ -17,6 +17,7 @@ flowchart TB
       proxy[proxy: Caddy<br/>tailnet IP :443, TLS, PWA]
       backend[backend: Node<br/>vaults, git, chat API]
       opencode[opencode<br/>AI agent loop]
+      egress[egress: Squid<br/>public destinations only]
     end
     subgraph Mon["compose project karpathy-monitoring"]
       hub[Beszel hub<br/>tailnet IP :8090]
@@ -36,7 +37,8 @@ flowchart TB
   backend --> vaults
   opencode --> vaults
   backend -->|clone, pull, push| GitHub
-  opencode -->|model calls| LLM
+  opencode --> egress
+  egress -->|model calls, web search and fetch| LLM
   agent --> hub
   gatus -->|checks HTTPS + cert| proxy
   hub -->|alerts| NTFY
@@ -62,8 +64,8 @@ when the whole box is gone.
                                        starts the stack, runs the smoke check
 ```
 
-- **A release** is a tag `vX.Y.Z` (or a pre-release `vX.Y.Z-rc.N`). CI builds the three images
-  (`ghcr.io/tillg/karpathy.app-{proxy,backend,opencode}:X.Y.Z`, public) and attaches
+- **A release** is a tag `vX.Y.Z` (or a pre-release `vX.Y.Z-rc.N`). CI builds the four images
+  (`ghcr.io/tillg/karpathy.app-{proxy,backend,opencode,egress}:X.Y.Z`, public) and attaches
   `compose.yml` to the GitHub release. Nothing is ever built on a server, and the server holds no
   copy of the source.
 - **A deployment** is one `just deploy <target> [version]`. The playbook brings the host to the

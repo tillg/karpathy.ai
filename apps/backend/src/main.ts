@@ -22,6 +22,7 @@ const env = {
   githubToken: secret('GITHUB_TOKEN'),
   remoteBase: process.env.GIT_REMOTE_BASE ?? 'https://github.com/',
   identity: { name: process.env.GIT_AUTHOR_NAME ?? 'karpathy.app user', email: process.env.GIT_AUTHOR_EMAIL ?? 'user@karpathy.app' },
+  opencodePassword: secret('OPENCODE_PASSWORD'),
   opencodeUrl: process.env.OPENCODE_URL ?? 'http://opencode:4096',
   /** The vaults dir as opencode sees it (same volume, maybe another mount path). */
   opencodeVaultsDir: process.env.OPENCODE_VAULTS_DIR ?? '/vaults',
@@ -36,7 +37,7 @@ const githubToken = new GitHubToken(store, env.githubToken, process.env.GITHUB_A
 const vaults = new Vaults(store, { vaultsDir: env.vaultsDir, remoteBase: env.remoteBase, githubToken: () => githubToken.current(), redact: (m) => githubToken.redact(m), identity: env.identity });
 await vaults.init();
 
-const harness = new OpencodeHarness(env.opencodeUrl);
+const harness = new OpencodeHarness(env.opencodeUrl, env.opencodePassword);
 const chat = new ChatService(vaults, store, harness, env.opencodeVaultsDir);
 vaults.onReady = (id) => void chat.watch(id);
 vaults.beforeRemove = (id) => chat.deleteAllChats(id);

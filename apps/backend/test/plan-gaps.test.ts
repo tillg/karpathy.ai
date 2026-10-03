@@ -140,11 +140,21 @@ describe('P1/§2.5 compose topology (deploy/compose.yml)', () => {
   }));
   const svc = compose.services as Record<string, { ports?: unknown[]; user?: string; secrets?: { source: string }[]; environment?: Record<string, string>; volumes?: { source: string; target: string }[] }>;
 
-  it('three services; only the proxy publishes ports', () => {
-    expect(Object.keys(svc).sort()).toEqual(['backend', 'opencode', 'proxy']);
+  it('four services (with the egress proxy); only the proxy publishes ports', () => {
+    expect(Object.keys(svc).sort()).toEqual(['backend', 'egress', 'opencode', 'proxy']);
+    expect(svc.egress!.ports ?? []).toEqual([]);
     expect(svc.proxy!.ports?.length).toBeGreaterThan(0);
     expect(svc.backend!.ports ?? []).toEqual([]);
     expect(svc.opencode!.ports ?? []).toEqual([]);
+  });
+
+  it('opencode has no route to the internet: only the internal network (internal: true) and the egress proxy as HTTP proxy', () => {
+    const nets = compose.networks as Record<string, { internal?: boolean }>;
+    expect(nets.internal!.internal).toBe(true);
+    expect(nets.egress!.internal).toBeFalsy();
+    expect(Object.keys((svc.opencode as unknown as { networks: object }).networks)).toEqual(['internal']);
+    expect(Object.keys((svc.egress as unknown as { networks: object }).networks).sort()).toEqual(['egress', 'internal']);
+    expect(svc.opencode!.environment).toMatchObject({ HTTP_PROXY: 'http://egress:3128', HTTPS_PROXY: 'http://egress:3128' });
   });
 
   it('backend and opencode run as the same UID/GID', () => {
@@ -154,9 +164,9 @@ describe('P1/§2.5 compose topology (deploy/compose.yml)', () => {
 
   it('each secret goes only to the service that needs it; opencode gets no GitHub or bearer token', () => {
     const secrets = (s: string) => (svc[s]!.secrets ?? []).map((x) => x.source).sort();
-    expect(secrets('backend')).toEqual(['bearer_token', 'github_token']);
+    expect(secrets('backend')).toEqual(['bearer_token', 'github_token', 'opencode_password']);
     expect(secrets('proxy')).toEqual(['dns_api_token']);
-    expect(secrets('opencode')).toEqual([]);
+    expect(secrets('opencode')).toEqual(['opencode_password']);
     const env = (s: string) => Object.keys(svc[s]!.environment ?? {});
     expect(env('opencode').filter((k) => /GITHUB|BEARER|GIT_/.test(k))).toEqual([]);
     for (const s of ['backend', 'proxy']) expect(env(s).filter((k) => /_API_KEY$/.test(k)), s).toEqual([]);

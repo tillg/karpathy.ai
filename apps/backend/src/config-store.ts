@@ -26,6 +26,7 @@ export interface ConfigData {
 export const DEFAULT_SETTINGS: Settings = {
   commitReminderThreshold: 4,
   model: 'anthropic/claude-sonnet-5',
+  webAccess: true,
 };
 
 /**

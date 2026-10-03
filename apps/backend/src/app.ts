@@ -54,6 +54,7 @@ const THRESHOLD_MSG = 'Commit reminder: enter a whole number between 1 and 1000'
 const patchSettings = z.object({
   commitReminderThreshold: z.number({ error: THRESHOLD_MSG }).int({ error: THRESHOLD_MSG }).min(1, { error: THRESHOLD_MSG }).max(1000, { error: THRESHOLD_MSG }).optional(),
   model: z.string().trim().regex(/^[^/\s]+\/\S+$/, { error: 'Model: use the form provider/model, e.g. anthropic/claude-sonnet-5' }).optional(),
+  webAccess: z.boolean({ error: 'Web access: must be true or false' }).optional(),
 });
 const putFile = z.object({ content: z.string(), version: z.string().nullable(), force: z.boolean().optional() });
 const commitBody = z.object({ message: z.string().min(1).max(10_000), paths: z.array(z.string()).optional() });

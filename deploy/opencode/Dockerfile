@@ -14,11 +14,13 @@ COPY deploy/opencode/opencode.json /etc/opencode/opencode.json
 COPY deploy/opencode/tools/ /opt/opencode-config/opencode/tools/
 COPY deploy/opencode/lib/ /opt/opencode-config/opencode/lib/
 RUN set -e; export XDG_CONFIG_HOME=/opt/opencode-config HOME=/tmp/bake XDG_DATA_HOME=/tmp/bake/data OPENCODE_MODEL=none/none; \
-    (opencode serve --hostname 127.0.0.1 --port 4097 >/dev/null 2>&1 &); ok=; \
+    mkdir -p /tmp/bake; (opencode serve --hostname 127.0.0.1 --port 4097 >/tmp/bake/serve.log 2>&1 &); ok=; \
+    # -T: a server that accepts but doesn't answer must not block the poll (and the build) forever.
     for i in $(seq 120); do \
-      if wget -qO- 'http://127.0.0.1:4097/experimental/tool/ids?directory=/tmp' 2>/dev/null | grep -q '"open_note"'; then ok=1; break; fi; sleep 1; \
+      if wget -q -T 2 -O- 'http://127.0.0.1:4097/experimental/tool/ids?directory=/tmp' 2>/dev/null | grep -q '"open_note"'; then ok=1; break; fi; sleep 1; \
     done; \
-    pkill opencode || true; test -n "$ok"; \
+    pkill opencode || true; \
+    if [ -z "$ok" ]; then echo 'open_note tool never loaded; opencode log:' >&2; cat /tmp/bake/serve.log >&2; exit 1; fi; \
     test -d /opt/opencode-config/opencode/node_modules/@opencode-ai/plugin; \
     rm -rf /tmp/bake; chmod -R a-w,a+rX /opt/opencode-config
 # HOME is an empty tmpfs (compose): no global ~/.claude or ~/.config/opencode.

@@ -19,7 +19,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       # The backend tests run this image; built once here, so their parallel workers only hit the cache.
-      - run: docker build -t kai-test-opencode -f deploy/opencode/Dockerfile .
+      - run: docker build --progress=plain -t kai-test-opencode -f deploy/opencode/Dockerfile .
+        timeout-minutes: 10
       - run: npm test
       - run: npm run build -w apps/web
       - run: docker compose -f deploy/compose.yml -f deploy/compose.dev.yml config -q

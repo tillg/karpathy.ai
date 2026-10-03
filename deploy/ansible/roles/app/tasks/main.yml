@@ -29,7 +29,7 @@
 
 # The images a release has are named by its own compose.yml (older releases have no egress image), so
 # any release stays deployable, rollbacks included. Read from GitHub on the Mac; also fine in check mode.
-- name: compose.yml of release {{ app_release }}
+- name: Release compose.yml of {{ app_release }}
   ansible.builtin.uri:
     url: https://github.com/{{ app_repo }}/releases/download/v{{ app_release }}/compose.yml
     return_content: true

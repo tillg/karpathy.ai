@@ -72,7 +72,10 @@ export function ensureEgress(): number {
     }
   };
   start(EGRESS, '--cap-drop', 'ALL', '-p', '127.0.0.1::3128', EGRESS_IMAGE);
-  start(INTERNAL_TARGET, 'alpine', 'sh', '-c', 'mkdir -p /www && echo internal > /www/index.html && httpd -f -p 80 -h /www');
+  // The alpine base of the egress image (digest-pinned): a newer alpine has no httpd applet, the container exited,
+  // its name stopped resolving, and the proxy answered 503 (DNS failure) instead of 403 (refused).
+  start(INTERNAL_TARGET, 'alpine@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8', 'sh', '-c', 'while true; do printf "HTTP/1.1 200 OK\\r\\n\\r\\ninternal" | nc -l -p 80; done');
+  if (docker('inspect', '-f', '{{.State.Status}}', INTERNAL_TARGET) !== 'running') throw new Error(`internal target is not running: ${docker('logs', INTERNAL_TARGET)}`);
   return Number(docker('port', EGRESS, '3128/tcp').split('\n')[0]!.split(':').pop());
 }
 

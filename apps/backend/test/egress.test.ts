@@ -17,16 +17,7 @@ beforeAll(async () => {
 afterAll(() => oc?.stop());
 
 /** busybox wget inside opencode, through the proxy (it reads only lowercase env and ignores NO_PROXY: `-Y off` goes direct). */
-function wget(url: string, ...opts: string[]): { code: number | null; out: string } {
-  // 503 = the proxy's DNS lookup timed out (a loaded Docker DNS under the parallel test workers), not a verdict: ask again.
-  for (let i = 0; i < 3; i++) {
-    const r = wgetOnce(url, ...opts);
-    if (!r.out.includes('503 Service Unavailable')) return r;
-  }
-  return wgetOnce(url, ...opts);
-}
-
-function wgetOnce(url: string, ...opts: string[]) {
+function wget(url: string, ...opts: string[]) {
   const r = spawnSync('docker', ['exec', '-e', `http_proxy=http://${EGRESS}:3128`, oc.name, 'wget', '-S', '-T', '10', '-qO-', ...opts, url], { encoding: 'utf8' });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -42,6 +33,8 @@ describe('egress proxy', () => {
   });
 
   it('internal host refused', () => {
+    // The target answers when reached directly, so the 403 below is the proxy's verdict, not a dead host.
+    expect(wget(`http://${INTERNAL_TARGET}/`, '-Y', 'off').code).toBe(0);
     const r = wget(`http://${INTERNAL_TARGET}/`);
     expect(r.code).not.toBe(0);
     expect(r.out).toContain('403');

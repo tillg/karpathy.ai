@@ -57,6 +57,7 @@ edited: 2026-10-03
   - [10:31 — Fail closed in the plugin and the entrypoint; tighter Squid rules; fixed-at-6.12 Squid package](#run-2026-10-03-0925-17)
   - [10:31 — Review fixes to the specs and tests (constructed-URL test, default-on check, fragment wording)](#run-2026-10-03-0925-18)
   - [11:05 — Push web search with three pre-existing plan-gaps e2e failures left alone](#run-2026-10-03-0925-19)
+  - [10:50 — The egress 503 in CI was a dead test target, not Squid DNS; the retry is removed](#run-2026-10-03-0925-20)
 
 # 2026-10-02 17:16 — Clean up the specs/ sub-directories {#run-2026-10-02-1716}
 
@@ -682,3 +683,13 @@ edited: 2026-10-03
   (never change tests to make them pass).
 - **Alternatives:** update the tests now (out of scope, touches existing tests without a spec).
 - **Consequences:** the e2e suite stays red in those three cases until someone updates them.
+
+## 10:50 — The egress 503 in CI was a dead test target, not Squid DNS; the retry is removed {#run-2026-10-03-0925-20}
+
+- **Status:** open
+- **Context:** CI failed `egress.test.ts › internal host refused` with `503 Service Unavailable` instead of 403. Decision 13 had added a retry on 503 and left the root cause open.
+- **Question:** Why 503, and could the same break prod chats?
+- **Decision:** Root cause: the test's internal target ran `httpd` from the unpinned `alpine` image. Newer alpine (3.24, pulled fresh on CI) has no `httpd` applet, so the container exited at once, its name stopped resolving, and Squid answered 503 (DNS failure) instead of 403. Reproduced locally (`sh: httpd: not found`, exited 127). The target now uses the digest-pinned alpine 3.22 of the egress image with a `nc` loop, `ensureEgress` throws if it is not running, and the test first checks the target answers directly. The 503 retry is removed. Squid also gets `positive_dns_ttl 1 minute`, `negative_dns_ttl 1 second`, `dns_timeout 5 seconds`.
+- **Why:** a dead target is not a proxy DNS fault; the retry only hid it. The DNS settings are hardening, not the fix: Squid's default 6 h positive cache outlives provider IP changes, and my first theory (sticky negative caching) did not explain the repro. Resolver failures by the proxy itself were never observed; prod resolves the LLM provider through the same Docker DNS and Squid defaults without that symptom.
+- **Alternatives:** keep the retry or widen the assertion to accept 503 (would hide a broken proxy).
+- **Consequences:** `egress.test.ts` ran 5 times in a row green after removing the containers. Status of decision 13: its retry part is superseded.

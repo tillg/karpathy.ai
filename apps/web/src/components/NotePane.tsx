@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { frontmatterFields, renderMarkdown, splitFrontmatter, type FieldValue, type LinkCtx } from '../lib/markdown';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { frontmatterFields, renderMarkdown, splitFrontmatter, type FieldValue, type RenderCtx } from '../lib/markdown';
+import { isPdf } from '@karpathy/shared';
+import { mountEmbed, mountEmbeds, type Mounted } from '../lib/embed';
+import { mediaKind, resolveEmbed } from '../lib/media';
+import { scrollToLine, topBlockLine } from '../lib/place';
 import { formatRoute } from '../lib/route';
 import { parseWikilink, resolveRelativeLink, resolveWikilink, wikilinkLabel, WIKILINK_RE } from '../lib/wikilink';
 import { useApp } from '../store';
@@ -10,26 +14,44 @@ import { Icon } from './Icon';
 /** A plain left click is handled in-app; modified clicks (new tab, window, download) go to the browser (#109). */
 const plainClick = (e: React.MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
-/** Where links in the open note point: wikilinks and relative Markdown links resolve to app routes (#109, #116). */
-function useLinkCtx(base?: string): LinkCtx {
-  const { activeId, paths, note } = useApp();
+/** What rendering needs in the open note: where links point, which files exist and what embeds show. `base`: see `Markdown`. */
+function useRenderCtx(base?: string): Required<RenderCtx> {
+  const { activeId, paths, note, exists } = useApp();
   const from = base ?? note?.path;
   return useMemo(() => {
     const route = (p: string) => formatRoute(activeId, p);
     return {
-      href: (target) => { const p = resolveWikilink(target, paths); return p ? route(p) : null; },
+      exists,
+      href: (target) => { const p = resolveWikilink(target, paths, from); return p ? route(p) : null; },
       relative: (href) => { const p = from !== undefined && resolveRelativeLink(href, from, paths); return p ? { path: p, href: route(p) } : null; },
+      resolveEmbed: (e) => resolveEmbed(e, from || null, paths),
     };
-  }, [activeId, paths, from]);
+  }, [activeId, paths, from, exists]);
 }
 
 /** Rendered Read mode; `[[wikilinks]]` and relative links to vault notes are clickable. `base`: file path relative links resolve from (default the open note; '' = vault root, for chat). */
-export function Markdown({ text, className, base }: { text: string; className?: string; base?: string }) {
-  const { exists, followLink, openNote } = useApp();
-  const ctx = useLinkCtx(base);
-  const html = useMemo(() => renderMarkdown(text, exists, ctx), [text, exists, ctx]);
+export function Markdown({ text, className, base, startLine }: { text: string; className?: string; base?: string; startLine?: number }) {
+  const { followLink, openNote, activeId, toast, mediaEpoch, paths } = useApp();
+  const ctx = useRenderCtx(base);
+  const html = useMemo(() => renderMarkdown(text, ctx, startLine), [text, ctx, startLine]);
+  const host = useRef<HTMLDivElement>(null);
+  // Players and file cards are mounted into the embed placeholders. When the text changes (a chat answer
+  // streaming in) the embeds that are still there keep their players; dropped cached bytes start over.
+  const live = useRef({ openNote, toast });
+  live.current = { openNote, toast };
+  const mounted = useRef<{ list: Mounted[]; epoch: number; vault: string | null }>({ list: [], epoch: 0, vault: null });
+  useLayoutEffect(() => {
+    if (!host.current || !activeId) return;
+    const m = mounted.current;
+    const same = m.epoch === mediaEpoch && m.vault === activeId;
+    if (!same) for (const x of m.list) x.stop();
+    m.list = mountEmbeds(host.current, { vault: activeId, toast: (t) => live.current.toast(t), onOpen: (p) => void live.current.openNote(p) }, same ? m.list : []);
+    m.epoch = mediaEpoch;
+    m.vault = activeId;
+  }, [html, activeId, mediaEpoch]);
+  useEffect(() => () => { for (const x of mounted.current.list) x.stop(); mounted.current.list = []; }, []);
   return (
-    <div className={className} dangerouslySetInnerHTML={{ __html: html }}
+    <div className={className} ref={host} dangerouslySetInnerHTML={{ __html: html }}
       onClick={(e) => {
         // Footnote links jump inside this block, not through the hash router (#115).
         const fn = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#fn"]');
@@ -42,8 +64,15 @@ export function Markdown({ text, className, base }: { text: string; className?: 
         const a = (e.target as HTMLElement).closest<HTMLElement>('a.wl, a[data-note]');
         if (!a || !plainClick(e)) return;
         e.preventDefault();
-        if (a.dataset.note) void openNote(a.dataset.note, undefined, undefined, true);
-        else followLink(a.dataset.target ?? '');
+        if (a.dataset.note) void openNote(a.dataset.note);
+        else if (base === undefined) followLink(a.dataset.target ?? '');
+        else {
+          // Chat: resolved from `base`, the same as the href shown on hover (not from the open note's folder).
+          const l = parseWikilink(a.dataset.target ?? '');
+          const p = l.target ? resolveWikilink(l.target, paths, base) : null;
+          if (p) void openNote(p, undefined, l.heading);
+          else toast(`No page “${l.target}” yet`);
+        }
       }} />
   );
 }
@@ -54,7 +83,7 @@ export function Markdown({ text, className, base }: { text: string; className?: 
  */
 function Linked({ text, bare }: { text: string; bare?: boolean }) {
   const { exists, followLink } = useApp();
-  const ctx = useLinkCtx();
+  const ctx = useRenderCtx();
   const out: React.ReactNode[] = [];
   let last = 0;
   const link = (key: number, inner: string) => {
@@ -95,7 +124,33 @@ function ReadView({ text }: { text: string }) {
           {frontmatterFields(frontmatter).map(([k, v], i) => <div className="prop" key={`${k}${i}`}><span>{k}</span><PropValue k={k} v={v} /></div>)}
         </div>
       )}
-      <Markdown text={body} className="rd" />
+      <Markdown text={body} className="rd" startLine={text.slice(0, text.length - body.length).split('\n').length} />
+    </div>
+  );
+}
+
+/** A media file or other binary file opened on its own: the player or file card, never an editor. */
+function MediaView({ path }: { path: string }) {
+  const { activeId, toast, mediaEpoch } = useApp();
+  const host = useRef<HTMLSpanElement>(null);
+  const kind = mediaKind(path);
+  const pdf = isPdf(path);
+  useLayoutEffect(() => {
+    if (!host.current || !activeId) return;
+    const ctx = { vault: activeId, toast };
+    return mountEmbed(host.current, kind ? { state: 'media', path, kind } : { state: 'file', path }, ctx);
+  }, [path, kind, activeId, toast, mediaEpoch]);
+  const name = path.split('/').pop()!;
+  return (
+    <div className="doc media-view">
+      <h2 className="note-title">{name}</h2>
+      {!kind && !pdf && (
+        <div className="placeholder" data-testid="binary-file">
+          <Icon n="doc" size={48} />
+          <p><b>{name}</b><br />Binary file — can’t be edited here.</p>
+        </div>
+      )}
+      <span className="embed" ref={host} />
     </div>
   );
 }
@@ -104,8 +159,70 @@ export function NotePane({ inert }: { inert?: boolean }) {
   const s = useApp();
   const { note, mode, setMode, readOnly, online, conflict, phone, wide } = s;
   const editor = useRef<EditorHandle>(null);
+  const rctx = useRenderCtx();
 
-  useEffect(() => { if (note?.goto && mode === 'write') editor.current?.gotoLine(note.goto.line); }, [note?.goto, mode, note?.loadNonce]);
+  // A fresh open lands at the top; Back to a seen note (`restore`) returns to where it was left. The
+  // restore is re-applied for a second while the layout settles (CodeMirror measuring, embeds loading).
+  useLayoutEffect(() => {
+    const byLine = mode === 'write' && !!note?.restore?.line; // the editor scrolls to the line itself, below
+    if (s.scrollRef.current) s.scrollRef.current.scrollTop = byLine ? 0 : note?.restore?.top ?? 0;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.path, note?.restore, s.scrollRef]);
+  s.placeNow.current = () => ({ top: s.scrollRef.current?.scrollTop ?? 0, ...(mode === 'write' ? { line: editor.current?.topLine() } : {}) });
+  useEffect(() => {
+    const el = s.scrollRef.current;
+    const top = note?.restore?.top;
+    if (!el || top === undefined) return;
+    // Write mode: by line, CodeMirror's pixel positions are estimates that shift as lines are measured.
+    if (mode === 'write' && note?.restore?.line) { editor.current?.gotoLine(note.restore.line, { focus: false, align: 'start' }); return; }
+    let stop = false;
+    let raf = 0;
+    const t0 = performance.now();
+    const halt = () => { stop = true; };
+    const events = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+    for (const e of events) el.addEventListener(e, halt, { passive: true });
+    const tick = () => {
+      if (stop) return;
+      el.scrollTop = top;
+      if (performance.now() - t0 < 1000) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { stop = true; cancelAnimationFrame(raf); for (const e of events) el.removeEventListener(e, halt); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.restore, s.scrollRef]);
+
+  // A hit position (search hit, `[[note#heading]]`): Write mode puts the cursor there, Read mode scrolls
+  // to the block and highlights it. Once per hit, so toggling the mode doesn't jump back.
+  const handledGoto = useRef(0);
+  useEffect(() => {
+    const g = note?.goto;
+    if (!g || g.nonce === handledGoto.current) return;
+    handledGoto.current = g.nonce;
+    if (mode === 'write') { editor.current?.gotoLine(g.line); return; }
+    const sc = s.scrollRef.current;
+    const b = sc && scrollToLine(sc, g.line, 'center');
+    if (!b) return;
+    b.classList.add('hit');
+    const t = setTimeout(() => b.classList.remove('hit'), 1500);
+    return () => clearTimeout(t);
+  }, [note?.goto, mode, note?.loadNonce, s.scrollRef]);
+
+  // Switching mode keeps the place: the outgoing view's top line is shown at the top of the incoming one.
+  const pendingLine = useRef<number | null>(null);
+  const switchMode = (m: 'write' | 'read') => {
+    if (m === mode) return;
+    const sc = s.scrollRef.current;
+    pendingLine.current = (mode === 'write' ? editor.current?.topLine() : sc && topBlockLine(sc)) ?? null;
+    setMode(m);
+  };
+  useEffect(() => {
+    const line = pendingLine.current;
+    pendingLine.current = null;
+    const sc = s.scrollRef.current;
+    if (line === null || !sc) return;
+    if (mode === 'write') editor.current?.gotoLine(line, { focus: false, align: 'start' });
+    else scrollToLine(sc, line, 'top');
+  }, [mode, s.scrollRef]);
   // The editor opens with the current text (not `loaded`, which predates our own saves); it only
   // changes on (re)load or mode switch, so typing and saving never replace the editor's text (#101).
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,18 +243,18 @@ export function NotePane({ inert }: { inert?: boolean }) {
           <>
             {!note.binary && (
               <div className="seg" role="group" aria-label="Mode" data-testid="mode-toggle">
-                <button className={mode === 'write' ? 'on' : ''} aria-pressed={mode === 'write'} data-testid="mode-write" onClick={() => setMode('write')}>Write</button>
-                <button className={mode === 'read' ? 'on' : ''} aria-pressed={mode === 'read'} data-testid="mode-read" onClick={() => setMode('read')}>Read</button>
+                <button className={mode === 'write' ? 'on' : ''} aria-pressed={mode === 'write'} data-testid="mode-write" onClick={() => switchMode('write')}>Write</button>
+                <button className={mode === 'read' ? 'on' : ''} aria-pressed={mode === 'read'} data-testid="mode-read" onClick={() => switchMode('read')}>Read</button>
               </div>
             )}
             {mode === 'write' && !note.binary && <button className="ib" title="Find in note" data-testid="find-in-note" onClick={() => editor.current?.openSearch()}><Icon n="search" /></button>}
-            <button className="ib" title="Delete note" data-testid="delete-note" disabled={readOnly || note.deleted} onClick={del}><Icon n="trash" /></button>
+            <button className="ib" title={note.binary ? 'Delete file' : 'Delete note'} data-testid="delete-note" disabled={readOnly || note.deleted} onClick={del}><Icon n="trash" /></button>
           </>
         )}
         <button className={`ib${s.chatOpen && !phone ? ' on' : ''}`} title="AI chat" data-testid="chat-toggle"
           onClick={() => (phone ? s.setPhoneTab('chat') : s.setChatOpen(!s.chatOpen))}><Icon n="sparkles" /></button>
       </header>
-      <div className="scroll">
+      <div className="scroll" ref={s.scrollRef}>
         {!online && <div className="banner warn" data-testid="offline-banner">Offline — showing cached notes, read-only.</div>}
         {note?.deleted && (
           <div className="banner warn" data-testid="deleted-banner">
@@ -150,16 +267,14 @@ export function NotePane({ inert }: { inert?: boolean }) {
         )}
         {online && conflict && <div className="banner warn" data-testid="conflict-banner">This vault is in conflict with GitHub — read-only until resolved in <button className="link" onClick={() => { s.setSection('changes'); s.setPhoneTab('changes'); s.setPhoneNote(false); s.setSidebarOpen(true); }}>Changes</button>.</div>}
         {note?.binary ? (
-          <div className="placeholder" data-testid="binary-file">
-            <Icon n="doc" size={48} />
-            <p><b>{note.path.split('/').pop()}</b><br />Binary file — can’t be edited here.</p>
-          </div>
+          <MediaView key={note.path} path={note.path} />
         ) : note ? (
           <div className="doc">
             <h2 className="note-title">{title}</h2>
             {mode === 'write'
               ? <Editor key={note.path} ref={editor} doc={editorDoc} docNonce={note.loadNonce} readOnly={readOnly || !!note.deleted}
-                  onChange={s.editDraft} exists={s.exists} onWikilink={s.followLink} />
+                  onChange={s.editDraft} exists={s.exists} onWikilink={s.followLink} resolveEmbed={rctx.resolveEmbed}
+                  embedCtx={() => ({ vault: s.activeId!, toast: s.toast, onOpen: (p) => void s.openNote(p) })} mediaEpoch={s.mediaEpoch} />
               : <ReadView text={s.currentText()} />}
             <div className="dfoot" data-testid="save-state">
               {note.saving ? 'Saving…' : note.dirty ? '● Unsaved changes' : 'Saved'}{readOnly ? ' · read-only' : ''}

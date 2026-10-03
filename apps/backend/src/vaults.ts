@@ -318,6 +318,23 @@ export class Vaults {
     return { path: normalizeRel(path), content: binary ? '' : buf.toString('utf8'), version: versionOf(buf), binary };
   }
 
+  /** Absolute path of a file to stream raw (media embeds, downloads): no read, no version. */
+  async rawFile(id: string, path: string): Promise<string> {
+    this.requireReady(id);
+    // Hidden files and folders (.obsidian, .git, `.`/`..`) are never raw-served.
+    if (path.split('/').some((seg) => seg.startsWith('.'))) throw new HttpError(400, `not served: ${path}`);
+    const abs = await resolveInVault(this.vaultRootDir(id), path);
+    let st;
+    try {
+      st = await stat(abs);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new HttpError(404, `not found: ${path}`);
+      throw e;
+    }
+    if (st.isDirectory()) throw new HttpError(400, `is a directory: ${path}`);
+    return abs;
+  }
+
   /** Writes a file if `version` still matches (null = must not exist yet). 409 stale, 423 in Conflict. */
   async writeFile(id: string, path: string, content: string, version: string | null, force = false): Promise<{ version: string }> {
     this.requireReady(id);

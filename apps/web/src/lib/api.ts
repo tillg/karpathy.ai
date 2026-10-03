@@ -76,6 +76,9 @@ export const api = {
   status: (id: string) => json<VaultStatus>('GET', `${v(id)}/status`),
   events: (id: string, signal: AbortSignal) => request('GET', `${v(id)}/events`, undefined, signal),
 
+  /** The bytes of a vault file (`GET /raw`): media as stored, anything else as an attachment. */
+  raw: (id: string, path: string, signal?: AbortSignal) => request('GET', `${v(id)}/raw?${q(path)}`, undefined, signal),
+  rawHead: (id: string, path: string) => request('HEAD', `${v(id)}/raw?${q(path)}`),
   files: (id: string) => json<FileEntry[]>('GET', `${v(id)}/files`),
   file: (id: string, path: string) => json<FileContent>('GET', `${v(id)}/file?${q(path)}`),
   putFile: (id: string, path: string, content: string, version: string | null, force = false, keepalive = false) =>

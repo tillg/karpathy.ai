@@ -21,7 +21,7 @@ describe('116 resolveRelativeLink', () => {
 describe('109 wikilink href', () => {
   const ctx = { href: (t: string) => (t === 'Home' ? '#/v/Home.md' : null), relative: () => null };
   it('uses the target note route when it exists, else a non-navigating #', () => {
-    const html = renderMarkdown('[[Home]] and [[Nope]]', (t) => t === 'Home', ctx);
+    const html = renderMarkdown('[[Home]] and [[Nope]]', { exists: (t) => t === 'Home', ...ctx });
     expect(html).toContain('href="#/v/Home.md"');
     expect(html).toContain('href="#" class="wl miss"');
   });
@@ -29,11 +29,11 @@ describe('109 wikilink href', () => {
 
 describe('110 external links', () => {
   it('open in a new tab with noopener noreferrer', () => {
-    const html = renderMarkdown('[a](https://example.com) [m](mailto:x@y.z) [h](http://e.org)', () => true);
+    const html = renderMarkdown('[a](https://example.com) [m](mailto:x@y.z) [h](http://e.org)', { exists: () => true });
     expect(html.match(/target="_blank" rel="noopener noreferrer"/g)).toHaveLength(3);
   });
   it('does not touch in-page anchors or relative links', () => {
-    const html = renderMarkdown('[a](#top) [b](other.md)', () => true);
+    const html = renderMarkdown('[a](#top) [b](other.md)', { exists: () => true });
     expect(html).not.toContain('target=');
   });
 });
@@ -41,7 +41,7 @@ describe('110 external links', () => {
 describe('116 relative note links', () => {
   const ctx = { href: () => null, relative: (h: string) => (h === '../Wiki/index.md' ? { path: 'Wiki/index.md', href: '#/v/Wiki/index.md' } : null) };
   it('become the note route with data-note', () => {
-    const html = renderMarkdown('[i](../Wiki/index.md) [x](missing.md)', () => true, ctx);
+    const html = renderMarkdown('[i](../Wiki/index.md) [x](missing.md)', { exists: () => true, ...ctx });
     expect(html).toContain('href="#/v/Wiki/index.md"');
     expect(html).toContain('data-note="Wiki/index.md"');
     expect(html).toContain('href="missing.md"');
@@ -51,7 +51,7 @@ describe('116 relative note links', () => {
 describe('116 forged data-note', () => {
   const ctx = { href: () => null, relative: () => null };
   it('is removed from raw HTML links that do not resolve', () => {
-    const html = renderMarkdown('<a data-note="../../x" href="https://x.com">e</a> <a data-note="y.md" href="other.md">r</a>', () => true, ctx);
+    const html = renderMarkdown('<a data-note="../../x" href="https://x.com">e</a> <a data-note="y.md" href="other.md">r</a>', { exists: () => true, ...ctx });
     expect(html).not.toContain('data-note');
   });
 });

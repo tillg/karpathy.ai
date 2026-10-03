@@ -24,23 +24,42 @@ export function wikilinkLabel(l: Wikilink): string {
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 
+// One lookup set per file list (a note can have many links and embeds).
+const sets = new WeakMap<readonly string[], Set<string>>();
+const pathSet = (paths: readonly string[]) => {
+  let s = sets.get(paths);
+  if (!s) sets.set(paths, (s = new Set(paths)));
+  return s;
+};
+
+const dir = (p: string) => p.slice(0, Math.max(0, p.lastIndexOf('/')));
+const depth = (p: string) => p.split('/').length;
+
+/** Among several matches: the one in `from`'s folder, then the shortest path, then A–Z (case-insensitive). */
+function pick(matches: string[], from?: string): string | undefined {
+  const here = from === undefined ? undefined : dir(from);
+  return [...matches].sort((a, b) =>
+    Number(dir(b) === here) - Number(dir(a) === here) || depth(a) - depth(b) || a.toLowerCase().localeCompare(b.toLowerCase()))[0];
+}
+
 /**
  * Resolves a link target to a vault path: exact path, then path + `.md`, then a path ending in
- * `/target(.md)`, then a basename match anywhere (case-insensitive). Null when nothing matches.
+ * `/target(.md)`, then a basename match anywhere (case-insensitive). With several matches, the one in
+ * the folder of `from` (the open note) wins, then the shortest path, then A–Z. Null when nothing matches.
  */
-export function resolveWikilink(target: string, paths: readonly string[]): string | null {
+export function resolveWikilink(target: string, paths: readonly string[], from?: string): string | null {
   const t = target.replace(/^\/+/, '');
   if (!t) return null;
-  const set = new Set(paths);
+  const set = pathSet(paths);
   if (set.has(t)) return t;
   if (set.has(`${t}.md`)) return `${t}.md`;
-  const suffix = paths.find((p) => p.endsWith(`/${t}.md`) || p.endsWith(`/${t}`));
+  const suffix = pick(paths.filter((p) => p.endsWith(`/${t}.md`) || p.endsWith(`/${t}`)), from);
   if (suffix) return suffix;
   const name = base(t).toLowerCase();
-  return paths.find((p) => {
+  return pick(paths.filter((p) => {
     const b = base(p).toLowerCase();
     return b === name || b === `${name}.md`;
-  }) ?? null;
+  }), from) ?? null;
 }
 
 /**

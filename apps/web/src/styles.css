@@ -40,7 +40,7 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 /* ---------- panes & bars ---------- */
 #app { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 .pane { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--paper); }
-.scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding-top: 52px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.scroll { scroll-padding-top: 64px; overflow-anchor: none; flex: 1; overflow-y: auto; overflow-x: hidden; padding-top: 52px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .bar { position: absolute; inset: 0 0 auto 0; height: 52px; display: flex; align-items: center; gap: 2px; padding: 0 8px; z-index: 6;
   background: var(--mat); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 .5px 0 var(--sep); }
 .bar .sp { flex: 1; }
@@ -225,6 +225,23 @@ mark { background: rgba(245,158,11,.35); color: var(--label); border-radius: 3px
 .rd code, .atext code { font-family: var(--mono); font-size: .86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; }
 .rd pre, .atext pre { background: var(--fill2); padding: 10px 12px; border-radius: 10px; overflow: auto; }
 .rd pre code, .atext pre code { background: none; padding: 0; }
+/* Embedded media (lib/embed): a player or a file card in place of the `![[…]]`; the same in Read mode, chat and the editor's block widget. */
+span.embed { display: block; margin: .6em 0; max-width: 100%; }
+span.embed img, span.embed video, span.embed audio { display: block; max-width: 100%; height: auto; border-radius: 8px; }
+span.embed audio { width: 100%; }
+span.embed img.zoomable { cursor: zoom-in; }
+span.embed .embed-skel { width: 100%; border-radius: 8px; background: var(--fill2); }
+.file-card { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 12px; border-radius: 10px; background: var(--fill2); font-size: 15px; line-height: 1.3; }
+.file-card.miss { color: var(--label2); border: .5px dashed var(--sep); background: none; }
+.file-card .fc-name { font-weight: 600; word-break: break-all; }
+.file-card .fc-meta { color: var(--label2); font-size: 13px; }
+.file-card .fc-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 13px; }
+/* The embeds of a line, as a block below it in the editor. */
+.editor .cm-embed { box-sizing: border-box; width: 100%; max-width: 100%; padding: 2px 6px 8px; font-family: var(--font); overflow-x: hidden; }
+/* The block a search hit or [[note#heading]] landed on, in Read mode: tinted, fading out (the class is removed after 1.5 s). */
+.rd > .hit { background: var(--tint-soft); border-radius: 6px; box-shadow: 0 0 0 6px var(--tint-soft); animation: hit-fade 1.5s ease-out forwards; }
+@keyframes hit-fade { from { background: var(--tint-soft); box-shadow: 0 0 0 6px var(--tint-soft); } to { background: transparent; box-shadow: 0 0 0 6px transparent; } }
 .rd table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
 .rd td, .rd th { border: .5px solid var(--sep); padding: 4px 8px; word-break: normal; overflow-wrap: normal; }
 .rd .task { margin-right: 2px; color: var(--label2); } .rd .task[data-done="true"] { color: var(--tint); }
@@ -444,6 +461,7 @@ a.tc { text-decoration: none; cursor: pointer; }
 }
 /* Honour "Reduce motion" (#47). */
 @media (prefers-reduced-motion: reduce) {
+  .rd > .hit { animation: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 

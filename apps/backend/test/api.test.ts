@@ -377,6 +377,55 @@ describe('files', () => {
     expect((await t.api.get(`/vaults/${t.id}/file?path=Home.md`)).body.binary).toBe(false);
   });
 
+  it('raw: media file bytes with Content-Type and nosniff', async () => {
+    const t = await vaultApp();
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe]);
+    await writeFile(join(t.vaults.vaultRootDir(t.id), 'pic.png'), bytes);
+    const r = await t.api.get(`/vaults/${t.id}/raw?path=pic.png`).buffer(true).parse((res, cb) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(r.status).toBe(200);
+    expect(Buffer.from(r.body).equals(bytes)).toBe(true);
+    expect(r.headers['content-type']).toBe('image/png');
+    expect(r.headers['x-content-type-options']).toBe('nosniff');
+    expect(r.headers['content-disposition']).toBeUndefined();
+    expect(r.headers['cache-control']).toBe('no-store');
+    const h = await request(t.app).head(`/api/vaults/${t.id}/raw?path=pic.png`).set('Authorization', `Bearer ${TOKEN}`);
+    expect(h.status).toBe(200);
+    expect(h.headers['content-length']).toBe(String(bytes.length));
+    const part = await t.api.get(`/vaults/${t.id}/raw?path=pic.png`).set('Range', 'bytes=0-3');
+    expect(part.status).toBe(206);
+    expect(part.headers['content-range']).toBe(`bytes 0-3/${bytes.length}`);
+  });
+
+  it('raw: pdf and unknown types are attachments; escapes are refused', async () => {
+    const t = await vaultApp();
+    const root = t.vaults.vaultRootDir(t.id);
+    await writeFile(join(root, 'doc.pdf'), '%PDF-1.4');
+    await writeFile(join(root, 'x.bin'), 'bin');
+    await mkdir(join(root, 'dir'));
+    await mkdir(join(root, '.obsidian'));
+    await writeFile(join(root, '.obsidian', 'pic.png'), 'x');
+    await symlink('/etc/hosts', join(root, 'evil.png'));
+    const get = (p: string) => t.api.get(`/vaults/${t.id}/raw?path=${encodeURIComponent(p)}`);
+    const pdf = await get('doc.pdf');
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    expect(pdf.headers['content-disposition']).toMatch(/^attachment/);
+    expect(pdf.headers['x-content-type-options']).toBe('nosniff');
+    const bin = await get('x.bin');
+    expect(bin.headers['content-type']).toBe('application/octet-stream');
+    expect(bin.headers['content-disposition']).toMatch(/^attachment/);
+    const md = await get('Home.md');
+    expect(md.status).toBe(200);
+    expect(md.headers['content-disposition']).toMatch(/^attachment/);
+    for (const p of ['../x', '.git/config', '.obsidian/pic.png', './pic.png', 'evil.png', 'dir']) expect((await get(p)).status).toBe(400);
+    expect((await get('missing.png')).status).toBe(404);
+    expect((await request(t.app).get(`/api/vaults/${t.id}/raw?path=Home.md`)).status).toBe(401);
+  });
+
   it.each(['CON.md', 'nul', 'a\tb.md', 'Neue Notiz?.md', 'x/', 'a<b>.md', 'com1.txt'])('new file name %j → 400 bad-name', async (p) => {
     const t = await vaultApp();
     const r = await t.api.put(`/vaults/${t.id}/file?path=${encodeURIComponent(p)}`, { content: 'x', version: null });

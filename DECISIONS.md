@@ -58,6 +58,17 @@ edited: 2026-10-03
   - [10:31 — Review fixes to the specs and tests (constructed-URL test, default-on check, fragment wording)](#run-2026-10-03-0925-18)
   - [11:05 — Push web search with three pre-existing plan-gaps e2e failures left alone](#run-2026-10-03-0925-19)
   - [10:50 — The egress 503 in CI was a dead test target, not Squid DNS; the retry is removed](#run-2026-10-03-0925-20)
+  - [12:20 — Media change: Phase 2 by a sub-agent, UI e2e written next to the code instead of strictly red first](#run-2026-10-03-0925-21)
+  - [12:20 — Write-mode Back and mode switch restore by line, not by pixel; the e2e checks the text at the top](#run-2026-10-03-0925-22)
+  - [12:20 — Big media: HEAD for the size, then GET only on request (no aborted GET)](#run-2026-10-03-0925-23)
+  - [12:20 — Offline embed test is its own case and skipped on WebKit; PDF Open test accepts a download of the blob URL](#run-2026-10-03-0925-24)
+  - [12:20 — Plumbing: web dev container mounts packages/shared/src, `just prodtest e2e` takes arguments, Rancher restarted](#run-2026-10-03-0925-25)
+  - [12:20 — Small deviations from the architecture: no `media` in the store, no `loading=lazy`, embeds remount on file change](#run-2026-10-03-0925-26)
+  - [12:20 — Visual check with a Playwright script, not the MCP browser](#run-2026-10-03-0925-27)
+  - [12:45 — Review fixes: SVG sanitized before it becomes a blob; cache refcount and identity checks](#run-2026-10-03-0925-28)
+  - [12:45 — Review fixes: chat link consistency, kept players across streamed tokens, forged placeholders, data: images, remote links](#run-2026-10-03-0925-29)
+  - [12:45 — Review fixes: incremental Write-mode embeds, paren paths, comments; raw route dot rules; PDF Open](#run-2026-10-03-0925-30)
+  - [12:45 — Review items left as they are, and why](#run-2026-10-03-0925-31)
 
 # 2026-10-02 17:16 — Clean up the specs/ sub-directories {#run-2026-10-02-1716}
 
@@ -693,3 +704,113 @@ edited: 2026-10-03
 - **Why:** a dead target is not a proxy DNS fault; the retry only hid it. The DNS settings are hardening, not the fix: Squid's default 6 h positive cache outlives provider IP changes, and my first theory (sticky negative caching) did not explain the repro. Resolver failures by the proxy itself were never observed; prod resolves the LLM provider through the same Docker DNS and Squid defaults without that symptom.
 - **Alternatives:** keep the retry or widen the assertion to accept 503 (would hide a broken proxy).
 - **Consequences:** `egress.test.ts` ran 5 times in a row green after removing the containers. Status of decision 13: its retry part is superseded.
+
+## 12:20 — Media change: Phase 2 by a sub-agent, UI e2e written next to the code instead of strictly red first {#run-2026-10-03-0925-21}
+
+- **Status:** open
+- **Context:** Plan phases 1–2 touch disjoint files; phases 3–4 couple the e2e tests to new components.
+- **Question:** How to work through the plan?
+- **Decision:** Phase 2 (shared `mediaKind`, `/raw`) went to a worker agent, test first (verified red). Phase 1 and the unit tests of phase 3 were red first. The phase 3/4 e2e cases (embeds, viewer, widget) were written right after the components, then run until green; the existing-behaviour tests (fix-20 .bin case) were run before the change.
+- **Why:** a player or CodeMirror widget can't be built in small red/green steps without the component.
+- **Alternatives:** stubs only to get a red run (noise).
+- **Consequences:** those e2e cases were never seen failing for "no embeds"; the prodtest CSP step was red first, as planned.
+
+## 12:20 — Write-mode Back and mode switch restore by line, not by pixel; the e2e checks the text at the top {#run-2026-10-03-0925-22}
+
+- **Status:** open
+- **Context:** CodeMirror's heights below the viewport are estimates until measured; the same `scrollTop` showed different text (a 3-section drift, 40 % flaky) after Back. Its own `scrollIntoView` doesn't scroll the outer `.scroll` pane until the editor has laid out, and in dev StrictMode remounts the view right after the effect that calls it.
+- **Question:** How to keep the place in Write mode?
+- **Decision:** The store remembers `{top, line}`; in Write mode the editor scrolls the saved top line to the top (`gotoLine(line, {align:'start', focus:false})`: after two frames, retried every 100 ms until the line is rendered at the top twice, halted by user input; `view.current` is read late). Read mode restores `scrollTop` for up to 1 s. `.scroll` gets `overflow-anchor: none`. The Write-mode e2e compares the first visible text line (Back) or the embed's position (tap test, ±40 px) instead of `scrollTop` ±10 px. Embed widgets have an `estimatedHeight` from remembered natural sizes.
+- **Why:** pixel equality isn't meaningful where heights are estimates; the user-visible place is the text.
+- **Alternatives:** pixel restore with a longer loop (kept drifting).
+- **Consequences:** the plan's "within 10 px" holds for Read mode only. A restore retries for up to ~2 s and gives up silently.
+
+## 12:20 — Big media: HEAD for the size, then GET only on request (no aborted GET) {#run-2026-10-03-0925-23}
+
+- **Status:** open
+- **Context:** Plan: GET, abort when Content-Length is over 50 MB. Under load the abort lagged and the whole 51 MB flowed over loopback (test flaky).
+- **Question:** How to guarantee no transfer of a big file?
+- **Decision:** `objectUrl` sends `HEAD /raw` first; over the cap it resolves `tooLarge` with no GET. The e2e asserts that no GET happened before "Load anyway" and one full GET after.
+- **Why:** deterministic; one small extra request per media file per session (cached afterwards).
+- **Alternatives:** keep abort (flaky); Range requests (more server logic).
+- **Consequences:** the "response aborted" wording of the plan is replaced by "never requested".
+
+## 12:20 — Offline embed test is its own case and skipped on WebKit; PDF Open test accepts a download of the blob URL {#run-2026-10-03-0925-24}
+
+- **Status:** open
+- **Context:** Playwright WebKit's offline mode bypasses the service worker (offline.spec.ts skips for that reason); headless Chromium has no PDF viewer and downloads a PDF navigation; the prod CSP (`connect-src 'self'`) forbids `fetch(blob:)`, so the app must not fetch its own blob and the test can't either.
+- **Question:** How to keep the plan's assertions?
+- **Decision:** Offline embeds: separate test, WebKit skipped, `launchOptions` flag as in offline.spec.ts; "no error toast" = the toast region is empty. Open: the test takes the new tab's `blob:` URL from a navigation or a download event; the `application/pdf` check via `fetch` runs only when the stack sends no CSP (dev). The app keeps the `Blob` in the cache entry and re-wraps it without a fetch. The PDF fixture carries the four high-bit bytes real PDFs have, since the backend decides "binary" by content (an all-ASCII PDF opened in the editor).
+- **Why:** each is a limit of the tool, not of the feature.
+- **Alternatives:** weaken nothing else; loosen `connect-src` (no).
+- **Consequences:** prod checks the type indirectly (same code path as dev). An all-ASCII PDF in a vault would still open as text: pre-existing backend heuristic, not touched.
+
+## 12:20 — Plumbing: web dev container mounts packages/shared/src, `just prodtest e2e` takes arguments, Rancher restarted {#run-2026-10-03-0925-25}
+
+- **Status:** open
+- **Context:** The web app now imports `mediaKind` at runtime; the dev web container only had shared's package.json. The plan runs `just prodtest e2e e2e/media.spec.ts`, which the recipe rejected. Mid-run all published ports refused connections.
+- **Question:** What to change outside the feature?
+- **Decision:** `deploy/compose.dev.yml` mounts `../packages/shared/src` into web (as backend does); `justfile` `prodtest action *args` passes args to Playwright; restarted Rancher Desktop (allowed) when 8443 refused.
+- **Why:** needed to run the plan's own verify commands.
+- **Alternatives:** none simpler.
+- **Consequences:** args with `|` need quoting in `just prodtest e2e` (unquoted expansion).
+
+## 12:20 — Small deviations from the architecture: no `media` in the store, no `loading=lazy`, embeds remount on file change {#run-2026-10-03-0925-26}
+
+- **Status:** open
+- **Context:** While building.
+- **Question:** Where does the code differ from architecture.md?
+- **Decision:** (1) The media viewer derives the kind from the path (`mediaKind`), the store has no `media` field. (2) Images have no `loading=lazy` (blob URLs: nothing to defer; lazy images have no height before load, which breaks scroll restore); known natural sizes give a skeleton and an `aspect-ratio`. (3) A `files-changed` event that drops cached bytes bumps `mediaEpoch`, and shown embeds remount (the plan's freshness test needs the shown image to follow). (4) `Embed.tsx` is `Embed.ts` (no JSX). (5) A player that can't play keeps the player and gets a file card below it; a broken image becomes a card. (6) `renderMarkdown(md, ctx, startLine?)`: ctx = `{exists, href?, relative?, resolveEmbed?}`; `data-line` only when `startLine` is passed (Read view), so chat HTML is unchanged. (7) The HTML width suffix is `max-width: min(Npx, 100%)`: a plain pixel max-width overflowed the phone column (found in the visual check).
+- **Why:** each followed from a failing test or screenshot.
+- **Alternatives:** n/a.
+- **Consequences:** architecture.md should say so at archive.
+
+## 12:20 — Visual check with a Playwright script, not the MCP browser {#run-2026-10-03-0925-27}
+
+- **Status:** open
+- **Context:** The Playwright MCP browser refuses the dev stack's self-signed certificate (ERR_CERT_AUTHORITY_INVALID).
+- **Question:** How to look at it at 1×?
+- **Decision:** `tmp/visual.mjs` (Playwright, `ignoreHTTPSErrors`, `deviceScaleFactor: 1`) screenshots Read and Write mode at 390 and 1280 px to `tmp/media/`, and reports `scrollWidth`; the images were read. Checked: last embeds of a long note (wide image, video with width suffix, PDF card, missing card) and the right edge. Found and fixed an overflow of the Write-mode block on the phone. The real-iOS PDF check stays skipped (decision 5).
+- **Why:** same engine, same pixels.
+- **Alternatives:** trust the MCP-less e2e (the global rule forbids).
+- **Consequences:** none.
+
+## 12:45 — Review fixes: SVG sanitized before it becomes a blob; cache refcount and identity checks {#run-2026-10-03-0925-28}
+
+- **Status:** open
+- **Context:** Review: an SVG blob (type `image/svg+xml`, app origin) opened via "open image in new tab" would run its script with the token in reach; eviction/invalidate could revoke URLs of mounted players; a late fetch could overwrite a newer cache entry.
+- **Question:** How to close these?
+- **Decision:** Every `.svg` is run through DOMPurify's SVG profile (`sanitizeSvg`, jsdom unit test + an e2e that checks the shown image's blob has no script; the blob read runs on dev only, as the prod CSP forbids `fetch(blob:)`). `objectUrl` returns a `release()`; entries with holders are never evicted; an entry is only written or deleted if it is still the cached one (`cache.get(k) === entry`), an orphaned result serves its asker and frees its URL on the last release. `mountEmbed`'s stop releases. `invalidate` still revokes held URLs, because it bumps `mediaEpoch` and the players remount. Opened from the tree, an SVG is a text file and opens as an editable note (the backend says binary:false): left as is.
+- **Why:** blob origin isolation can't be relied on (Safari unverified); sanitizing removes the question.
+- **Alternatives:** `data:` URL (opaque origin, but huge strings and no Download/blob reuse).
+- **Consequences:** Download of an SVG gives the sanitized file, not the original bytes. The cache logic has no unit test (needs `createObjectURL`); covered through e2e.
+
+## 12:45 — Review fixes: chat link consistency, kept players across streamed tokens, forged placeholders, data: images, remote links {#run-2026-10-03-0925-29}
+
+- **Status:** open
+- **Context:** Review items 4, 6, 9, 12, 14, 17.
+- **Question:** What was done?
+- **Decision:** (4) The Markdown component with a `base` (chat) resolves a clicked wikilink from that base, like its hover href. (12) `mountEmbeds` takes the previous render's mounts: an embed with the same file/width/caption moves its players into the new placeholder (`moveTo`), so a streaming answer doesn't reset a video; dropped cached bytes start over. (14) Placeholders carry a per-render random `data-ek`; a hook strips `embed`/`data-path/kind/width/alt/target` and `data-ek` from every other element (unit test). (6) `![](data:image/*)` renders as an inline `<img>` (CSP `img-src` allows `data:`); other remote images stay links. (17) Remote embeds, `//host/x` included, get `target=_blank rel=noopener noreferrer`. (9) An embed inside a link gets no tap-to-open handler: the link wins.
+- **Why:** each was a concrete inconsistency or hole.
+- **Alternatives:** (4) resolve chat links from the open note both times.
+- **Consequences:** `Embed.ts` moved to `lib/embed.ts` (lib imports no components); `isPdf` and `rawType` live in `packages/shared` and serve backend and web.
+
+## 12:45 — Review fixes: incremental Write-mode embeds, paren paths, comments; raw route dot rules; PDF Open {#run-2026-10-03-0925-30}
+
+- **Status:** open
+- **Context:** Review items 5, 7, 10, 11, 13, 15, 16.
+- **Question:** What was done?
+- **Decision:** (5) The embed field maps decorations through a change and rebuilds only the touched lines; a new file list or media epoch rebuilds all; `resolveWikilink` builds its path Set once per file list (WeakMap). Known gap: an edit that opens a code fence doesn't hide embeds below it until the next full rebuild. (7) One shared `EMBED_RE` with one level of balanced parentheses (`photo (1).png`) for the editor. (13) Embeds after an odd number of `%%` are not shown in Write mode. (10) PDF Open: toast when the popup is blocked, the re-wrapped URL is revoked after 60 s. (11) `rawFile` refuses any dot segment (hidden files, `.`/`..`) with 400, and `sendFile` uses `dotfiles: 'allow'` so a dot in the vault's own path can't 404 everything; the test covers `.obsidian/pic.png` and `./pic.png`, not a dotted vault dir. (15) The tap test checks the cursor didn't move (Chromium; WebKit reports no DOM selection) and that a video click doesn't navigate. (16) The tree test switches to Read first and checks the mode after a binary and a note.
+- **Why:** as reviewed.
+- **Alternatives:** (11) allow `.obsidian/` attachments: rare, no stated need.
+- **Consequences:** media in hidden folders isn't served.
+
+## 12:45 — Review items left as they are, and why {#run-2026-10-03-0925-31}
+
+- **Status:** open
+- **Context:** Review item 8 and test order.
+- **Question:** What did I not do?
+- **Decision:** (8) A missing Content-Length is now "unknown" (no size shown; the 50 MB check can't fire, such responses are compressed text-like types). Caddy's `encode` can't be matched by path (its `match` takes response matchers only), so `/raw` stays encoded; media types aren't compressible by default, so their length survives. The new unit tests (sanitizeSvg, forged placeholders, `EMBED_RE`, `rawType`, data/remote links) and the dotted `.obsidian` test were written after the code, not before.
+- **Why:** time and tool limits; each is covered now.
+- **Alternatives:** a response header with the size.
+- **Consequences:** an SVG in a vault behind Caddy shows no size on its card.

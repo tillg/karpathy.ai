@@ -2,6 +2,7 @@ import type { FileEntry, SettingsView, Vault, VaultEvent, VaultStatus } from '@k
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, api, errorText } from './lib/api';
 import { draftAction, dropDraft, dropVaultDrafts, getDraft, putDraft } from './lib/drafts';
+import { invalidate } from './lib/media';
 import { readNdjson } from './lib/ndjson';
 import { formatRoute, parseRoute } from './lib/route';
 import { parseWikilink, resolveWikilink } from './lib/wikilink';
@@ -19,9 +20,11 @@ export interface NoteView {
   saving: boolean;
   /** Deleted elsewhere (AI, another device, discard) while open. */
   deleted?: boolean;
-  /** Not text (image, PDF…): shown as a placeholder, never edited or saved (issue #20). */
+  /** Not text (image, video, PDF…): shown as a player or file card (MediaView), never edited or saved (issue #20). */
   binary?: boolean;
   goto?: { line: number; nonce: number };
+  /** Back to a note seen in this session: the scroll position it was left at. */
+  restore?: { top: number; line?: number; nonce: number };
 }
 
 /** The open note's save state; `version` is the server version `saved` corresponds to. */
@@ -29,6 +32,7 @@ interface OpenNote { vault: string; path: string; version: string; saved: string
 
 const ACTIVE_KEY = 'karpathy.activeVault';
 const CHAT_MAIN_KEY = 'karpathy.chatMain';
+const MODE_KEY = 'karpathy.mode';
 const AUTOSAVE_MS = 1500;
 const RETRY_MS = 10_000;
 const drafts = () => localStorage;
@@ -168,6 +172,8 @@ function useAppState() {
   const setStatus = useCallback((st: VaultStatus) => { if (activeRef.current) setStatusFor(activeRef.current, st); }, [setStatusFor]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [changesNonce, setChangesNonce] = useState(0);
+  /** Bumped when cached media bytes were dropped (their file changed): shown embeds remount. */
+  const [mediaEpoch, setMediaEpoch] = useState(0);
   const paths = useMemo(() => files.filter((f) => f.type === 'file').map((f) => f.path), [files]);
   const pathsRef = useRef(paths);
   pathsRef.current = paths;
@@ -353,23 +359,40 @@ function useAppState() {
   const [sidebarOpen, setSidebarOpen] = useState(wide);
   // Wide: the sidebar is a column (shown by default); tablet: an overlay (hidden by default).
   useEffect(() => setSidebarOpen(wide), [wide]);
-  const [mode, setMode] = useState<'write' | 'read'>('write');
+  // The mode is a per-browser preference: only the toggle changes it, no navigation does. Storage can throw (private mode).
+  const [mode, setModeState] = useState<'write' | 'read'>(() => { try { return localStorage.getItem(MODE_KEY) === 'read' ? 'read' : 'write'; } catch { return 'write'; } });
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const setMode = useCallback((m: 'write' | 'read') => {
+    setModeState(m);
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* not remembered */ }
+  }, []);
   /** Open admin modal; `vault` opens that vault's details instead of the list. */
   const [adminOpen, setAdminOpenState] = useState<false | { vault?: string }>(false);
   const setAdminOpen = useCallback((open: boolean, vault?: string) => setAdminOpenState(open ? { vault } : false), []);
   const [commitOpen, setCommitOpen] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
 
-  /** `keepMode`: link/history navigation keeps Read mode; the tree, search etc. open in Write mode. */
-  const openNote = useCallback(async (path: string, line?: number, heading?: string, keepMode = false) => {
+  /** The pane's scroll element, set by NotePane; read when a note is left, to remember its place. */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** Where each note seen in this session was left (in memory only), for Back. */
+  const places = useRef(new Map<string, { top: number; line?: number; mode: 'write' | 'read' }>());
+  /** Set by NotePane: the open view's place. Write mode also reports its top line (CodeMirror's pixel heights are estimates). */
+  const placeNow = useRef<(() => { top: number; line?: number }) | null>(null);
+  /** Set by the Back/Forward handler: the next opened note returns to its remembered place. */
+  const restorePlace = useRef(false);
+
+  const openNote = useCallback(async (path: string, line?: number, heading?: string) => {
     const cur = noteRef.current;
     if (cur?.path === path) {
       const l = heading ? headingLine(cur.draft, heading) : line;
       if (l) setNote((v) => v && { ...v, goto: { line: l, nonce: Date.now() } });
     } else {
+      if (cur && placeNow.current) places.current.set(`${cur.vault}\0${cur.path}`, { ...placeNow.current(), mode: modeRef.current });
       if (!(await leave())) return;
       if ((await load(path, line, heading)) !== 'ok') return;
-      if (!keepMode) setMode('write');
+      const place = restorePlace.current ? places.current.get(`${activeId}\0${path}`) : undefined;
+      if (place && place.mode === modeRef.current) setNote((v) => v && { ...v, restore: { top: place.top, line: place.line, nonce: Date.now() } });
     }
     if (phone) {
       const tab = phoneTab === 'chat' ? 'files' : phoneTab;
@@ -379,7 +402,7 @@ function useAppState() {
       setSidebarOpen(false);
       setChatOpen(false);
     }
-  }, [leave, load, phone, wide, phoneTab]);
+  }, [leave, load, phone, wide, phoneTab, activeId]);
 
   /** The user is editing (checked when an AI open would switch the note): editor focused or unsaved text. */
   const isEditing = useCallback(() => {
@@ -411,11 +434,11 @@ function useAppState() {
   const followLink = useCallback((inner: string) => {
     const l = parseWikilink(inner);
     if (!l.target) {
-      if (l.heading && noteRef.current) void openNote(noteRef.current.path, undefined, l.heading, true);
+      if (l.heading && noteRef.current) void openNote(noteRef.current.path, undefined, l.heading);
       return;
     }
-    const p = resolveWikilink(l.target, pathsRef.current);
-    if (p) void openNote(p, undefined, l.heading, true);
+    const p = resolveWikilink(l.target, pathsRef.current, noteRef.current?.path);
+    if (p) void openNote(p, undefined, l.heading);
     else toast(`No page “${l.target}” yet`);
   }, [openNote, toast]);
 
@@ -509,6 +532,7 @@ function useAppState() {
     if (!(await leave())) return;
     dropNote();
     setChatId(null);
+    if (activeRef.current) invalidate(activeRef.current);
     pendingRoute.current = path ? { vault: id, path } : null;
     setActiveIdState(id);
   }, [leave, dropNote]);
@@ -531,7 +555,7 @@ function useAppState() {
     if (p.vault !== activeId || (active && active.state === 'clone-failed')) { pendingRoute.current = null; syncRoute(true); return; }
     if (!usable) return;
     pendingRoute.current = null;
-    void openNote(p.path, undefined, undefined, true).then(() => syncRoute(true));
+    void openNote(p.path).then(() => syncRoute(true));
   }, [vaults, active, activeId, usable, openNote, syncRoute]);
 
   useEffect(() => {
@@ -539,7 +563,10 @@ function useAppState() {
       const r = parseRoute(location.hash);
       if (!r.vault) return;
       if (r.vault !== activeRef.current) await setActiveId(r.vault, r.path);
-      else if (r.path && r.path !== noteRef.current?.path) await openNote(r.path, undefined, undefined, true);
+      else if (r.path && r.path !== noteRef.current?.path) {
+        restorePlace.current = true;
+        try { await openNote(r.path); } finally { restorePlace.current = false; }
+      }
       else if (!r.path && noteRef.current) await closeNote();
       else if (r.path && phone) setNoteTab(phoneTab === 'chat' ? 'files' : phoneTab);
       // Blocked (stale save) or failed: the URL shows what is actually open.
@@ -560,6 +587,8 @@ function useAppState() {
     }
     setChangesNonce((x) => x + 1);
     if (e.files.some((f) => f.version === null || !pathsRef.current.includes(f.path))) void refreshFiles();
+    // Cached media bytes of a changed file are stale: drop them and let the shown embeds fetch again.
+    if (invalidate(vault, e.files.map((f) => f.path)) > 0) setMediaEpoch((n) => n + 1);
     const n = noteRef.current;
     const hit = n && e.files.find((f) => f.path === n.path);
     if (!n || !hit || hit.version === n.version) return;
@@ -588,12 +617,12 @@ function useAppState() {
   return {
     online, phone, wide, toast, toastMsg,
     vaults, reloadVaults, settings, setSettings, active, activeId, setActiveId, usable,
-    status, setStatus, files, paths, refreshFiles, changesNonce,
+    status, setStatus, files, paths, refreshFiles, changesNonce, mediaEpoch,
     note, currentText, openNote, isEditing, closeNote, forgetVault, editDraft, flush, reloadNote, overwriteNote, deleteNote, newNote, stale, setStale,
     keepDeletedNote, closeDeletedNote,
     followLink, exists, readOnly, conflict,
     section, setSection, phoneTab, setPhoneTab, phoneNote, setPhoneNote, chatOpen, setChatOpen, chatMain, setChatMain,
-    sidebarOpen, setSidebarOpen, mode, setMode, adminOpen, setAdminOpen, commitOpen, setCommitOpen, chatId, setChatId,
+    sidebarOpen, setSidebarOpen, mode, setMode, scrollRef, placeNow, adminOpen, setAdminOpen, commitOpen, setCommitOpen, chatId, setChatId,
   };
 }
 
@@ -602,6 +631,8 @@ const Ctx = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const s = useAppState();
+  // Logging out (or any unmount) drops every cached media blob.
+  useEffect(() => () => { invalidate(); }, []);
   return <Ctx.Provider value={s}>{children}</Ctx.Provider>;
 }
 

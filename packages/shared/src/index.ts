@@ -181,3 +181,5 @@ export interface ApiError {
   error: string;
   code?: string;
 }
+
+export * from './media.js';

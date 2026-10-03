@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { frontmatterFields, renderMarkdown, splitFrontmatter, toHtml } from './markdown';
+import { resolveEmbed, type Embed } from './media';
 
 describe('splitFrontmatter', () => {
   it('splits a leading block', () => {
@@ -82,7 +83,7 @@ describe('toHtml', () => {
 });
 
 describe('renderMarkdown (Obsidian syntax)', () => {
-  const r = (md: string) => renderMarkdown(md, () => true);
+  const r = (md: string) => renderMarkdown(md, { exists: () => true });
 
   it('#102 task list items keep a non-interactive marker (no input)', () => {
     const html = r('- [x] done\n- [ ] open\n');
@@ -140,5 +141,82 @@ describe('renderMarkdown (Obsidian syntax)', () => {
     const html = r('A[^1].\n\n[^1]: see [^2]\n[^2]: deep\n');
     expect(html).toContain('href="#fn-2"');
     expect(html).toMatch(/<li id="fn-2">[\s\S]*deep/);
+  });
+});
+
+describe('renderMarkdown source lines (Read mode position)', () => {
+  const note = '---\ntitle: x\n---\n\n# A\n\npara\n\n- one\n- two\n- three\n\n```js\ncode\n```\n';
+  const { body } = splitFrontmatter(note);
+  const lineOf = (md: string, start: number) => renderMarkdown(md, { exists: () => true }, start);
+
+  it('top-level blocks carry data-line', () => {
+    const html = lineOf(body, 4);
+    expect(html).toContain('<h1 data-line="5"');
+    expect(html).toContain('<p data-line="7"');
+    expect(html).toContain('<ul data-line="9"');
+    expect(html).toMatch(/<pre[^>]*data-line="13"[^>]*><code/);
+    expect(html).not.toMatch(/<li data-line/);
+    expect(html.match(/data-line/g)).toHaveLength(4);
+  });
+
+  it('adds nothing else to the HTML', () => {
+    const plain = renderMarkdown(body, { exists: () => true });
+    expect(plain).not.toContain('data-line');
+    expect(lineOf(body, 4).replace(/ data-line="\d+"/g, '')).toBe(plain);
+  });
+
+  it('counts the lines of removed comments and footnote definitions', () => {
+    const md = '%%\nmulti\nline\n%%\n\n# H\n\n[^1]: def\n\ntext[^1]\n';
+    const html = lineOf(md, 1);
+    expect(html).toContain('<h1 data-line="6"');
+    expect(html).toContain('<p data-line="10"');
+  });
+});
+
+describe('renderMarkdown embeds', () => {
+  const paths = ['raw/media/a.png', 'Other.md', 'doc.pdf'];
+  const ctx = {
+    exists: (t: string) => t === 'Other',
+    resolveEmbed: (e: Embed) => resolveEmbed(e, 'n.md', paths),
+  };
+  it('become sanitized placeholders, never <img src>', () => {
+    const html = renderMarkdown('![[a.png|300]] and ![](https://t.example/p.gif)', ctx);
+    expect(html).toContain('<span class="embed" data-path="raw/media/a.png" data-kind="image" data-width="300"');
+    expect(html).toMatch(/<a [^>]*href="https:\/\/t\.example\/p\.gif"/);
+    expect(html).not.toContain('<img');
+  });
+  it('cover the Markdown form, files and missing targets', () => {
+    const html = renderMarkdown('![cap](raw/media/a.png)\n\n![[doc.pdf]]\n\n![[gone.png]]', ctx);
+    expect(html).toContain('data-path="raw/media/a.png" data-kind="image" data-alt="cap"');
+    expect(html).toContain('data-path="doc.pdf" data-kind="file"');
+    expect(html).toContain('class="embed miss" data-target="gone.png"');
+  });
+  it('keep a note embed as a plain wikilink', () => {
+    const html = renderMarkdown('![[Other]]', ctx);
+    expect(html).toContain('class="wl embed"');
+    expect(html).not.toContain('class="embed"');
+  });
+  it('escape what comes from the note', () => {
+    const html = renderMarkdown('![[a.png|x" onerror="alert(1)]]', ctx);
+    expect(html).not.toContain('onerror="');
+  });
+  it('remote images are links that open in a new tab, also protocol-relative ones; data:image stays an image', () => {
+    const html = renderMarkdown('![a](https://t.example/p.gif) ![b](//t.example/q.png) ![](data:image/png;base64,AAAA)', ctx);
+    expect(html).toMatch(/<a [^>]*href="https:\/\/t\.example\/p\.gif"/);
+    expect(html).toMatch(/<a [^>]*href="\/\/t\.example\/q\.png"/);
+    expect(html.match(/target="_blank"/g)).toHaveLength(2);
+    expect(html.match(/rel="noopener noreferrer"/g)).toHaveLength(2);
+    expect(html).toContain('<img src="data:image/png;base64,AAAA"');
+  });
+  it('raw HTML in a note cannot forge a placeholder', () => {
+    const html = renderMarkdown('<span class="embed" data-path="raw/media/a.png" data-kind="image" data-ek="guess">x</span> <div class="embed miss" data-target="t"></div>\n\n![[a.png]]', ctx);
+    expect(html.match(/class="embed"/g)).toHaveLength(1); // only the real one
+    expect(html).not.toContain('data-ek');
+    expect(html).not.toContain('data-target');
+    expect(html.match(/data-path/g)).toHaveLength(1);
+  });
+  it('an image inside a link keeps the link', () => {
+    const html = renderMarkdown('[![](a.png)](https://x.example/)', { ...ctx, resolveEmbed: (e) => resolveEmbed(e, null, ['a.png']) });
+    expect(html).toMatch(/<a [^>]*href="https:\/\/x\.example\/"[^>]*><span class="embed" data-path="a\.png"/);
   });
 });

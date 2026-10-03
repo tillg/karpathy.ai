@@ -28,3 +28,18 @@ describe('resolveWikilink', () => {
     expect(resolveWikilink('', paths)).toBeNull();
   });
 });
+
+describe('resolveWikilink with several matches', () => {
+  const dup = ['z/deep/image.png', 'a/image.png', 'Notes/image.png', 'Notes/n.md', 'b/image.png'];
+  it('prefers the note’s folder, then the shortest path, then A–Z', () => {
+    expect(resolveWikilink('image.png', dup, 'Notes/n.md')).toBe('Notes/image.png');
+    expect(resolveWikilink('image.png', dup)).toBe('a/image.png');
+    expect(resolveWikilink('image.png', dup, 'Other/x.md')).toBe('a/image.png');
+  });
+  it('applies to note names and path suffixes too', () => {
+    const notes = ['z/Idea.md', 'a/b/Idea.md', 'q/Idea.md'];
+    expect(resolveWikilink('Idea', notes)).toBe('q/Idea.md');
+    expect(resolveWikilink('Idea', notes, 'a/b/n.md')).toBe('a/b/Idea.md');
+    expect(resolveWikilink('b/Idea', ['x/b/Idea.md', 'b/Idea.md', 'y/b/Idea.md'])).toBe('b/Idea.md');
+  });
+});

@@ -33,8 +33,8 @@ test *args:
 e2e *args:
     npx playwright test {{args}}
 
-# Prod images on https://localhost:9443, next to the dev stack: `just prodtest` starts it; `just prodtest down|e2e`
-prodtest action="up":
+# Prod images on https://localhost:9443, next to the dev stack: `just prodtest` starts it; `just prodtest down`; `just prodtest e2e [playwright args]`
+prodtest action="up" *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{action}}" in
@@ -47,7 +47,7 @@ prodtest action="up":
         echo "App: https://localhost:9443  token: $(cat tmp/prodtest/secrets/bearer_token)"
         ;;
       down) {{prodtest_compose}} down -v ;;
-      e2e) E2E_BASE_URL=https://localhost:9443 E2E_TOKEN_FILE=tmp/prodtest/secrets/bearer_token E2E_BACKEND_CONTAINER=karpathy-app-prodtest-backend-1 npx playwright test ;;
+      e2e) E2E_BASE_URL=https://localhost:9443 E2E_TOKEN_FILE=tmp/prodtest/secrets/bearer_token E2E_BACKEND_CONTAINER=karpathy-app-prodtest-backend-1 npx playwright test {{args}} ;;
       *) echo "usage: just prodtest [up|down|e2e]" >&2; exit 1 ;;
     esac
 

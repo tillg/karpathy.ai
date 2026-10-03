@@ -61,6 +61,7 @@ services:
       HMR_CLIENT_PORT: "8443"
     volumes:
       - ../apps/web/src:/app/apps/web/src:ro
+      - ../packages/shared/src:/app/packages/shared/src:ro
       - ../apps/web/index.html:/app/apps/web/index.html:ro
       - ../apps/web/vite.config.ts:/app/apps/web/vite.config.ts:ro
       - ../apps/web/tsconfig.json:/app/apps/web/tsconfig.json:ro

@@ -69,7 +69,11 @@ with an AI-proposed message, conflict resolution, and a streaming AI chat that r
 edits the vault through opencode. Ask the AI to show you a note ("open my reading list") and it
 opens notes in the editor through its `open_note` tool (on a phone or a smaller iPad when the reply is
 done; never while you are typing). On a wide screen the ⇄ button on the note/chat divider swaps the two
-columns, putting the chat in the large main column; the browser remembers the choice. How it works today: [`specs/system/`](specs/system/) (domain,
+columns, putting the chat in the large main column; the browser remembers the choice. Images, video, audio
+and PDFs in a note show up as **embeds** (`![[photo.png]]`, `![[clip.mp4|300]]`, `![alt](img/a.png)`) in Read mode, in
+Write mode (a block below the line; the text stays as written) and in chat answers; tapping an image opens
+it, Back returns to the same place, and media over 50 MB loads only on a tap. The **Write/Read mode is sticky**:
+it stays as you chose it for every note you open and survives a reload (Write is the default). How it works today: [`specs/system/`](specs/system/) (domain,
 functional, architecture, security, deployment); key decisions: [`docs/adr/`](docs/adr/). The
 original MVP spec, plan, opencode spike and implementation log are in git history
 ([`specs/01_mvp/` at 9c25f72](https://github.com/tillg/karpathy.app/tree/9c25f7242ad08a53ac6d57ec57180036a4c9a14e/specs/01_mvp)).
@@ -134,7 +138,7 @@ npm run typecheck
 `just check` runs lint, typecheck and `npm test` in one go.
 
 To run the e2e suite against the **prod images** (https://localhost:9443, next to the dev
-stack): `just prodtest`, `just prodtest e2e`, `just prodtest down`; details in the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL`, `E2E_TOKEN_FILE` and `E2E_BACKEND_CONTAINER`
+stack): `just prodtest`, `just prodtest e2e [playwright args]`, `just prodtest down`; details in the header of `deploy/compose.prodtest.yml`: `E2E_BASE_URL`, `E2E_TOKEN_FILE` and `E2E_BACKEND_CONTAINER`
 point Playwright at it.
 
 Tests that need a real model turn are tagged `@llm` in their title; `--grep-invert @llm` skips them.
@@ -144,7 +148,7 @@ screens in light and dark mode and fails on serious/critical findings; `e2e/a11y
 covers dialog focus trapping, menu/radio-group keys and phone touch-target sizes.
 
 Layout: `apps/backend` (Express 5, Node/TS), `apps/web` (Vite + React PWA),
-`packages/shared` (API types), `deploy/` (compose, Dockerfiles, Caddy, opencode config),
+`packages/shared` (API types, media table), `deploy/` (compose, Dockerfiles, Caddy, opencode config),
 `e2e/` (Playwright).
 
 ## Deploying

@@ -44,7 +44,7 @@ test.describe('accessibility (axe)', () => {
     await scan(page, 'Read mode');
     // Wide code block: keyboard-scrollable (#45).
     await page.locator('[data-testid="tree-item"][data-path="Code.md"]').click();
-    // Wait for Code.md to be open: it opens in Write mode, which would undo an earlier Read click.
+    // Wait for Code.md to be open (the mode is sticky: it opens in Read mode, as Home.md was).
     await expect(page.getByRole('main', { name: 'Note' })).toContainText('Code.md');
     await page.getByTestId('mode-read').click();
     await expect(page.getByTestId('read-view').locator('pre')).toHaveAttribute('tabindex', '0');

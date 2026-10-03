@@ -1,11 +1,13 @@
 // CodeMirror 6 live-preview extensions. They only add decorations over the raw text; the
 // document itself is never rewritten (lossless round-trip, mvp §2.2).
 import { markdown } from '@codemirror/lang-markdown';
-import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
-import { type Extension, RangeSetBuilder, StateEffect } from '@codemirror/state';
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { HighlightStyle, ensureSyntaxTree, syntaxHighlighting, syntaxTree } from '@codemirror/language';
+import { type EditorState, type Extension, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
+import { mountEmbed, type EmbedCtx } from './embed';
 import { splitFrontmatter } from './markdown';
+import { EMBED_RE, knownNatural, mdEmbed, wikiEmbed, type Embed, type Resolved } from './media';
 import { WIKILINK_RE } from './wikilink';
 
 const style = HighlightStyle.define([
@@ -110,6 +112,113 @@ function wikilinks(exists: (target: string) => boolean, open: (inner: string) =>
   return [plugin, click];
 }
 
-export function liveMarkdown(exists: (target: string) => boolean, open: (inner: string) => void): Extension {
-  return [markdown(), syntaxHighlighting(style), lines, wikilinks(exists, open), EditorView.lineWrapping];
+/** What the embed blocks need from the app; read at the time they are built or mounted, so it follows the latest props. */
+export interface EmbedHooks {
+  resolve(e: Embed): Resolved;
+  ctx(): EmbedCtx;
+  /** Changes when cached media bytes were dropped: shown players mount again. */
+  epoch(): number;
+}
+
+type Shown = Extract<Resolved, { state: 'media' | 'file' | 'missing' }>;
+
+/** The embeds of a line shown below it as one block; the text itself is untouched. */
+class EmbedWidget extends WidgetType {
+  private readonly key: string;
+  constructor(readonly items: Shown[], readonly hooks: EmbedHooks, epoch: number) {
+    super();
+    this.key = `${epoch}${JSON.stringify(items)}`;
+  }
+  eq(o: EmbedWidget) { return o.key === this.key; }
+  /** Before it is measured: the height the block will have, when every player's size is known from an earlier look (keeps a restored scroll position in place). */
+  get estimatedHeight() {
+    const vault = this.hooks.ctx().vault;
+    let h = 10;
+    for (const r of this.items) {
+      const n = r.state === 'media' && r.kind !== 'audio' ? knownNatural(vault, r.path) : null;
+      if (r.state === 'media' && r.kind !== 'audio' && !n) return -1;
+      h += 20 + (r.state === 'media' ? (r.kind === 'audio' ? 54 : Math.round(n!.h * Math.min(1, (r.width ?? n!.w) / n!.w))) : 56);
+    }
+    return h;
+  }
+  toDOM() {
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-embed';
+    const stops = this.items.map((r) => {
+      const host = document.createElement('span');
+      host.className = 'embed';
+      wrap.append(host);
+      return mountEmbed(host, r, this.hooks.ctx());
+    });
+    (wrap as HTMLElement & { stop?: () => void }).stop = () => stops.forEach((s) => s());
+    return wrap;
+  }
+  destroy(dom: HTMLElement & { stop?: () => void }) { dom.stop?.(); }
+  // Clicks inside belong to the embed (a tap on an image opens it): the editor doesn't move the cursor.
+  ignoreEvent() { return true; }
+}
+
+/** Last frontmatter line (0 when the note has none), like the `lines` plugin. */
+function frontmatterEnd(state: EditorState): number {
+  const doc = state.doc;
+  if (doc.line(1).text.trimEnd() !== '---' || splitFrontmatter(doc.sliceString(0, Math.min(doc.length, 20_000))).frontmatter === null) return 0;
+  for (let n = 2; n <= doc.lines; n++) if (doc.line(n).text.trimEnd() === '---') return n;
+  return 0;
+}
+
+/** True when `pos` is inside a `%%comment%%` (an odd number of `%%` before it): Read mode hides those, so no embed here. */
+const inComment = (state: EditorState, pos: number) => ((state.doc.sliceString(0, pos).match(/%%/g) ?? []).length % 2) === 1;
+
+/**
+ * Block widgets must come from state, not a view plugin. An edit only rebuilds the lines it touched (the
+ * rest is mapped through the change); a new file list or dropped media bytes rebuild everything. Known
+ * gap: an edit that turns later lines into code (an opened fence) is picked up at the next full rebuild.
+ */
+function embeds(hooks: EmbedHooks): Extension {
+  /** The widget decorations of lines `fromLine..toLine`, in document order. */
+  const build = (state: EditorState, fromLine: number, toLine: number, full: boolean) => {
+    const out: { pos: number; deco: Decoration }[] = [];
+    const tree = full ? (ensureSyntaxTree(state, state.doc.length, 50) ?? syntaxTree(state)) : syntaxTree(state);
+    const fmEnd = frontmatterEnd(state);
+    const epoch = hooks.epoch();
+    for (let n = Math.max(fromLine, fmEnd + 1); n <= toLine; n++) {
+      const line = state.doc.line(n);
+      if (!line.text.includes('![')) continue;
+      const items: Shown[] = [];
+      for (const m of line.text.matchAll(EMBED_RE)) {
+        let code = false;
+        for (let node: { name: string; parent: unknown } | null = tree.resolveInner(line.from + m.index, 1); node; node = node.parent as typeof node) {
+          if (/Code/.test(node.name)) code = true;
+        }
+        if (code || inComment(state, line.from + m.index)) continue;
+        const r = hooks.resolve(m[1] !== undefined ? wikiEmbed(m[1]) : mdEmbed(m[3]!, m[2]));
+        if (r.state === 'media' || r.state === 'file' || r.state === 'missing') items.push(r);
+      }
+      if (items.length) out.push({ pos: line.to, deco: Decoration.widget({ block: true, side: 1, widget: new EmbedWidget(items, hooks, epoch) }) });
+    }
+    return out;
+  };
+  const all = (state: EditorState) => Decoration.set(build(state, 1, state.doc.lines, true).map((x) => x.deco.range(x.pos)));
+  return StateField.define<DecorationSet>({
+    create: all,
+    update(v, tr) {
+      if (tr.effects.some((e) => e.is(refreshLinks))) return all(tr.state);
+      if (!tr.docChanged) return v;
+      let next = v.map(tr.changes);
+      const doc = tr.state.doc;
+      tr.changes.iterChangedRanges((_a, _b, from, to) => {
+        const lo = doc.lineAt(from).from;
+        const hi = doc.lineAt(Math.min(to, doc.length)).to;
+        next = next.update({ filter: (f) => f < lo || f > hi });
+        const add = build(tr.state, doc.lineAt(lo).number, doc.lineAt(hi).number, false);
+        if (add.length) next = next.update({ add: add.map((x) => x.deco.range(x.pos)) });
+      });
+      return next;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+}
+
+export function liveMarkdown(exists: (target: string) => boolean, open: (inner: string) => void, embedHooks: EmbedHooks): Extension {
+  return [markdown(), syntaxHighlighting(style), lines, wikilinks(exists, open), embeds(embedHooks), EditorView.lineWrapping];
 }

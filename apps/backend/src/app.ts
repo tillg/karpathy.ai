@@ -1,6 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { Settings, SettingsView, TokenTest, VaultEvent } from '@karpathy/shared';
+import { rawType, type Settings, type SettingsView, type TokenTest, type VaultEvent } from '@karpathy/shared';
 import { bearerAuth } from './auth.js';
 import { aiUnavailable, type ChatService } from './chat.js';
 import { fallbackMessage, type CommitMessages } from './commit-message.js';
@@ -190,6 +190,19 @@ export function createApp(d: AppDeps) {
     const f = await d.vaults.readFile(req.params.id!, qs(req, 'path'));
     res.setHeader('ETag', `"${f.version}"`);
     res.json(f);
+  });
+  api.get('/vaults/:id/raw', async (req, res, next) => {
+    const path = qs(req, 'path');
+    const abs = await d.vaults.rawFile(req.params.id!, path);
+    const { type, attachment } = rawType(path);
+    res.setHeader('Content-Type', type);
+    if (attachment) res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-store');
+    // dotfiles: the vault's own path may contain a dot segment (rawFile already refused hidden files in `path`).
+    res.sendFile(abs, { etag: false, lastModified: false, cacheControl: false, dotfiles: 'allow' }, (err) => {
+      if (err && !res.headersSent) next(err);
+    });
   });
   api.put('/vaults/:id/file', async (req, res) => {
     const body = putFile.parse(req.body);

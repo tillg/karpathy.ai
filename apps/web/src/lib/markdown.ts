@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { Marked } from 'marked';
+import { mdEmbed, wikiEmbed, type Embed, type Resolved } from './media';
 import { parseWikilink, wikilinkLabel } from './wikilink';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -70,17 +71,71 @@ const CODE = '```[\\s\\S]*?```|~~~[\\s\\S]*?~~~|`[^`\\n]*`';
 const COMMENT_RE = new RegExp(`(${CODE})|%%[\\s\\S]*?%%`, 'g');
 const FOOTNOTE_DEF_RE = new RegExp(`(${CODE})|^\\[\\^([^\\]\\s]+)\\]:[ \\t]*(.*(?:\\n(?:[ \\t]{2,}|\\t).*)*)\\n?`, 'gm');
 
-/** Markdown → HTML (not sanitized). Wikilinks become `<a class="wl" data-target>`. */
-export function toHtml(md: string, exists: (target: string) => boolean): string {
+/**
+ * What an embed becomes in the HTML; the app mounts the player or file card into the span (lib/embed).
+ * `ek` marks the placeholders as ours: raw HTML in a note must not forge one (see `renderMarkdown`).
+ */
+function embedHtml(r: Exclude<Resolved, { state: 'note' }>, ek: string): string {
+  const mark = ` data-ek="${esc(ek)}"`;
+  if (r.state === 'media') {
+    return `<span class="embed" data-path="${esc(r.path)}" data-kind="${r.kind}"${r.width ? ` data-width="${r.width}"` : ''}${r.alt ? ` data-alt="${esc(r.alt)}"` : ''}${mark}></span>`;
+  }
+  if (r.state === 'file') return `<span class="embed" data-path="${esc(r.path)}" data-kind="file"${mark}></span>`;
+  // Remote images are blocked (tracking pixels): a link instead. Inline `data:image/*` carries its bytes and stays an image.
+  if (r.state === 'remote') {
+    return /^data:image\//i.test(r.href) ? `<img src="${esc(r.href)}" alt="${esc(r.alt ?? '')}">` : `<a href="${esc(r.href)}">${esc(r.alt || r.href)}</a>`;
+  }
+  return `<span class="embed miss" data-target="${esc(r.target)}"${mark}></span>`;
+}
+
+/** Text removed from a string by one pass: where (in the shortened text), how many characters and lines. */
+type Cut = { at: number; chars: number; lines: number };
+
+/** `src.replace(re, fn)` where a null from `fn` removes the match, and the removals are recorded. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- replace callbacks take the match groups
+function strip(src: string, re: RegExp, fn: (...m: any[]) => string | null): { text: string; cuts: Cut[] } {
+  const cuts: Cut[] = [];
+  let gone = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const text = src.replace(re, (...m: any[]) => {
+    const r = fn(...m);
+    if (r !== null) return r;
+    const raw = m[0] as string;
+    cuts.push({ at: m[m.length - 2] - gone, chars: raw.length, lines: raw.split('\n').length - 1 });
+    gone += raw.length;
+    return '';
+  });
+  return { text, cuts };
+}
+
+const newlines = (s: string) => s.split('\n').length - 1;
+
+/**
+ * Markdown → HTML (not sanitized). Wikilinks become `<a class="wl" data-target>`. With `startLine`
+ * (the file line of `md`'s first line), each top-level block's first tag gets `data-line` = its source line.
+ */
+export function toHtml(md: string, exists: (target: string) => boolean, opts: { startLine?: number; resolveEmbed?: (e: Embed) => Resolved; ek?: string } = {}): string {
+  const { startLine, resolveEmbed, ek = '' } = opts;
   // `%%comment%%` is never shown (#112); `[^id]: text` definitions are collected for the footnotes section (#115).
   const defs = new Map<string, string>();
-  md = md
-    .replace(COMMENT_RE, (_m, code?: string) => code ?? '')
-    .replace(FOOTNOTE_DEF_RE, (m, code: string | undefined, id: string, text: string) => {
-      if (code !== undefined) return m;
-      defs.set(id, text.replace(/\s*\n\s*/g, ' ').trim());
-      return '';
-    });
+  const comments = strip(md, COMMENT_RE, (_m, code?: string) => code ?? null);
+  const notes = strip(comments.text, FOOTNOTE_DEF_RE, (m: string, code: string | undefined, id: string, text: string) => {
+    if (code !== undefined) return m;
+    defs.set(id, text.replace(/\s*\n\s*/g, ' ').trim());
+    return null;
+  });
+  md = notes.text;
+  /** Line (in the original) of an offset in the shortened `md`: its own newlines plus the removed ones before it. */
+  const lineAt = (pos: number) => {
+    let line = newlines(md.slice(0, pos)) + (startLine ?? 1);
+    let p = pos;
+    for (const cuts of [notes.cuts, comments.cuts]) {
+      const before = cuts.filter((c) => c.at <= p);
+      line += before.reduce((n, c) => n + c.lines, 0);
+      p += before.reduce((n, c) => n + c.chars, 0);
+    }
+    return line;
+  };
   const order: string[] = [];
   const marked = new Marked({ gfm: true, breaks: false });
   marked.use({
@@ -111,7 +166,10 @@ export function toHtml(md: string, exists: (target: string) => boolean): string 
         return m ? { type: 'wikiembed', raw: m[0], inner: m[1] } : undefined;
       },
       renderer(tok) {
-        const link = marked.defaults.extensions!.renderers.wikilink!.call(this, { type: 'wikilink', raw: tok.raw, inner: tok.inner });
+        const inner = tok.inner as string;
+        const r = resolveEmbed?.(wikiEmbed(inner));
+        if (r && r.state !== 'note') return embedHtml(r, ek);
+        const link = marked.defaults.extensions!.renderers.wikilink!.call(this, { type: 'wikilink', raw: tok.raw, inner: r?.state === 'note' ? r.inner : inner });
         return String(link).replace('class="wl', 'class="wl embed');
       },
     }, {
@@ -141,6 +199,13 @@ export function toHtml(md: string, exists: (target: string) => boolean): string 
       },
     }],
     renderer: {
+      // `![alt](path)`: a placeholder the app fills with the file (never an <img src>: the bytes need the bearer token).
+      image({ href, text }) {
+        if (!resolveEmbed) return false;
+        const r = resolveEmbed(mdEmbed(href, text));
+        if (r.state === 'note') return `<a href="#" class="wl embed" data-target="${esc(r.inner)}">${esc(wikilinkLabel(parseWikilink(r.inner)))}</a>`;
+        return embedHtml(r, ek);
+      },
       // GFM task items: DOMPurify drops <input>, so show a non-interactive marker (#102).
       checkbox({ checked }) {
         return `<span class="task" data-done="${checked}" aria-label="${checked ? 'done' : 'not done'}" role="img">${checked ? '☑' : '☐'}</span> `;
@@ -157,7 +222,18 @@ export function toHtml(md: string, exists: (target: string) => boolean): string 
       },
     },
   });
-  const html = marked.parse(md, { async: false });
+  let html: string;
+  if (startLine === undefined) html = marked.parse(md, { async: false });
+  else {
+    // Each top-level block is rendered on its own; the concatenation equals `marked.parse`.
+    html = '';
+    let pos = 0;
+    for (const tok of marked.lexer(md)) {
+      const out = marked.parser([tok]);
+      html += tok.type === 'space' ? out : out.replace(/^<([a-z][a-z0-9]*)/i, `<$1 data-line="${lineAt(pos + tok.raw.length - tok.raw.trimStart().length)}"`);
+      pos += tok.raw.length;
+    }
+  }
   if (!order.length) return html;
   // A definition may reference further footnotes: they join `order` while it is rendered.
   const items: string[] = [];
@@ -175,46 +251,67 @@ const PURIFY = {
 };
 
 // Code blocks scroll sideways: focusable, so the keyboard can scroll them (#45).
-const focusablePre = (html: string) => html.replace(/<pre>/g, '<pre tabindex="0">');
+const focusablePre = (html: string) => html.replace(/<pre(?=[\s>])/g, '<pre tabindex="0"');
 
-/** How rendered links point into the app: `href` for a wikilink target, `relative` for a Markdown link to a vault file. */
-export interface LinkCtx {
-  href: (target: string) => string | null;
-  relative: (href: string) => { path: string; href: string } | null;
+/**
+ * What rendering needs from the app: which `[[targets]]` exist, where links point (`href` for a wikilink
+ * target, `relative` for a Markdown link to a vault file) and what an embed refers to.
+ */
+export interface RenderCtx {
+  exists: (target: string) => boolean;
+  href?: (target: string) => string | null;
+  relative?: (href: string) => { path: string; href: string } | null;
+  resolveEmbed?: (e: Embed) => Resolved;
 }
 
-const EXTERNAL = /^(https?:|mailto:)/i;
+const EXTERNAL = /^(https?:|mailto:|\/\/)/i;
 
 /**
  * Link fix-ups after sanitizing (DOMPurify drops `target`): external links open in a new tab
  * (#110); wikilinks get their note's route as href so open-in-new-tab/copy-link work (#109);
  * relative links to vault notes get that route plus `data-note` for in-app clicks (#116).
  */
-function linkHook(ctx?: LinkCtx) {
+function linkHook(ctx: RenderCtx) {
   return (node: Element) => {
     if (node.tagName !== 'A') return;
     node.removeAttribute('data-note'); // only ours: a note's raw HTML must not forge it
     const href = node.getAttribute('href') ?? '';
     if (node.classList.contains('wl')) {
       const l = parseWikilink(node.getAttribute('data-target') ?? '');
-      const h = l.target ? ctx?.href(l.target) : null;
+      const h = l.target ? ctx.href?.(l.target) : null;
       if (h) node.setAttribute('href', h);
     } else if (EXTERNAL.test(href)) {
       node.setAttribute('target', '_blank');
       node.setAttribute('rel', 'noopener noreferrer');
     } else {
-      const r = ctx?.relative(href);
+      const r = ctx.relative?.(href);
       if (r) { node.setAttribute('href', r.href); node.setAttribute('data-note', r.path); }
     }
   };
 }
 
-export const renderMarkdown = (md: string, exists: (target: string) => boolean, ctx?: LinkCtx) => {
-  const hook = linkHook(ctx);
-  DOMPurify.addHook('afterSanitizeAttributes', hook);
+const EMBED_ATTRS = ['data-path', 'data-kind', 'data-width', 'data-alt', 'data-target'];
+
+/** Only the renderer's own embed placeholders (marked with this render's `ek`) keep their embed attributes. */
+function embedHook(ek: string) {
+  return (node: Element) => {
+    if (node.tagName === 'A') return; // `a.wl.embed` is the note-embed link, never a placeholder
+    const ours = node.getAttribute('data-ek') === ek;
+    node.removeAttribute('data-ek');
+    if (ours) return;
+    for (const a of EMBED_ATTRS) node.removeAttribute(a);
+    node.classList.remove('embed');
+    if (!node.getAttribute('class')) node.removeAttribute('class');
+  };
+}
+
+export const renderMarkdown = (md: string, ctx: RenderCtx, startLine?: number) => {
+  const ek = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const hooks = [linkHook(ctx), embedHook(ek)];
+  for (const h of hooks) DOMPurify.addHook('afterSanitizeAttributes', h);
   try {
-    return focusablePre(DOMPurify.sanitize(toHtml(md, exists), PURIFY));
+    return focusablePre(DOMPurify.sanitize(toHtml(md, ctx.exists, { startLine, resolveEmbed: ctx.resolveEmbed, ek }), PURIFY));
   } finally {
-    DOMPurify.removeHook('afterSanitizeAttributes', hook);
+    for (const h of hooks) DOMPurify.removeHook('afterSanitizeAttributes', h);
   }
 };

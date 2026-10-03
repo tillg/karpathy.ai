@@ -87,6 +87,11 @@ bearer token.
 - **No `OPENCODE_DISABLE_*` flags:** `OPENCODE_DISABLE_CLAUDE_CODE_*` would also drop the vault's own `CLAUDE.md` and
   `.claude/skills`, and `OPENCODE_DISABLE_PROJECT_CONFIG` the vault's `AGENTS.md`/`CLAUDE.md`. The empty `HOME` keeps
   global Claude files out instead.
+- **The only custom tool, `open_note`, comes from the image**, never from a vault: it sits in a root-owned, read-only
+  global config dir (`XDG_CONFIG_HOME=/opt/opencode-config`), pre-populated at build so opencode installs nothing at
+  runtime. It checks the path lexically and by `stat` inside the session directory, refuses dot-segments, reads no
+  content and changes nothing, so it is also allowed for `vault-readonly`. opencode *would* load tools from a vault's
+  `.opencode/tools/`; the harness-config rule below is what stops that.
 - **Harness config in a vault** (`.opencode/`, `opencode.json(c)`) disables chat for that vault and can't be created
   through the file API. It is code (plugins, custom tools, MCP servers with a `command`), and the managed config can
   only override its keys, not stop it from adding new ones. A vault that needs its own opencode config can't use chat.

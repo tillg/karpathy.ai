@@ -1,7 +1,7 @@
 ---
 title: "Domain: karpathy.app"
 created: 2026-10-01
-edited: 2026-10-02
+edited: 2026-10-03
 ---
 
 # Domain: karpathy.app
@@ -40,7 +40,9 @@ same GitHub remote. The motivation is in the [README](../../README.md#problem).
 | **Version (of a file)** | The first 16 hex characters of the SHA-256 of a file's content. Saves, deletes and discards carry the version they started from. | `files.ts` `versionOf` |
 | **Chat** | A resumable conversation with the AI, bound to exactly one vault; its reach is that vault's root. *Avoid:* session, thread, conversation. | one opencode session |
 | **Turn** | One user prompt in a chat plus everything the AI reads and changes in response. States `idle`, `queued` (waiting for another turn or for the sync), `running`. | `TurnState` |
-| **Consulted file / changed file** | Files the AI read (read tools) or wrote (edit/write/patch tools) during a turn, shown as chips. | `ToolCall.writes` |
+| **Consulted file / changed file / opened note** | The three tool-chip kinds of a turn: files the AI read (read tools), wrote (edit/write/patch tools), or asked the app to show (`open_note`). An opened note is neither consulted nor changed: opening reads and writes nothing. | `ToolCall.writes`, `ToolCall.opens` |
+| **Open request** | One call of the AI's `open_note` tool. It succeeds only for a file the file tree lists inside the chat's vault root; otherwise it fails as a tool error the AI sees, and nothing opens. | `open_note` tool |
+| **Live event vs. history** | Live events arrive on the chat stream while a turn runs; history is the stored chat loaded on reload or when a chat is opened. Only a live open request moves the UI; history shows the chip and moves nothing. | `ChatEvent` vs. `api.chat` |
 | **AI-touched** | The set of paths the AI changed since the last commit. A commit that includes one of them gets the `Co-authored-by: karpathy.app agent` trailer. | `config.aiTouched` |
 | **Uncommitted change** | A file that differs from its last commit, whether the user or the AI changed it; both are pooled. *Avoid:* draft, pending edit, dirty file. | `Change` |
 | **Unsaved change** | An edit held only in the editor (and in a local draft) that hasn't been written to the vault yet. | web `drafts.ts` |
@@ -52,6 +54,9 @@ same GitHub remote. The motivation is in the [README](../../README.md#problem).
 | **Conflict** | A git-level clash between the vault's uncommitted changes and changes pulled from GitHub. It blocks all writes to the vault until the user resolves each clashing file: keep **mine**, **theirs** or **both**. | `VaultState` `conflict`, `conflictPaths` |
 | **Busy** | What the vault is doing right now: `none`, `turn` (an AI turn holds it) or `sync` (a git operation holds it or waits for it). | `VaultStatus.busy` |
 | **Pull** | The backend's sync with GitHub (fetch, fast-forward, re-apply uncommitted changes). Runs on open, before every commit and push, and before every AI turn. There is no user-facing pull button. | `Repo.pull` |
+| **Main column / side column** | On the wide layout (≥ 1024 px, chat open): the main column is the flexible one in the middle, the side column the fixed 380 px one on the right. | CSS `#app.wide` |
+| **Main pane** | Which of note and chat is in the main column: **note in main** (default) or **chat in main**; the other is in the side column. A per-browser preference, not part of a vault or a chat. *Avoid:* focus (taken by keyboard focus), mode, layout. | web `chatMain`; localStorage `karpathy.chatMain` |
+| **Swap button** | The round ⇄ button on the divider between main and side column, at the top; toggles the main pane. Icon only; its label says what a click does ("Move chat to main column" / "Move note to main column"). | `data-testid="main-swap"` |
 | **Write mode / Read mode** | Write mode is the default: raw Markdown with live preview, editable. Read mode is the rendered, non-editable view. *Avoid:* edit mode, source mode, preview. | web `NotePane` |
 | **Harness config** | An `.opencode/`, `opencode.json` or `opencode.jsonc` inside a vault. Its presence disables chat for that vault, because it could override the AI's restrictions. | `HARNESS_CONFIG` |
 
@@ -119,7 +124,7 @@ erDiagram
 |---|---|
 | **Operator** (the same person as the user, on the Mac) | Cuts releases, deploys them to the targets, holds the vault passwords (Keychain) and gets the alerts. |
 | **User** (single person, holds the bearer token) | Manage vaults and settings, read and edit notes, search, chat with the AI, review diffs, discard, commit and push, resolve conflicts. Uses the app as a PWA on phone, iPad and desktop. |
-| **AI** (opencode agent, on the user's behalf) | Inside one vault root only: read notes; write notes unless the vault is in conflict (then read-only). It can't run shell commands, fetch the web, read `.env` files, edit `.git` or harness config, commit or push. |
+| **AI** (opencode agent, on the user's behalf) | Inside one vault root only: read notes; write notes unless the vault is in conflict (then read-only); open one note in the user's editor when the user asks to see it (also in conflict). It can't run shell commands, fetch the web, read `.env` files, edit `.git` or harness config, commit or push. |
 | **Obsidian / other git clients** | Change the same GitHub repo from other devices; their changes arrive on the next pull and can cause a conflict. |
 | **GitHub** | Hosts the vault repos; the backend clones, fetches and pushes with the GitHub token, and asks `GET /user` to test it. |
 | **LLM provider** (e.g. Anthropic; Ollama in dev) | Runs the model behind opencode. Sees the prompts and the note content the AI reads. |
@@ -185,8 +190,27 @@ sequenceDiagram
 2. Before the turn starts the backend **pulls** under an exclusive lock, then downgrades to a shared lock without
    letting any other git operation in between.
 3. opencode runs the turn with the `vault` agent (or `vault-readonly` while in conflict). Reads and writes stream to
-   the UI as tool chips; written paths join the AI-touched set.
+   the UI as tool chips; written paths join the AI-touched set. An **open request** (`open_note`) that completes
+   opens the note in the editor: on the wide layout right away, on a phone or in the tablet overlay when the turn
+   ends (only the last one of the turn); while the user is editing, a notice and the "opened" chip show it instead.
 4. The lock is released when opencode reports the session idle. Changes stay uncommitted.
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant W as Web app
+  participant B as Backend
+  participant O as opencode
+  U->>W: "show me my reading list"
+  W->>B: POST prompt
+  B->>O: prompt (agent vault / vault-readonly)
+  O->>O: read / glob to find the note
+  O->>O: open_note("Lists/Reading.md") → file exists → "opened"
+  O-->>B: tool part completed
+  B-->>W: part {tool call, opens: true, path}
+  W->>W: wide: openNote(path) now
+  Note over W: phone / tablet overlay: waits until the turn ends, then opens
+```
 
 ### Commit
 
@@ -238,4 +262,12 @@ flowchart TD
 - **New file names** may not contain `<>:"|?*\` or control characters, may not be Windows-reserved names, end in a dot
   or space, differ from an existing file only by case, or be harness config.
 - **Chat is disabled** in vaults that contain harness config.
+- **The AI opens a note only when the user asks to see it**, never on its own after writing. Any file the file tree
+  lists can be opened (binaries in the binary view); dot-paths and `.git` can't. Opening is not a change: it never
+  joins the AI-touched set and works during a conflict.
+- **One live open moves the UI once:** a replayed or reloaded call doesn't open again; a call that completed while the
+  stream was down still opens when the chat reloads. While the user is editing (editor focused or unsaved text), the
+  AI never switches the note; a blocked switch (stale save, deleted note) is not retried.
+- **The main pane is a per-browser preference:** swapping only moves the two columns (CSS), so a running turn, typed
+  text, focus, scroll and undo history survive; closing the chat or leaving the wide layout keeps the preference.
 - **Single user:** one bearer token, one git identity, one server-wide model.

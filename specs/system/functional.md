@@ -97,7 +97,7 @@ applies to the next git operation. The deployment's `GITHUB_TOKEN` secret stays 
 ### Notes
 
 - **File tree:** folders first, alphabetical, collapsed by default, expansion remembered per vault; `.md` hidden in
-  names; dot-files never shown.
+  names; dot-files never shown. The open note's folders open and its row scrolls into view.
 - **Create a note** (path prompt, `.md` added if missing, starts as `# <title>`). Refused for existing names, names
   that differ only by case, and invalid names.
 - **Delete a note** (recoverable until the next commit).
@@ -143,12 +143,20 @@ of GitHub's version vs. the app's (or "deleted on GitHub / in this app"), with *
 
 ### Chat with the AI
 
-- **Chat list** per vault (title, running/queued marker, time; delete); **new chat**; **resume** any chat, also on
+- **Swap note and chat** (wide layout, chat open): the round ⇄ button on the divider at the top puts the chat in the
+  large main column and the note in the 380 px side column, and back. Nothing is lost on a swap (streaming, typed
+  text, cursor, scroll, undo); the browser remembers the choice across reloads; closing the chat keeps it.
+- **Chat list** per vault (full first-prompt title, cut by the column width with the full title as tooltip;
+  running/queued marker, time; delete); **new chat**; **resume** any chat, also on
   another device mid-turn.
 - **Send** (Enter; Shift+Enter for a newline) and **Stop**. One turn runs per vault at a time; others wait
   ("Waiting for other chat…" / "Waiting for sync…").
-- **Streaming reply** with Markdown and wikilinks, collapsible "Thinking", **tool chips** for files read and changed
-  (changed ones open the note), and a footer listing the changed pages.
+- **Streaming reply** with Markdown and wikilinks, collapsible "Thinking", **tool chips** for files read, changed and
+  opened (changed and opened ones open the note; long paths end in "…", the full path is the tooltip), and a footer
+  listing the changed pages. A chat scrolled to the end stays at the end when its width changes.
+- **The AI opens notes** when asked ("show me my reading list"): on the wide layout right away, on a phone or in the
+  tablet overlay when the reply is done, never while the user is editing (then a notice "AI opened …" and the chip).
+  Reloading a chat never reopens anything; a wrong path goes back to the AI as a tool error. Works in conflict too.
 - **Read-only while in conflict** ("the AI can only read, not change notes").
 - The AI can read and edit notes in the vault root only; its changes are uncommitted until the user commits.
 
@@ -279,3 +287,8 @@ permissions. The AI's permissions are fixed in the managed opencode config ([arc
 - The offline cache has no automated test in WebKit (Playwright's offline WebKit fails even service-worker-served
   requests); on iPhone/iPad it needs a check by hand.
 - A retryable provider error is retried by opencode for up to about 2 minutes before the turn fails.
+- With the chat in main, Tab still reaches the note before the chat (the swap moves columns visually only). At
+  1024–1279 px with the sidebar open, the main column (364 px) is narrower than the side column.
+- An AI open that waits for the turn end (phone, tablet overlay) is lost on a page reload or when the user leaves the
+  chat view first; the "opened" chip still leads there. A switch blocked by a stale save or a deleted note is not
+  retried.

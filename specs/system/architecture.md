@@ -58,7 +58,17 @@ flowchart LR
 ### Web app (`apps/web`)
 
 - **Shell** with three panes (sidebar, note, chat) laid out per breakpoint: phone ≤ 699 px (tab bar, push navigation),
-  tablet 700–1023 px (overlays), wide ≥ 1024 px (columns).
+  tablet 700–1023 px (overlays), wide ≥ 1024 px (columns). On the wide layout the **swap button** (`#main-swap`,
+  rendered by `Shell` while the chat is open) toggles the main pane: class `chatmain` on `#app` swaps the two columns
+  with CSS `order`/`flex` only, so no DOM node moves (a running stream, typed text, focus, scroll and undo history
+  survive). The button is one absolutely positioned 44 px element on the divider (`right: 380px + inset`, the side
+  column is always 380 px); the bar ends next to it get 32 px padding. The choice lives in the store (`chatMain`,
+  localStorage `karpathy.chatMain`).
+- **Chat opens notes** (`lib/chat.ts`, `ChatPane` `useChat`): a pure open tracker per chat view (`seen`, `later`,
+  `loaded`). The first history load only marks completed `open_note` calls as seen; later loads (reattach,
+  visibility change) and live events open unseen completed calls. Outside the wide layout the last open of the turn
+  waits for `idle`. `show(path)` checks `isEditing()` (editor focused or unsaved text) at that moment: open the note,
+  or toast "AI opened …". A completed open renders as an "opened" chip that reopens the note.
 - **Store** (`store.tsx`): one `useAppState` hook in a React context holds the token, vaults, status, open note, save
   pipeline (autosave 1.5 s, drafts, retries), the vault event stream and routing (`#/<vault>/<path>`).
 - **Editor** (`Editor.tsx`, `lib/cm.ts`): CodeMirror 6 with decorations only, so the Markdown text, frontmatter and
@@ -103,17 +113,41 @@ on its own ([deployment.md › Website](deployment.md#website)).
 | `lock.ts` | Per-vault reader/writer lock with writer preference (shared: `save`, `turn`; exclusive: every git operation). |
 | `watcher.ts` | chokidar on the vault root, 300 ms debounce → `files-changed` + status events. |
 | `chat.ts` | Chats and turns: per-vault queue (one running turn), pull before each turn, stream fan-out, abort, adoption of busy sessions after a restart. |
-| `harness/opencode.ts`, `harness/map.ts` | The only code that knows opencode: an ACP-shaped `Harness` interface and the mapping of opencode events to app events. |
+| `harness/opencode.ts`, `harness/map.ts` | The only code that knows opencode: an ACP-shaped `Harness` interface and the mapping of opencode events to app events. Tool names live only here: `WRITE_TOOLS` set `ToolCall.writes`, `OPEN_TOOLS` (`open_note`) set `ToolCall.opens`. |
 | `commit-message.ts` | Proposes commit messages with a throwaway, tool-less session. |
 | `config-store.ts` | Atomic, serialized writes to `/config/config.json`; also holds the GitHub token set in the app. |
 
 ### opencode (`deploy/opencode`)
 
-Stock image plus a **managed config** at `/etc/opencode/opencode.json` (merged last, so a vault can't override it):
+The pinned stock image (`deploy/opencode/Dockerfile`) plus a **managed config** at `/etc/opencode/opencode.json` (merged last, so a vault can't override it):
 agents `vault` (edits allowed except `.git` and harness config), `vault-readonly` (default; used during conflicts) and
 `commit-message` (no tools); `bash`, `webfetch`, `websearch`, `task`, `question` and `external_directory` denied;
 reading `*.env` denied; snapshots, sharing and auto-update off. The image has no git binary, so opencode can't detect
 a worktree and stays confined to the session directory (the vault root).
+
+**Custom tool `open_note`** (`deploy/opencode/tools/open_note.ts`, path check in `deploy/opencode/lib/resolve-note.ts`):
+checks that `path` resolves inside `context.directory`, exists, is a file and has no dot segment, then returns
+`opened <path>`; it reads no content and opens nothing itself — the web app reacts to the completed tool part. It is
+loaded from a global config dir that comes only from the image (`XDG_CONFIG_HOME=/opt/opencode-config`), allowed
+explicitly for `vault` and `vault-readonly`. opencode writes `package.json` etc. into every config dir and installs
+`@opencode-ai/plugin` there on startup, so the Dockerfile pre-bakes the dir with one throwaway `opencode serve`
+(each poll bounded by a 2 s `wget` timeout; on failure the build prints opencode's log), then makes it root-owned and
+read-only; at runtime it loads offline. Helpers can't live in `tools/` (every export there becomes a tool).
+
+```mermaid
+sequenceDiagram
+  participant O as opencode (open_note)
+  participant H as backend harness/map.ts
+  participant C as backend chat.ts
+  participant S as web useChat (ChatPane)
+  participant A as web store openNote
+  O->>O: resolve path in the vault root; missing / outside → tool error
+  O-->>H: tool part completed (input.path)
+  H->>C: part {call: {path, opens: true, writes: false}}
+  C-->>S: NDJSON part event
+  S->>S: open tracker: unseen + completed?
+  S->>A: wide: now · phone / tablet: on idle · editing: toast instead
+```
 
 ### Proxy (`deploy/proxy`)
 
@@ -317,11 +351,20 @@ The ones that shape the whole system:
 - **Runtime = docker compose in dev and prod**, nothing native in dev. Rancher Desktop bind mounts deliver no
   inotify events, so the dev `web` and `backend` containers poll for source changes.
 - **Read-only git commands run with `GIT_OPTIONAL_LOCKS=0`**: status polling raced with Discard on `index.lock`.
+- **The AI shows notes through a server-side, check-only tool** (`open_note`), not a client-side function: the agent
+  loop runs in opencode on the server, so the browser can't execute tools. The UI learns about it from the existing
+  tool part (`ToolCall.opens`), not a new event type, so replay and reattach follow the same rules as every chip. The
+  tool is baked into the image; a backend MCP endpoint was rejected because it would need an auth exemption or the
+  bearer token inside opencode.
+- **Swapping main and side column is CSS only** (`order`/`flex`): a keyed reorder in JSX keeps component state but
+  moves DOM nodes, which drops keyboard focus and resets scroll positions. Cost: Tab order doesn't follow the visual
+  order when the chat is in main.
 
 ## Testing
 
 - **No mocks:** integration tests use real git (local bare repos as remotes, a second clone plays "Obsidian") and
-  the real opencode container. A scripted fake LLM provider would count as a mock.
+  the real opencode container — built from `deploy/opencode/Dockerfile` (`kai-test-opencode`), so tests load the same
+  config and tools as prod; CI builds it once before `npm test`. A scripted fake LLM provider would count as a mock.
 - **Three tiers:** *default* (`npm test`, every push: unit + git integration + opencode lifecycle, no secrets; chat
   tests use a model name Ollama doesn't have, so turns fail fast and the lifecycle is tested without an LLM),
   *`@github`* (nightly + locally: against the private throwaway repo `tillg/karpathy-app-test-vault`, pushing only

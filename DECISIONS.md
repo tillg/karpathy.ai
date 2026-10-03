@@ -69,6 +69,7 @@ edited: 2026-10-03
   - [12:45 — Review fixes: chat link consistency, kept players across streamed tokens, forged placeholders, data: images, remote links](#run-2026-10-03-0925-29)
   - [12:45 — Review fixes: incremental Write-mode embeds, paren paths, comments; raw route dot rules; PDF Open](#run-2026-10-03-0925-30)
   - [12:45 — Review items left as they are, and why](#run-2026-10-03-0925-31)
+  - [13:08 — Fix the CI race in the egress test helper; treat one DELETE 405 as a flake](#run-2026-10-03-0925-32)
 
 # 2026-10-02 17:16 — Clean up the specs/ sub-directories {#run-2026-10-02-1716}
 
@@ -814,3 +815,18 @@ edited: 2026-10-03
 - **Why:** time and tool limits; each is covered now.
 - **Alternatives:** a response header with the size.
 - **Consequences:** an SVG in a vault behind Caddy shows no size on its card.
+
+## 13:08 — Fix the CI race in the egress test helper; treat one DELETE 405 as a flake {#run-2026-10-03-0925-32}
+
+- **Status:** open
+- **Context:** CI on `cfcad7d` failed: `docker inspect kai-test-target` → "No such object" in two test files. The
+  helper from the web-search fix let parallel workers race while the pinned alpine image was being pulled. Locally, a
+  cold full backend run once failed `plan-gaps` › "DELETE removes the local clone directory" with 405; the second
+  cold run was 215/215, and the test passes alone.
+- **Question:** How to fix the race, and what to do about the 405?
+- **Decision:** Pull the image up front, replace only exited/dead containers, wait until both containers run
+  (`b27c9d7`, CI green). The 405 is left as a flake under load; not investigated further.
+- **Why:** the race is deterministic on a cold runner; the 405 didn't reproduce and isn't in the code paths changed
+  today.
+- **Alternatives:** retry CI (hides the race).
+- **Consequences:** if the DELETE 405 recurs, it deserves an issue.

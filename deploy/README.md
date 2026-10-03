@@ -153,6 +153,50 @@ The access token is a fixed value in the vault, not generated at startup; it cha
 change it in the vault (and the next deploy restarts the stack with it). The `local` vault holds
 test values only.
 
+### The GitHub token
+
+The app uses **one** GitHub token for every vault: to check a repo when you add it, and to clone, pull and push.
+It comes from the app's **Settings → GitHub** if one is set there, otherwise from the `GITHUB_TOKEN` secret that
+`just secrets <target>` asks for. Use a **fine-grained personal access token** that can reach only the vault repos.
+
+**Create it** at GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens**
+(<https://github.com/settings/personal-access-tokens>) → **Generate new token**:
+
+| Field | Value |
+|---|---|
+| Token name | e.g. `karpathy.app hetzner` (one token per target) |
+| Resource owner | the account that owns the vault repos |
+| Expiration | your choice; the app's **Test token** shows the expiry date |
+| Repository access | **Only select repositories**: every repo you use as a vault |
+| Permissions → Repository permissions | **Contents: Read and write** (Metadata: read-only is added by GitHub) |
+
+Then paste it in the app (**Settings → GitHub → Save token**, takes effect on the next git operation, no restart)
+or put it in the vault with `just secrets <target>` and deploy.
+
+**Every new vault repo must be added to the token.** Before you add a vault in the app (or right after you
+created its repo), edit the token: Fine-grained tokens → the token → **Edit** → Repository access → add the repo
+→ **Update**. The token's value doesn't change, so nothing needs to be re-entered in the app.
+
+**Why this is easy to miss:** a fine-grained token can *read* every public repo, also ones it wasn't given. So a
+public repo that isn't on the token's list attaches, clones and passes **Test token** (which checks read access
+only) — and then **Commit & Push** fails with:
+
+```text
+remote: Permission to <owner>/<repo>.git denied to <user>.
+… The requested URL returned error: 403
+```
+
+The commit stays local ("1 unpushed commit · retry"); add the repo to the token and press **retry**. A private
+repo that isn't on the list fails earlier, already when you add the vault: the form shows git's error
+(GitHub answers "Repository not found" rather than revealing that the repo exists).
+
+**Renaming a repo** on GitHub keeps it on the token's list (GitHub tracks the repo, not its name), but update the
+vault's repo name in the app (vault details → Edit vault) so it doesn't rely on GitHub's redirect.
+
+**When it expires,** git operations fail with 401 and **Test token** says "GitHub rejected the token (401)":
+regenerate the token on the same page (**Regenerate token**, same repos and permissions) and save the new value in
+the app.
+
 ## A new server, start to finish
 
 1. Book it (Ubuntu 24.04, your SSH key, firewalls `no-inbound` + `setup-ssh`, backups on) and note

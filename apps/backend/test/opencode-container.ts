@@ -57,25 +57,38 @@ export function ensureEgress(): number {
     docker('build', '-q', '-t', EGRESS_IMAGE, '-f', join(REPO, 'deploy/egress/Dockerfile'), REPO);
     egressBuilt = true;
   }
-  const start = (name: string, ...args: string[]) => {
+  const status = (name: string) => {
     try {
-      // "created": another parallel worker is starting it right now.
-      if (['running', 'created'].includes(docker('inspect', '-f', '{{.State.Status}}', name))) return;
-      docker('rm', '-f', name);
+      return docker('inspect', '-f', '{{.State.Status}}', name);
     } catch {
-      // not there
+      return 'missing';
     }
+  };
+  const start = (name: string, ...args: string[]) => {
+    // Only a dead container is replaced: any other state means another parallel worker owns it right now.
+    if (!['missing', 'exited', 'dead'].includes(status(name))) return;
+    if (status(name) !== 'missing') docker('rm', '-f', name);
     try {
       docker('run', '-d', '--name', name, '--network', NET, ...args);
     } catch (e) {
-      if (!String((e as { stderr?: string }).stderr).includes('is already in use')) throw e;
+      const err = String((e as { stderr?: string }).stderr);
+      if (!err.includes('is already in use') && !err.includes('removal of container')) throw e;
     }
+  };
+  // Waits until a container another worker may still be creating is running (CI pulls its image first).
+  const running = (name: string) => {
+    for (let i = 0; i < 120 && status(name) !== 'running'; i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    if (status(name) !== 'running') throw new Error(`${name} is not running (${status(name)})`);
   };
   start(EGRESS, '--cap-drop', 'ALL', '-p', '127.0.0.1::3128', EGRESS_IMAGE);
   // The alpine base of the egress image (digest-pinned): a newer alpine has no httpd applet, the container exited,
   // its name stopped resolving, and the proxy answered 503 (DNS failure) instead of 403 (refused).
-  start(INTERNAL_TARGET, 'alpine@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8', 'sh', '-c', 'while true; do printf "HTTP/1.1 200 OK\\r\\n\\r\\ninternal" | nc -l -p 80; done');
-  if (docker('inspect', '-f', '{{.State.Status}}', INTERNAL_TARGET) !== 'running') throw new Error(`internal target is not running: ${docker('logs', INTERNAL_TARGET)}`);
+  const targetImage = 'alpine@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8';
+  // Pulled up front: a `docker run` that pulls leaves a window in which parallel workers race on the name.
+  docker('pull', '-q', targetImage);
+  start(INTERNAL_TARGET, targetImage, 'sh', '-c', 'while true; do printf "HTTP/1.1 200 OK\\r\\n\\r\\ninternal" | nc -l -p 80; done');
+  running(EGRESS);
+  running(INTERNAL_TARGET);
   return Number(docker('port', EGRESS, '3128/tcp').split('\n')[0]!.split(':').pop());
 }
 
